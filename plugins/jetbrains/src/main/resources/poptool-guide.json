@@ -1,0 +1,188 @@
+[
+  {
+    "id": "features",
+    "title": "主要功能",
+    "icon": "apps",
+    "cards": [
+      {
+        "title": "你的脚本工作台",
+        "body": "管理 PowerShell、Bash、Batch 和 Python 脚本。搜索、筛选、排序，在详情区填写参数、运行或停止，并查看控制台输出。",
+        "icon": "code"
+      },
+      {
+        "title": "Android 调试与设备管理",
+        "body": "应用安装、权限操作、模拟输入、文件导出、截图与 Logcat 等常用命令开箱即用。各工具分别选择并记住目标设备。",
+        "icon": "adb"
+      },
+      {
+        "title": "投屏与联合录制",
+        "body": "在应用内查看设备画面；联合录制画面、系统声音、麦克风与 Logcat，保存 recording.mp4 和 logcat.txt，方便复现问题。",
+        "icon": "screen_share"
+      },
+      {
+        "title": "终端与 Python 环境",
+        "body": "多标签独立 Shell 会话，共用应用的 ADB 与 Python 环境。Python Doctor 检查脚本依赖，确认后安装到专属环境。",
+        "icon": "terminal"
+      },
+      {
+        "title": "Jira → 飞书",
+        "body": "用 JQL 查询 Issue，按负责人组织互动卡片。支持多套方案、预览、立即推送，以及按间隔或每日时刻调度。",
+        "icon": "schedule"
+      },
+      {
+        "title": "日常体验，也照顾到",
+        "body": "调色盘与屏幕取色、系统/浅色/深色外观、托盘快捷入口，以及正式版与 Beta 渠道的应用内更新。",
+        "icon": "palette"
+      },
+      {
+        "title": "积累的工具，可以带走",
+        "body": "单个脚本通过剪贴板分享、导入；全部脚本可在设置中按目录导入、导出。脚本、参数和执行输出默认保存在本机，不作为工具内容上传。",
+        "icon": "folder_open"
+      },
+      {
+        "title": "使用提示",
+        "body": "联合录制需要 Android 11+ 且设备支持 VOICE_PERFORMANCE；部分应用限制内部音频采集。Jira 飞书定时任务需要保持工具箱进程运行。推送、依赖安装和更新等功能会访问相关服务。",
+        "icon": "info"
+      }
+    ]
+  },
+  {
+    "id": "start",
+    "title": "快速开始",
+    "icon": "play_circle",
+    "cards": [
+      {
+        "title": "1. 打开「自定义」→「新建脚本」",
+        "body": "填写名称和说明，选择图标及脚本类型。下方模板均标注了对应类型。"
+      },
+      {
+        "title": "2. 粘贴模板，保存脚本",
+        "body": "用占位符标记每次运行需要修改的值，工具箱会自动生成参数控件。"
+      },
+      {
+        "title": "3. 填参数，选设备",
+        "body": "在右侧「参数配置」填写内容。涉及 Android 时，先开启 USB 调试并授权，再选择「目标设备」。"
+      },
+      {
+        "title": "4. 点击「运行脚本」，查看输出",
+        "body": "文本框旁的保存图标可将当前输入设为默认值；下次选择脚本或重启应用后仍然保留。"
+      },
+      {
+        "title": "使用提示",
+        "body": "脚本类型要与内容一致。 Windows 运行 Bash 需要可用的 Bash 环境，如 Git Bash；Windows 内置终端首次使用时按提示准备 PowerShell 7，macOS 使用系统 Shell。",
+        "icon": "info"
+      }
+    ]
+  },
+  {
+    "id": "syntax",
+    "title": "参数语法",
+    "icon": "tune",
+    "cards": [
+      {
+        "title": "自由输入",
+        "code": "${标题}",
+        "body": "例如 ${包名}，每次运行前输入内容。"
+      },
+      {
+        "title": "带默认值",
+        "code": "${标题:默认值}",
+        "body": "例如 ${数量:3}。默认值用冒号分隔，数值类型需要脚本自行转换。"
+      },
+      {
+        "title": "固定选项",
+        "code": "${触摸点显示:开启=1|关闭=0}",
+        "body": "左侧是显示文字，右侧是实际值；用竖线分隔选项，第一项为默认选项。"
+      },
+      {
+        "title": "选择已有文件",
+        "code": "${APK安装包@file:C:\\Downloads\\example.apk}",
+        "body": "也可写为 ${APK安装包@file}。点击按钮选文件，或直接修改路径。"
+      },
+      {
+        "title": "选择文件夹",
+        "code": "${日志目录@dir:C:\\Logs}",
+        "body": "也可写为 ${日志目录@dir}。支持直接输入或拖入文件夹路径。"
+      },
+      {
+        "title": "声明一次，多处复用",
+        "code": "Var level = ${日志级别:信息=I|警告=W|错误=E}\nadb logcat \"*:${level}\"",
+        "body": "Var 放在脚本开头，正文通过内部名称引用；声明行会在执行前移除，不是脚本语言本身的语法。"
+      },
+      {
+        "title": "使用提示",
+        "body": "引号需要自己写。 工具箱不会自动添加引号或转义特殊字符；含空格的路径应按脚本语言加引号。参数名使用中文、字母、数字或下划线；占位符定义不能包含花括号或换行。不可信输入不能仅靠引号保证安全。",
+        "icon": "info"
+      }
+    ]
+  },
+  {
+    "id": "templates",
+    "title": "脚本模板",
+    "icon": "code",
+    "cards": [
+      {
+        "title": "显示 Android 触摸点 PowerShell",
+        "body": "生成一个开关选项下拉框。需要已连接并授权的 Android 设备。",
+        "code": "adb shell settings put system show_touches ${触摸点显示:开启=1|关闭=0}\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
+      },
+      {
+        "title": "查看日志目录 PowerShell",
+        "body": "生成文件夹选择器；用 Var 让路径在检查和列出文件时复用。无需 Android 设备。",
+        "code": "Var logs = ${日志目录@dir}\n\n$ErrorActionPreference = \"Stop\"\nif (-not (Test-Path -LiteralPath \"${logs}\" -PathType Container)) {\n    Write-Error \"请选择有效的日志目录\"\n    exit 1\n}\nGet-ChildItem -LiteralPath \"${logs}\" -File |\n    Select-Object Name, Length, LastWriteTime"
+      },
+      {
+        "title": "按数量输出序号 Python",
+        "body": "生成数量输入框，默认 3；演示显式转换和范围校验，仅使用 Python 标准库。",
+        "code": "import sys\n\ntry:\n    count = int(\"${数量:3}\")\nexcept ValueError:\n    sys.exit(\"数量必须是整数\")\n\nif not 1 <= count <= 100:\n    sys.exit(\"请输入 1 到 100 之间的数量\")\n\nfor number in range(1, count + 1):\n    print(f\"第 {number} 项\")"
+      },
+      {
+        "title": "使用提示",
+        "body": "模板按普通受信任输入编写。路径示例不要输入双引号、换行或 PowerShell 表达式；Python 数量框仅填写整数。校验发生在文本替换之后，不能代替转义。",
+        "icon": "info"
+      }
+    ]
+  },
+  {
+    "id": "tips",
+    "title": "常见问题",
+    "icon": "help_outline",
+    "cards": [
+      {
+        "title": "如何保存默认值？",
+        "body": "在文本参数框中输入内容，点击右侧「设为默认值」保存图标。文件和文件夹参数的保存按钮在选择按钮左侧。空输入也可保存以清空默认值；运行期间不可保存，下拉框和开关不使用此按钮。"
+      },
+      {
+        "title": "ADB 命令会在哪台设备上运行？",
+        "body": "应用通常自动检测脚本中的 ADB 调用。动态拼接识别不到时，在编辑器将「Android 设备」设为「使用」。界面通过 ANDROID_SERIAL 指定设备；脚本中显式使用 adb -s、-d、-e 或 -t 时，以脚本为准。已选设备断开不会自动改用其他设备。"
+      },
+      {
+        "title": "如何分享和迁移脚本？",
+        "body": "单个脚本：详情区点击「分享」，接收方用「自定义 → 导入」读取剪贴板。批量迁移：使用「设置 → 脚本目录 → 导出脚本 / 导入脚本」。导入前自动备份，同路径文件使用导入版本，其他本地脚本保留；外观、设备记录和推送方案不随脚本迁移。"
+      },
+      {
+        "title": "Python 缺依赖或脚本未停止怎么办？",
+        "body": "通过 Python Doctor 检查并安装依赖，或在内置终端使用 pip install。脚本可在详情区停止；同一个脚本不能重复启动。关闭主窗口只是隐藏到托盘，需要完全退出时使用托盘菜单的「退出」。"
+      }
+    ]
+  },
+  {
+    "id": "plugins",
+    "title": "插件管理",
+    "icon": "extension",
+    "cards": [
+      {
+        "title": "选择安装版本",
+        "body": "在设置的插件区域安装、更新、修复或卸载 Python、Android 工具（ADB + scrcpy）及 PowerShell。集成版附带 Python 和 Android 工具，纯净版不附带插件，两种版本均需单独安装 PowerShell。"
+      },
+      {
+        "title": "更新与卸载",
+        "body": "插件更新采用官方稳定版，需要手动执行。Python 升级会先迁移原有依赖，失败时保留旧环境。卸载 Python 会同时删除其依赖，用户脚本、配置及输出会保留。已卸载插件不会因应用重启或升级自动恢复。"
+      },
+      {
+        "title": "运行中的插件",
+        "body": "插件正在使用时请先结束终端、脚本或投屏任务。ADB 后台服务仍在运行时，可点击“停止设备服务”，再更新或卸载 Android 工具。再次手动刷新设备会恢复扫描。缺少 Python 或 Android 工具不会影响纯净版启动。"
+      }
+    ]
+  }
+]

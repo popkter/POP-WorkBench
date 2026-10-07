@@ -1,0 +1,34 @@
+<idea-plugin>
+  <id>com.poptools.scripts</id>
+  <name>NicoTools</name>
+  <version>0.1.0</version>
+  <vendor>PopTool</vendor>
+  <description><![CDATA[
+    <p>NicoTools creates, imports and runs custom scripts using system tools and the IDE console.</p>
+    <p>Supports parameter forms, terminal selection, script sharing and batch migration.
+    Python, PowerShell, Bash, adb and scrcpy are supplied by the user. Currently tested on Windows with Android Studio.</p>
+    <p>Open source under the MIT License. Copyright (c) 2026 popkter.
+    <a href="https://github.com/popkter/PopToolProject/tree/develop/plugins/jetbrains">Source code</a> ·
+    <a href="https://github.com/popkter/PopToolProject/blob/develop/plugins/jetbrains/LICENSE">License</a>.</p>
+  ]]></description>
+  <idea-version since-build="261"/>
+  <depends>com.intellij.modules.platform</depends>
+  <depends>org.jetbrains.plugins.terminal</depends>
+  <depends>org.jetbrains.android</depends>
+  <extensions defaultExtensionNs="com.intellij">
+    <applicationService serviceImplementation="com.poptools.scripts.ScriptLibrary"/>
+    <applicationConfigurable instance="com.poptools.scripts.EnvironmentSettings" id="poptools.environments" displayName="NicoTools"/>
+    <toolWindow id="NicoTools" anchor="right" icon="/icons/nicoTools.svg" factoryClass="com.poptools.scripts.ScriptToolWindow"/>
+    <postStartupActivity implementation="com.poptools.scripts.TerminalIntegration"/>
+  </extensions>
+  <actions>
+    <action id="PopTool.NewFromTerminal" class="com.poptools.scripts.NewFromTerminalAction" text="新建 NicoTools 自定义脚本" description="将终端选区添加到新建脚本正文">
+      <add-to-group group-id="Terminal.ReworkedTerminalContextMenu" anchor="last"/>
+      <add-to-group group-id="Terminal.OutputContextMenu" anchor="last"/>
+      <add-to-group group-id="Terminal.PromptContextMenu" anchor="last"/>
+    </action>
+    <action id="PopTool.ManageScripts" class="com.poptools.scripts.ManageScriptsAction" text="NicoTools" icon="/icons/nicoTools.svg">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+  </actions>
+</idea-plugin>
