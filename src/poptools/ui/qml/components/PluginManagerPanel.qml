@@ -90,37 +90,34 @@ ColumnLayout {
         property string pluginName: ""
         parent: Overlay.overlay
         width: Math.min(Theme.dialogWidth, parent.width - Theme.space24)
-        leftPadding: Theme.space16; rightPadding: Theme.space16
         closePolicy: Popup.CloseOnEscape
         contentItem: ColumnLayout {
             spacing: Theme.space16
-            Text {
+            DialogHeading {
                 Layout.fillWidth: true
-                text: "卸载 " + confirm.pluginName + "？"
-                color: Theme.textPrimary; font.pixelSize: Theme.fontDialogTitle
-                font.weight: Font.DemiBold; wrapMode: Text.Wrap
+                title: "卸载 " + confirm.pluginName + "？"
+                iconName: "delete_outline"
+                destructive: true
             }
             Text {
                 Layout.fillWidth: true
                 text: "卸载后相关功能将不可用。" + (confirm.pluginId === "python" ? "Python 环境及已安装依赖也会删除。" : "") + "用户脚本、配置和输出文件会保留。"
-                color: Theme.textSecondary; font.pixelSize: Theme.fontDialogDescription
+                color: Theme.textSecondary; font.pixelSize: Theme.fontBody
                 wrapMode: Text.Wrap
             }
+            Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
             RowLayout {
-                Layout.fillWidth: true; spacing: Theme.space16
-                PrimaryButton {
-                    objectName: "confirmPluginUninstall"
-                    Layout.fillWidth: true; Layout.preferredWidth: 0
-                    implicitHeight: Theme.controlHeightLarge
-                    text: "卸载"; iconName: "delete_outline"
-                    color: Theme.dangerAction; border.color: Theme.errorColor
-                    foregroundColor: Theme.textPrimary
-                    onClicked: confirm.accept()
+                Layout.fillWidth: true; spacing: Theme.space8
+                Item { Layout.fillWidth: true }
+                DialogActionButton {
+                    text: "取消"
+                    onClicked: confirm.reject()
                 }
-                PrimaryButton {
-                    Layout.fillWidth: true; Layout.preferredWidth: 0
-                    implicitHeight: Theme.controlHeightLarge
-                    text: "取消"; iconName: ""; onClicked: confirm.reject()
+                DialogActionButton {
+                    objectName: "confirmPluginUninstall"
+                    text: "卸载"; iconName: "delete_outline"
+                    destructive: true
+                    onClicked: confirm.accept()
                 }
             }
         }

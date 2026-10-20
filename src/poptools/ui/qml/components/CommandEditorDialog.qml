@@ -249,41 +249,17 @@ AppDialog {
 
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 92
+            Layout.preferredHeight: 88
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 22
+                anchors.leftMargin: Theme.space24
                 anchors.rightMargin: Theme.space16
                 spacing: 14
-                Rectangle {
-                    Layout.preferredWidth: 48
-                    Layout.preferredHeight: 48
-                    radius: Theme.radiusMedium
-                    color: Theme.primaryContainer
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        icon: root.editMode ? "edit_note" : "add_circle"
-                        iconSize: 28
-                        color: Theme.primary
-                    }
-                }
-                ColumnLayout {
+                DialogHeading {
                     Layout.fillWidth: true
-                    spacing: 3
-                    Text {
-                        text: root.editMode ? "编辑脚本" : "新建脚本"
-                        color: Theme.textPrimary
-                        font.pixelSize: Theme.fontDialogTitle
-                        font.weight: Font.Bold
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        text: "命令和脚本内容将保存在本地配置中"
-
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontSupporting
-                        elide: Text.ElideRight
-                    }
+                    title: root.editMode ? "编辑脚本" : "新建脚本"
+                    description: "命令和脚本内容将保存在本地配置中"
+                    iconName: root.editMode ? "edit_note" : "add_circle"
                 }
                 PrimaryButton {
                     Layout.preferredWidth: 42
@@ -319,8 +295,8 @@ AppDialog {
 
                 GridLayout {
                     Layout.fillWidth: true
-                    Layout.leftMargin: 22
-                    Layout.rightMargin: 22
+                    Layout.leftMargin: Theme.space24
+                    Layout.rightMargin: Theme.space24
                     columns: width < 560 ? 1 : 2
                     columnSpacing: 14
                     rowSpacing: 12
@@ -335,16 +311,16 @@ AppDialog {
                             FilePathDropArea { target: titleField }
                             AppTextEditMenu { target: titleField }
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 50
+                            Layout.preferredHeight: Theme.inputHeight
                             leftPadding: 64
                             rightPadding: 15
                             placeholderText: "例如：打开系统设置"
                             color: Theme.textPrimary
                             background: Rectangle {
-                                radius: Theme.radiusMedium
-                                color: Theme.surface
+                                radius: Theme.radiusControl
+                                color: Theme.surfaceContainer
                                 border.color: titleField.activeFocus || iconPopup.opened
-                                              ? Theme.primary : Theme.outline
+                                              ? Theme.primary : Theme.outlineVariant
                                 border.width: titleField.activeFocus || iconPopup.opened ? 2 : 1
                             }
 
@@ -431,11 +407,17 @@ AppDialog {
                         AppComboBox {
                             id: kindBox
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 50
+                            Layout.preferredHeight: Theme.inputHeight
                             model: root.commandKinds
                             textRole: "label"
                             valueRole: "value"
                             leftPadding: 14
+                            background: Rectangle {
+                                radius: Theme.radiusControl
+                                color: Theme.surfaceContainer
+                                border.color: kindBox.activeFocus ? Theme.primary : Theme.outlineVariant
+                                border.width: kindBox.activeFocus ? 2 : 1
+                            }
                         }
                     }
                 }
@@ -443,8 +425,8 @@ AppDialog {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.leftMargin: 22
-                    Layout.rightMargin: 22
+                    Layout.leftMargin: Theme.space24
+                    Layout.rightMargin: Theme.space24
                     spacing: 6
                     Text { text: "功能说明"; color: Theme.textPrimary; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold }
                     AppTextField {
@@ -452,7 +434,7 @@ AppDialog {
                         FilePathDropArea { target: descriptionField }
                         AppTextEditMenu { target: descriptionField }
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 50
+                        Layout.preferredHeight: Theme.inputHeight
                         leftPadding: 15
                         rightPadding: 15
                         topPadding: 12
@@ -461,9 +443,9 @@ AppDialog {
                         wrapMode: TextEdit.Wrap
                         color: Theme.textPrimary
                         background: Rectangle {
-                            radius: Theme.radiusMedium
-                            color: Theme.surface
-                            border.color: descriptionField.activeFocus ? Theme.primary : Theme.outline
+                            radius: Theme.radiusControl
+                            color: Theme.surfaceContainer
+                            border.color: descriptionField.activeFocus ? Theme.primary : Theme.outlineVariant
                             border.width: descriptionField.activeFocus ? 2 : 1
                         }
                     }
@@ -471,8 +453,8 @@ AppDialog {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.leftMargin: 22
-                    Layout.rightMargin: 22
+                    Layout.leftMargin: Theme.space24
+                    Layout.rightMargin: Theme.space24
                     spacing: 10
                     Text {
                         text: "Android 设备"
@@ -489,6 +471,12 @@ AppDialog {
                         model: root.androidModes
                         textRole: "label"
                         valueRole: "value"
+                        background: Rectangle {
+                            radius: Theme.radiusControl
+                            color: Theme.surfaceContainer
+                            border.color: androidModeBox.activeFocus ? Theme.primary : Theme.outlineVariant
+                            border.width: androidModeBox.activeFocus ? 2 : 1
+                        }
                     }
                     Text {
                         Layout.fillWidth: true
@@ -503,9 +491,9 @@ AppDialog {
                     Layout.fillWidth: true
                     Layout.minimumHeight: 140
                     Layout.preferredHeight: Math.max(140, Math.min(292, root.height - 428))
-                    Layout.leftMargin: 22
-                    Layout.rightMargin: 22
-                    radius: Theme.radiusLarge
+                    Layout.leftMargin: Theme.space24
+                    Layout.rightMargin: Theme.space24
+                    radius: Theme.radiusMedium
                     color: Theme.surfaceContainerLow
                     border.color: Theme.outlineVariant
                     border.width: 1
@@ -517,7 +505,7 @@ AppDialog {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 54
+                            Layout.preferredHeight: 44
                             Layout.leftMargin: 18
                             Layout.rightMargin: 16
                             spacing: Theme.space8
@@ -530,6 +518,9 @@ AppDialog {
                             }
                             Item { Layout.fillWidth: true }
                             Text {
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignRight
+                                elide: Text.ElideRight
                                 text: "参数格式：${名称@类型:默认值}；支持文本、多行、数字、复选框、下拉、单选、路径和密码"
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontMicro
@@ -579,22 +570,22 @@ AppDialog {
                 }
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.leftMargin: 22
-                    Layout.rightMargin: 22
+                    Layout.leftMargin: Theme.space24
+                    Layout.rightMargin: Theme.space24
                     Layout.preferredHeight: helperText.implicitHeight + 22
                     radius: Theme.radiusMedium
-                    color: Theme.tealContainer
+                    color: Theme.surfaceContainer
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 13
                         anchors.rightMargin: 13
                         spacing: 9
-                        MaterialIcon { icon: "info"; iconSize: 20; color: Theme.teal }
+                        MaterialIcon { icon: "info"; iconSize: 20; color: Theme.textSecondary }
                         Text {
                             id: helperText
                             Layout.fillWidth: true
                             text: "例如 ${次数@integer:3}、${启用@boolean:true}、${模式@choice:开启=1|关闭=0}、${环境@radio:开发=dev|生产=prod}。省略类型默认文本；旧版写法继续兼容。重复参数可用 Var 声明；@secret 隐藏输入且不能保存默认值。"
-                            color: Theme.teal
+                            color: Theme.textSecondary
                             font.pixelSize: Theme.fontCaption
                             wrapMode: Text.WordWrap
                         }
@@ -617,9 +608,10 @@ AppDialog {
             wrapMode: Text.Wrap
         }
 
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 76
+            Layout.preferredHeight: 80
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.space20
@@ -627,7 +619,7 @@ AppDialog {
                 spacing: 10
 
                 Item { Layout.fillWidth: true }
-                PrimaryButton {
+                DialogActionButton {
                     implicitWidth: 104
                     implicitHeight: 40
                     text: "取消"
@@ -635,9 +627,10 @@ AppDialog {
                     iconName: "close"
                     onClicked: root.close()
                 }
-                PrimaryButton {
+                DialogActionButton {
                     implicitWidth: 120
                     implicitHeight: 40
+                    primaryAction: true
                     text: root.editMode ? "保存" : "创建"
                     iconName: root.editMode ? "save" : "add"
                     onClicked: root.submit()

@@ -16,6 +16,8 @@ Dialog {
 
     background: AppPopupSurface {
         cornerRadius: Theme.radiusCard
+        fillColor: Theme.surfaceContainerLow
+        outlineColor: Theme.outlineVariant
         dialogSurface: true
     }
 }

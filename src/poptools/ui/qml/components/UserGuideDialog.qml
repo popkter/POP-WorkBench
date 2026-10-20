@@ -29,16 +29,13 @@ AppDialog {
         spacing: Theme.space16
         RowLayout {
             Layout.fillWidth: true; spacing: Theme.space12
-            MaterialIcon { icon: "menu_book"; iconSize: 28; color: Theme.primary }
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: Theme.space4
-                Text { text: "使用手册"; color: Theme.textPrimary; font.pixelSize: Theme.fontDialogTitle; font.weight: Font.DemiBold }
-                Text {
-                    Layout.fillWidth: true; text: "了解功能、编写脚本，以及管理运行环境"
-                    color: Theme.textSecondary; font.pixelSize: Theme.fontPageDescription; wrapMode: Text.Wrap
-                }
+            DialogHeading {
+                Layout.fillWidth: true
+                title: "使用手册"
+                description: "了解功能、编写脚本，以及管理运行环境"
+                iconName: "menu_book"
             }
-            PrimaryButton {
+            DialogActionButton {
                 objectName: "closeUserGuideButton"
                 Layout.preferredWidth: Theme.controlHeight
                 Layout.preferredHeight: Theme.controlHeight
@@ -58,7 +55,7 @@ AppDialog {
             Layout.fillWidth: true; spacing: Theme.space8
             Repeater {
                 model: root.sections
-                delegate: PrimaryButton {
+                delegate: DialogActionButton {
                     required property var modelData
                     required property int index
                     objectName: "guideSection_" + modelData.id
@@ -88,7 +85,7 @@ AppDialog {
                         required property var modelData
                         Layout.fillWidth: true
                         implicitHeight: cardContent.implicitHeight + Theme.space32
-                        radius: Theme.radiusCard; color: Theme.surfaceContainerLow; border.color: Theme.outlineVariant
+                        radius: Theme.radiusMedium; color: Theme.surfaceContainer; border.color: Theme.outlineVariant
                         ColumnLayout {
                             id: cardContent
                             anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.space16 }
@@ -101,7 +98,7 @@ AppDialog {
                                     color: Theme.textPrimary; font.pixelSize: Theme.fontTitleSmall
                                     font.weight: Font.DemiBold; wrapMode: Text.Wrap
                                 }
-                                PrimaryButton {
+                                DialogActionButton {
                                     visible: !!modelData.code
                                     text: "复制"; iconName: "content_copy"; tonal: true; implicitHeight: Theme.controlHeightSmall
                                     onClicked: root.copied(modelData.code)
@@ -143,9 +140,10 @@ AppDialog {
                 color: root.copyStatus ? Theme.success : Theme.textSecondary
                 font.pixelSize: Theme.fontCaption; wrapMode: Text.Wrap
             }
-            PrimaryButton {
+            DialogActionButton {
                 objectName: "finishUserGuideButton"
-                text: "我知道了"; iconName: ""; implicitHeight: Theme.controlHeightLarge
+                primaryAction: true
+                text: "我知道了"; iconName: ""; implicitHeight: Theme.controlHeight
                 onClicked: root.finishGuide()
             }
         }

@@ -16,8 +16,6 @@ AppDialog {
 
     width: Math.min(Theme.dialogWidth, parentWindow.width - 24)
     height: Math.min(body.implicitHeight + topPadding + bottomPadding, parentWindow.height - 24)
-    leftPadding: Theme.space16
-    rightPadding: Theme.space16
     anchors.centerIn: Overlay.overlay
     modal: true
     closePolicy: Popup.CloseOnEscape
@@ -43,53 +41,42 @@ AppDialog {
         id: body
         spacing: Theme.space16
 
-        RowLayout {
+        DialogHeading {
             Layout.fillWidth: true
-            spacing: Theme.space12
-
-            Text {
-                Layout.fillWidth: true
-                text: root.replacementMode ? "发现相同 ID 的脚本" : "无法导入脚本"
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontDialogTitle
-                font.weight: Font.Bold
-            }
+            title: root.replacementMode ? "替换现有脚本？" : "无法导入脚本"
+            description: root.replacementMode ? "导入的脚本与本地脚本使用相同 ID" : "请检查脚本文件后重试"
+            iconName: root.replacementMode ? "swap_horiz" : "error_outline"
+            destructive: !root.replacementMode
         }
-        Text {
+        DialogMessage {
             Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 32
             text: root.replacementMode
                   ? "导入的“" + root.incomingTitle + "”与现有脚本“"
                     + root.existingTitle + "”使用相同 ID。是否替换现有脚本？"
                   : root.errorMessage
-            color: Theme.textSecondary
-            font.pixelSize: Theme.fontDialogDescription
-            wrapMode: Text.WordWrap
         }
-
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.space16
+            spacing: Theme.space8
+            Item { Layout.fillWidth: true }
 
-            PrimaryButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 0
-                implicitHeight: Theme.controlHeightLarge
-                radius: Theme.radiusMedium
+            DialogActionButton {
+                implicitHeight: Theme.controlHeight
+                radius: Theme.radiusControl
                 text: root.replacementMode ? "取消" : "关闭"
                 iconName: ""
                 tonal: true
-                color: Theme.surfaceContainerLow
-                border.color: Theme.outline
-                foregroundColor: Theme.textPrimary
                 onClicked: root.close()
             }
-            PrimaryButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 0
+            DialogActionButton {
                 visible: root.replacementMode
-                implicitHeight: Theme.controlHeightLarge
-                radius: Theme.radiusMedium
+                implicitHeight: Theme.controlHeight
+                radius: Theme.radiusControl
                 text: "确认替换"
+                primaryAction: true
                 iconName: ""
                 onClicked: {
                     var result = root.controller.confirmScriptImportReplacement()

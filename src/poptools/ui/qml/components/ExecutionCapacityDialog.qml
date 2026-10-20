@@ -25,34 +25,29 @@ AppDialog {
     }
 
     contentItem: ColumnLayout {
-        spacing: 14
+        spacing: Theme.space16
 
-        MaterialIcon {
-            icon: "swap_horiz"
-            iconSize: 36
-            color: Theme.primary
-        }
-        Text {
-            text: "运行名额已用完"
-            font.pixelSize: Theme.fontDialogTitle
-            font.weight: Font.Bold
-            color: Theme.textPrimary
-        }
-        Text {
+        DialogHeading {
             Layout.fillWidth: true
+            title: "运行名额已用完"
+            description: "停止一个正在运行的任务后可继续"
+            iconName: "swap_horiz"
+        }
+        DialogMessage {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 32
             text: "是否停止最先运行的“" + root.victimTitle
                   + "”，并开始“" + root.requestedTitle + "”？"
-            color: Theme.textSecondary
-            font.pixelSize: Theme.fontBody
-            wrapMode: Text.WordWrap
         }
-        Item { Layout.fillHeight: true }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
         RowLayout {
             Layout.fillWidth: true
+            spacing: Theme.space8
             Item { Layout.fillWidth: true }
-            PrimaryButton {
+            DialogActionButton {
                 implicitWidth: 110
-                implicitHeight: 48
+                implicitHeight: Theme.controlHeight
                 text: "取消"
                 iconName: "close"
                 tonal: true
@@ -61,10 +56,11 @@ AppDialog {
                     root.close()
                 }
             }
-            PrimaryButton {
+            DialogActionButton {
                 implicitWidth: 150
-                implicitHeight: 48
+                implicitHeight: Theme.controlHeight
                 text: "停止并运行"
+                primaryAction: true
                 iconName: "play_arrow"
                 onClicked: {
                     root.controller.confirmExecutionReplacement()

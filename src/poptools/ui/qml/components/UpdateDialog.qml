@@ -9,7 +9,7 @@ AppDialog {
     required property var parentWindow
 
     readonly property real maximumDialogHeight: Math.min(600, parentWindow.height - 24)
-    readonly property real availableDialogChromeHeight: 176
+    readonly property real availableDialogChromeHeight: 200
     readonly property real maximumReleaseCardHeight: Math.max(
         76, maximumDialogHeight - availableDialogChromeHeight)
 
@@ -18,7 +18,7 @@ AppDialog {
             ? Math.min(maximumDialogHeight,
                        Math.max(300, releaseCard.implicitHeight
                                 + availableDialogChromeHeight))
-            : Math.min(300, parentWindow.height - 24)
+            : Math.min(340, parentWindow.height - 24)
     anchors.centerIn: Overlay.overlay
     modal: true
     padding: Theme.space24
@@ -30,41 +30,16 @@ AppDialog {
     contentItem: ColumnLayout {
         spacing: Theme.space16
 
-        RowLayout {
+        DialogHeading {
             Layout.fillWidth: true
-            spacing: Theme.space12
-            Rectangle {
-                Layout.preferredWidth: 48
-                Layout.preferredHeight: 48
-                radius: height / 2
-                color: Theme.primaryContainer
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    icon: root.controller.state === "downloaded" ? "download_done" : "system_update"
-                    iconSize: 27
-                    color: Theme.primaryText
-                }
-            }
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
-                Text {
-                    text: root.controller.state === "downloading" ? "正在下载更新"
-                          : root.controller.state === "downloaded" ? "更新已准备好"
-                          : root.controller.state === "error" ? "更新遇到问题"
-                          : "发现新版本"
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontDialogTitle
-                    font.weight: Font.Bold
-                }
-                Text {
-                    visible: root.controller.availableVersion.length > 0
-                    text: "当前 " + root.controller.currentVersion
-                          + "  →  最新 " + root.controller.availableVersion
-                    color: Theme.textSecondary
-                    font.pixelSize: Theme.fontSupporting
-                }
-            }
+            iconName: root.controller.state === "downloaded" ? "download_done" : "system_update"
+            title: root.controller.state === "downloading" ? "正在下载更新"
+                   : root.controller.state === "downloaded" ? "更新已准备好"
+                   : root.controller.state === "installing" ? "正在安装更新"
+                   : root.controller.state === "error" ? "更新遇到问题" : "发现新版本"
+            description: root.controller.availableVersion.length > 0
+                         ? "当前 " + root.controller.currentVersion + "  →  最新 " + root.controller.availableVersion : ""
+            destructive: root.controller.state === "error"
         }
 
         Rectangle {
@@ -72,10 +47,12 @@ AppDialog {
             visible: root.controller.state === "available"
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
+            Layout.minimumHeight: 0
+            Layout.fillHeight: true
             implicitHeight: Math.min(root.maximumReleaseCardHeight,
                                      releaseContent.implicitHeight + 32)
             radius: Theme.radiusMedium
-            color: Theme.surfaceContainerLow
+            color: Theme.surfaceContainer
             border.color: Theme.outlineVariant
             ColumnLayout {
                 id: releaseContent
@@ -136,6 +113,7 @@ AppDialog {
                      || root.controller.state === "installing"
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.minimumHeight: 0
             spacing: 6
             Item { Layout.fillHeight: true }
             Item {
@@ -154,6 +132,7 @@ AppDialog {
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontComponentTitle
                 horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
             }
             AppProgressBar {
                 visible: root.controller.state === "downloading"
@@ -162,8 +141,6 @@ AppDialog {
                 to: 100
                 value: root.controller.downloadProgress
                 indeterminate: root.controller.totalSize.length === 0
-                
-                
             }
             Text {
                 visible: root.controller.state === "downloading"
@@ -190,71 +167,74 @@ AppDialog {
                 anchors.margins: 18
                 spacing: Theme.space12
                 MaterialIcon { icon: "error"; iconSize: 28; color: Theme.errorColor }
-                Text {
+                DialogMessage {
                     Layout.fillWidth: true
+                    Layout.fillHeight: true
                     text: root.controller.status
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontBody
-                    wrapMode: Text.WordWrap
+                    foregroundColor: Theme.textPrimary
                 }
             }
         }
 
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
             Item { Layout.fillWidth: true }
-            PrimaryButton {
+            DialogActionButton {
                 visible: root.controller.state === "available"
-                implicitWidth: 112; implicitHeight: Theme.controlHeightLarge; radius: Theme.radiusControl
+                implicitWidth: 112; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
                 text: "下次提醒"; iconName: "schedule"; tonal: true
                 onClicked: root.close()
             }
-            PrimaryButton {
+            DialogActionButton {
                 visible: root.controller.state === "available"
-                implicitWidth: 128; implicitHeight: Theme.controlHeightLarge; radius: Theme.radiusControl
+                implicitWidth: 128; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
                 text: "跳过此版本"; iconName: "skip_next"; tonal: true
                 onClicked: {
                     root.controller.skipVersion()
                     root.close()
                 }
             }
-            PrimaryButton {
+            DialogActionButton {
                 visible: root.controller.state === "available"
-                implicitWidth: 122; implicitHeight: Theme.controlHeightLarge; radius: Theme.radiusControl
+                implicitWidth: 122; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
+                primaryAction: true
                 text: "立即更新"; iconName: "download"
                 onClicked: root.controller.downloadUpdate()
             }
-            PrimaryButton {
+            DialogActionButton {
                 visible: root.controller.state === "downloading"
-                implicitWidth: 120; implicitHeight: Theme.controlHeightLarge; radius: Theme.radiusControl
+                implicitWidth: 120; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
                 text: "取消下载"; iconName: "close"; tonal: true
                 onClicked: root.controller.cancelDownload()
             }
-            PrimaryButton {
+            DialogActionButton {
                 visible: root.controller.state === "downloaded"
-                implicitWidth: 116; implicitHeight: Theme.controlHeightLarge; radius: Theme.radiusControl
+                implicitWidth: 116; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
                 text: "稍后安装"; iconName: "schedule"; tonal: true
                 onClicked: {
                     if (root.controller.installLater())
                         root.close()
                 }
             }
-            PrimaryButton {
+            DialogActionButton {
                 visible: root.controller.state === "downloaded"
-                implicitWidth: 150; implicitHeight: Theme.controlHeightLarge; radius: Theme.radiusControl
+                implicitWidth: 150; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
+                primaryAction: true
                 text: "安装并重启"; iconName: "restart_alt"
                 onClicked: root.controller.installAndRestart()
             }
-            PrimaryButton {
+            DialogActionButton {
                 visible: root.controller.state === "error"
-                implicitWidth: 104; implicitHeight: Theme.controlHeightLarge; radius: Theme.radiusControl
+                implicitWidth: 104; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
                 text: "关闭"; iconName: "close"; tonal: true
                 onClicked: root.close()
             }
-            PrimaryButton {
+            DialogActionButton {
                 visible: root.controller.state === "error"
-                implicitWidth: 112; implicitHeight: Theme.controlHeightLarge; radius: Theme.radiusControl
+                implicitWidth: 112; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
+                primaryAction: true
                 text: "重试"; iconName: "refresh"
                 onClicked: root.controller.retryUpdate()
             }
