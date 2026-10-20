@@ -82,13 +82,16 @@ class AppController(QObject):
     consoleTextChanged = Signal()
     runningChanged = Signal()
     statusTextChanged = Signal()
-    hiddenPresetCategoriesChanged = Signal()
     pythonDoctorWarning = Signal(str)
     pythonDoctorInstallSuggestion = Signal(str)
     pythonDependencyInstallFinished = Signal(bool, str)
     executionCapacityRequested = Signal(str, str)
     toolSortModeChanged = Signal()
     recentToolDialogRequested = Signal(str)
+    customToolsChanged = Signal()
+    toolConsoleChanged = Signal(str)
+    toolStatusChanged = Signal(str)
+    commandSaveFailed = Signal(str)
 
     def __init__(
         self,
@@ -110,8 +113,8 @@ class AppController(QObject):
             ToolSection.CUSTOM.value: "",
             ToolSection.PRESET.value: "",
         }
-        self._hidden_preset_categories = set(config_store.hidden_preset_categories())
         self._console_texts = {"": "14:20:15  泡泡工具箱 已就绪\n"}
+        self._tool_statuses: dict[str, str] = {}
         self._pending_console_chunks: dict[str, list[str]] = {}
         self._console_refresh_timer = QTimer(self)
         self._console_refresh_timer.setSingleShot(True)
@@ -158,10 +161,13 @@ class AppController(QObject):
 
     @Property("QVariantMap", notify=selectedToolDataChanged)
     def selectedTool(self) -> dict[str, Any]:
-        if self._selected is None:
+        return self.tool_data(self._selected)
+
+    def tool_data(self, tool: ToolDefinition | None) -> dict[str, Any]:
+        if tool is None:
             return {}
-        data = self._selected.to_qml()
-        analysis = self._analyze_tool(self._selected)
+        data = tool.to_qml()
+        analysis = self._analyze_tool(tool)
         data["parameters"] = [
             {**parameter, "kind": "text"}
             if parameter["kind"] == ParameterKind.ANDROID_DEVICE.value else parameter
@@ -174,12 +180,20 @@ class AppController(QObject):
         data["android_detection_reason"] = analysis.reason
         data["workspace"] = (
             "scrcpy"
-            if self.execution_coordinator.is_scrcpy(self._selected)
+            if self.execution_coordinator.is_scrcpy(tool)
             else "preset"
-            if self._selected.executor.kind == ExecutorKind.INTERNAL
+            if tool.executor.kind == ExecutorKind.INTERNAL
             else "command"
         )
         return data
+
+    @Slot(str, result=QObject)
+    def createToolSession(self, tool_id: str) -> QObject | None:
+        if self.registry.get(tool_id) is None:
+            return None
+        from poptools.viewmodels.tool_session_controller import ToolSessionController
+
+        return ToolSessionController(self, tool_id)
 
     @Property(str, notify=consoleTextChanged)
     def consoleText(self) -> str:
@@ -194,26 +208,6 @@ class AppController(QObject):
     @Property(str, notify=statusTextChanged)
     def statusText(self) -> str:
         return self._status_text
-
-    @Property("QStringList", notify=hiddenPresetCategoriesChanged)
-    def hiddenPresetCategories(self) -> list[str]:
-        return sorted(self._hidden_preset_categories)
-
-    @Slot(str, bool)
-    def setPresetCategoryHidden(self, category: str, hidden: bool) -> None:
-        category = category.strip()
-        if not category or category not in {
-            "模拟相关", "环境相关", "硬件相关", "跳转相关", "其他设备操作", "其他预设"
-        }:
-            return
-        if hidden:
-            self._hidden_preset_categories.add(category)
-        else:
-            self._hidden_preset_categories.discard(category)
-        self.config_store.set_hidden_preset_categories(
-            sorted(self._hidden_preset_categories)
-        )
-        self.hiddenPresetCategoriesChanged.emit()
 
     @Property(str, constant=True)
     def pythonEnvironmentDirectory(self) -> str:
@@ -258,16 +252,22 @@ class AppController(QObject):
 
     @Slot(str)
     def openRecentToolFromTray(self, tool_id: str) -> None:
+        self.open_custom_tool_shortcut(tool_id)
+
+    def open_custom_tool_shortcut(self, tool_id: str) -> bool | None:
+        tool = self.registry.get(tool_id)
+        if tool is None or tool.section != ToolSection.CUSTOM:
+            return None
         self.selectTool(tool_id)
         if self._selected is None or self._selected.id != tool_id:
-            return
+            return None
 
         parameters = self._selected.parameters
         if not parameters and not self._analyze_tool(self._selected).uses_adb:
-            self.runSelected({})
-            return
+            return self.runSelected({})
 
         self.recentToolDialogRequested.emit(tool_id)
+        return None
 
     def getPresetTools(self) -> list[dict[str, str]]:
         """Return tray-accessible preset tools, excluding screen mirroring."""
@@ -301,7 +301,6 @@ class AppController(QObject):
         if self._selected is not None and self._selected.section == self._section:
             self._section_selections[self._section.value] = self._selected.id
         self._section = target
-        self._tools_model.set_category("")
         self.sectionChanged.emit()
         self.sectionTitleChanged.emit()
         remembered_id = self._section_selections.get(target.value, "")
@@ -329,24 +328,6 @@ class AppController(QObject):
         self.runningChanged.emit()
         self._status_text = "运行中" if self.running else "就绪"
         self.statusTextChanged.emit()
-
-    @Slot(str, result=bool)
-    def selectFirstPresetInCategory(self, category: str) -> bool:
-        """Select the first preset carrying the requested category tag."""
-
-        if self._section != ToolSection.PRESET:
-            return False
-        self._tools_model.set_category(category)
-        tool_id = self._tools_model.first_tool_id()
-        if tool_id:
-            self.selectTool(tool_id)
-            return True
-        return False
-
-    @Slot(str)
-    def setPresetCategory(self, category: str) -> None:
-        if self._section == ToolSection.PRESET:
-            self._tools_model.set_category(category)
 
     @Slot()
     def clearToolSelection(self) -> None:
@@ -405,43 +386,46 @@ class AppController(QObject):
     def runSelected(self, values: dict[str, Any]) -> bool:
         if self._selected is None:
             return False
-        analysis = self._analyze_tool(self._selected)
+        return self.run_tool(self._selected.id, values)
+
+    def set_tool_status(self, tool_id: str, status: str) -> None:
+        self._tool_statuses[tool_id] = status
+        self.toolStatusChanged.emit(tool_id)
+        if self._selected is not None and self._selected.id == tool_id:
+            self._status_text = status
+            self.statusTextChanged.emit()
+
+    def run_tool(self, tool_id: str, values: dict[str, Any]) -> bool:
+        tool = self.registry.get(tool_id)
+        if tool is None:
+            return False
+        analysis = self._analyze_tool(tool)
         selected_device = (
-            self.android_controller.available_device_for_tool(self._selected.id)
+            self.android_controller.available_device_for_tool(tool.id)
             if analysis.uses_adb else ""
         )
         if analysis.needs_device and not selected_device:
-            self._append_console("请在当前脚本的“目标设备”中选择已连接的 Android 设备。\n")
-            self._status_text = "等待 Android 设备"
-            self.statusTextChanged.emit()
+            self.append_tool_console(
+                tool.id, "请在当前脚本的“目标设备”中选择已连接的 Android 设备。\n",
+            )
+            self.set_tool_status(tool.id, "等待 Android 设备")
             return False
 
         run_values = dict(values)
         run_values.pop("__android_device__", None)
         if selected_device:
-            for parameter in self._selected.parameters:
+            for parameter in tool.parameters:
                 if parameter.kind == ParameterKind.ANDROID_DEVICE:
                     run_values[parameter.id] = selected_device
             run_values["__android_device__"] = selected_device
-        started = self._start_execution(run_values, selected_device)
-        if not started:
-            self._status_text = "就绪"
-            self.statusTextChanged.emit()
-        return started
-
-    def _start_execution(self, values: dict[str, Any], selected_device: str) -> bool:
-        if self._selected is None:
-            return False
-        self._status_text = "正在启动"
-        self.statusTextChanged.emit()
+        self.set_tool_status(tool.id, "正在启动")
         started = self.execution_coordinator.start(
-            self._selected,
-            values,
+            tool,
+            run_values,
             selected_device,
         )
         if not started:
-            self._status_text = "就绪"
-            self.statusTextChanged.emit()
+            self.set_tool_status(tool.id, "就绪")
         return started
 
     @Slot()
@@ -492,6 +476,7 @@ class AppController(QObject):
             or (self._selected.section != ToolSection.CUSTOM and not self._selected.editable)
             or self.running
         ):
+            self.commandSaveFailed.emit("当前脚本不可编辑或正在运行，请停止运行后重试。")
             return False
         try:
             self.registry.update_tool(
@@ -512,6 +497,7 @@ class AppController(QObject):
             return True
         except Exception as exc:
             self._append_console(f"保存失败：{exc}\n")
+            self.commandSaveFailed.emit(f"保存失败：{exc}")
             return False
 
     @Slot(str, str, result=bool)
@@ -586,6 +572,7 @@ class AppController(QObject):
             return True
         except Exception as exc:
             self._append_console(f"新建失败：{exc}\n")
+            self.commandSaveFailed.emit(f"新建失败：{exc}")
             return False
 
     @Slot(result=bool)
@@ -877,6 +864,7 @@ class AppController(QObject):
             target_id = tools[0].id
         self._selected = self.registry.get(target_id) if target_id else None
         self._tools_model.set_tools(tools, target_id, running_ids)
+        self.customToolsChanged.emit()
         if notify_selected:
             self.selectedToolChanged.emit()
         self.consoleTextChanged.emit()
@@ -887,6 +875,9 @@ class AppController(QObject):
     def _sorted_tools(self, tools: list[ToolDefinition]) -> list[ToolDefinition]:
         if self._section != ToolSection.CUSTOM:
             return tools
+        return self.sorted_custom_tools(tools)
+
+    def sorted_custom_tools(self, tools: list[ToolDefinition]) -> list[ToolDefinition]:
         tool_ids = [tool.id for tool in tools]
         added_times = self.config_store.tool_added_times(tool_ids)
         if self._tool_sort_mode == "added_time":
@@ -956,19 +947,20 @@ class AppController(QObject):
         tool = self.registry.get(tool_id)
         if tool is not None:
             self._record_tool_usage(tool)
-        if self._selected is not None and self._selected.id == tool_id:
-            self._status_text = "运行中"
-            self.statusTextChanged.emit()
+        self.set_tool_status(tool_id, "运行中")
 
     def _record_tool_usage(self, tool: ToolDefinition) -> None:
         if tool.section != ToolSection.CUSTOM:
             return
         self.config_store.record_tool_recent(tool.id)
         self.config_store.increment_tool_usage(tool.id)
+        self.customToolsChanged.emit()
         if self._tool_sort_mode == "usage":
-            self._refresh(select_id=tool.id, notify_selected=False)
+            selected_id = self._selected.id if self._selected is not None else ""
+            self._refresh(select_id=selected_id, notify_selected=False)
 
     def _on_execution_running_changed(self, tool_id: str, running: bool) -> None:
+        self.set_tool_status(tool_id, "运行中" if running else "就绪")
         tool = self.registry.get(tool_id)
         if tool is not None and tool.section == ToolSection.CUSTOM:
             selected_id = self._selected.id if self._selected is not None else ""
@@ -980,28 +972,35 @@ class AppController(QObject):
             return
         if self._selected is not None and self._selected.id == tool_id:
             self.runningChanged.emit()
-            self._status_text = "运行中" if running else "就绪"
-            self.statusTextChanged.emit()
 
     def _on_execution_finished(self, tool_id: str, exit_code: int) -> None:
         self._flush_console()
+        self.set_tool_status(tool_id, "执行成功" if exit_code == 0 else f"执行失败 ({exit_code})")
         if self._selected is None or self._selected.id != tool_id:
             return
         self.runningChanged.emit()
-        self._status_text = "执行成功" if exit_code == 0 else f"执行失败 ({exit_code})"
-        self.statusTextChanged.emit()
 
 
 
     def _append_console(self, text: str) -> None:
         self._commit_console("", text)
 
-    def _queue_console(self, _tool_id: str, text: str) -> None:
+    def append_tool_console(self, tool_id: str, text: str) -> None:
+        self._commit_console("", text)
+        if tool_id:
+            self._commit_console(tool_id, text)
+
+    def clear_tool_console(self, tool_id: str) -> None:
+        self._pending_console_chunks.pop(tool_id, None)
+        self._console_texts[tool_id] = ""
+        self.toolConsoleChanged.emit(tool_id)
+
+    def _queue_console(self, tool_id: str, text: str) -> None:
         """Coalesce high-volume process output before notifying the QML text view."""
         if not text:
             return
-        key = ""
-        self._pending_console_chunks.setdefault(key, []).append(text)
+        for key in ("", tool_id) if tool_id else ("",):
+            self._pending_console_chunks.setdefault(key, []).append(text)
         if not self._console_refresh_timer.isActive():
             self._console_refresh_timer.start()
 
@@ -1012,11 +1011,16 @@ class AppController(QObject):
         self._pending_console_chunks = {}
         for key, chunks in pending.items():
             self._store_console(key, "".join(chunks))
+            if key:
+                self.toolConsoleChanged.emit(key)
         self.consoleTextChanged.emit()
 
     def _commit_console(self, key: str, text: str) -> None:
         self._store_console(key, text)
-        self.consoleTextChanged.emit()
+        if key:
+            self.toolConsoleChanged.emit(key)
+        else:
+            self.consoleTextChanged.emit()
 
     def _store_console(self, key: str, text: str) -> None:
         value = self._console_texts.get(key, "")

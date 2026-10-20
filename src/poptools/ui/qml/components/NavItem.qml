@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 
-Rectangle {
+Item {
     id: root
     clip: true
     required property string label
@@ -17,14 +17,14 @@ Rectangle {
     signal actionClicked()
 
     implicitHeight: compact ? Theme.navigationItemHeight : (dense ? Theme.controlHeightLarge : 52)
-    radius: compact ? Theme.radiusSmall : Theme.radiusMedium
-    color: selected ? Theme.primaryContainer
-                   : (mouseArea.containsMouse
-                      ? (Theme.navigationHover)
-                      : (root.compact ? Theme.navigationHover : "transparent"))
-    border.width: 0
-    border.color: selected ? (Theme.navigationActiveBorder)
-                           : (Theme.navigationBorder)
+
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: root.compact ? Theme.navigationItemInset : 0
+        radius: root.compact ? Theme.radiusSmall : Theme.radiusMedium
+        color: root.selected ? Theme.navigationSelected
+                             : (mouseArea.containsMouse ? Theme.navigationHover : "transparent")
+    }
 
     RowLayout {
         z: 1
@@ -38,11 +38,11 @@ Rectangle {
         Item { visible: root.compact; Layout.fillWidth: true }
         MaterialIcon {
             icon: root.iconName
-            iconSize: root.compact ? 24 : 21
+            iconSize: root.compact ? Theme.navigationIconSize : 21
             color: root.selected ? (Theme.navigationActiveIcon)
                                  : (Theme.navigationIcon)
-            Layout.preferredWidth: 24
-            Layout.preferredHeight: 32
+            Layout.preferredWidth: root.compact ? Theme.navigationIconSize : 24
+            Layout.preferredHeight: root.compact ? Theme.navigationIconSize : 32
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
         }
         Text {

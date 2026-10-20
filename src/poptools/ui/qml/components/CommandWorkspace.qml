@@ -21,10 +21,7 @@ ColumnLayout {
     readonly property real parameterItemSpacing: 13
     readonly property real parameterItemHeight:
         parameterLabelHeight + parameterLabelSpacing + parameterInputHeight
-    readonly property real parameterFieldsHeight: parameterCount > 0
-        ? parameterCount * parameterItemHeight
-            + (parameterCount - 1) * parameterItemSpacing
-        : 0
+    readonly property real parameterFieldsHeight: parameterFlow.childrenRect.height
     readonly property real parameterContentHeight: parameterFieldsHeight
         + (deviceSelector.visible ? deviceSelector.implicitHeight + spacing : 0)
 
@@ -176,7 +173,8 @@ ColumnLayout {
                 delegate: Column {
                     required property var modelData
                     width: parameterFlow.width
-                    height: root.parameterItemHeight
+                    height: root.parameterLabelHeight + root.parameterLabelSpacing
+                        + parameterInputLoader.height
                     spacing: root.parameterLabelSpacing
 
                     Text {
@@ -192,9 +190,12 @@ ColumnLayout {
                         id: parameterInputLoader
                         readonly property real singleLineHeight: root.parameterInputHeight
                         width: parent.width
-                        height: singleLineHeight
+                        height: modelData.kind === "multiline" ? 108
+                            : modelData.kind === "radio" && item
+                            ? Math.max(singleLineHeight, item.implicitHeight) : singleLineHeight
                         sourceComponent: modelData.kind === "multiline" ? multilineField
                                          : modelData.kind === "choice" ? choiceField
+                                         : modelData.kind === "radio" ? radioField
                                          : modelData.kind === "boolean" ? booleanField : normalField
 
                         Component {
@@ -204,12 +205,22 @@ ColumnLayout {
                                 readonly property bool pathPickerVisible:
                                     modelData.kind === "file" || modelData.kind === "directory"
                                 implicitHeight: parameterInputLoader.singleLineHeight
-                                text: String(modelData.default || "")
+                                text: String(modelData.default ?? "")
                                 placeholderText: modelData.placeholder || ""
                                 color: Theme.textPrimary
                                 font.pixelSize: Theme.fontBody
                                 leftPadding: Theme.space16
-                                rightPadding: pathPickerVisible ? 88 : 48
+                                rightPadding: pathPickerVisible ? 88 : modelData.kind === "secret" ? 16 : 48
+                                validator: modelData.kind === "integer" ? integerValidator
+                                    : modelData.kind === "number" ? numberValidator : null
+                                RegularExpressionValidator {
+                                    id: integerValidator
+                                    regularExpression: /[+-]?[0-9]+/
+                                }
+                                RegularExpressionValidator {
+                                    id: numberValidator
+                                    regularExpression: /[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/
+                                }
                                 echoMode: modelData.kind === "secret"
                                           ? TextInput.Password : TextInput.Normal
                                 background: Rectangle {
@@ -250,6 +261,7 @@ ColumnLayout {
                                 }
 
                                 PrimaryButton {
+                                    visible: modelData.kind !== "secret"
                                     anchors.right: parent.right
                                     anchors.rightMargin: normalTextField.pathPickerVisible ? 48 : Theme.space8
                                     anchors.verticalCenter: parent.verticalCenter
@@ -311,7 +323,7 @@ ColumnLayout {
                             TextArea {
                                 id: multilineTextArea
                                 implicitHeight: parameterInputLoader.singleLineHeight
-                                text: String(modelData.default || "")
+                                text: String(modelData.default ?? "")
                                 placeholderText: modelData.placeholder || ""
                                 color: Theme.textPrimary
                                 font.pixelSize: Theme.fontBody
@@ -368,7 +380,7 @@ ColumnLayout {
                                 textRole: choiceOptions.length > 0
                                     && typeof choiceOptions[0] === "object" ? "label" : ""
                                 currentIndex: {
-                                    const expected = String(modelData.default || "")
+                                    const expected = String(modelData.default ?? "")
                                     for (let index = 0; index < count; index++) {
                                         if (String(choiceControl.optionValue(index)) === expected)
                                             return index
@@ -386,19 +398,32 @@ ColumnLayout {
                         }
 
                         Component {
+                            id: radioField
+                            ParameterRadioGroup {
+                                options: modelData.options || []
+                                currentValue: String(modelData.default ?? "")
+                                onValueChanged: function(value) {
+                                    root.parameterValues[modelData.id] = value
+                                }
+                            }
+                        }
+
+                        Component {
                             id: booleanField
                             Rectangle {
                                 implicitHeight: parameterInputLoader.singleLineHeight
                                 radius: Theme.radiusMedium
                                 color: Theme.surface
                                 border.color: Theme.outline
-                                AppSwitch {
+                                AppCheckBox {
                                     anchors.fill: parent
                                     anchors.leftMargin: Theme.space12
                                     anchors.rightMargin: Theme.space12
                                     text: checked ? "已启用" : "未启用"
-                                    checked: Boolean(modelData.default)
+                                    checked: modelData.default === true
+                                        || String(modelData.default).toLowerCase() === "true"
                                     onToggled: root.parameterValues[modelData.id] = checked
+                                    Component.onCompleted: root.parameterValues[modelData.id] = checked
                                 }
                             }
                         }

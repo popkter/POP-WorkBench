@@ -15,7 +15,7 @@ from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, QUrl,
 from PySide6.QtGui import QDesktopServices
 
 from poptools.domain.models import ExecutorKind, ParameterKind, ToolDefinition
-from poptools.domain.parameter_templates import render_template
+from poptools.domain.parameter_templates import render_template, validate_parameter_value
 from poptools.infrastructure.background_process import BackgroundProcess
 from poptools.infrastructure.config_store import ConfigStore
 from poptools.infrastructure.python_environment import PythonEnvironment
@@ -61,6 +61,15 @@ class ExecutionManager(QObject):
     def start(self, tool: ToolDefinition, values: dict[str, Any]) -> bool:
         if self.running:
             self.output.emit("已有任务正在运行，请先停止。\n")
+            return False
+        values = dict(values)
+        try:
+            for parameter in tool.parameters:
+                values[parameter.id] = validate_parameter_value(
+                    parameter, values.get(parameter.id, parameter.default)
+                )
+        except ValueError as exc:
+            self.output.emit(f"{exc}\n")
             return False
         missing = [
             parameter.label

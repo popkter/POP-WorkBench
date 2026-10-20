@@ -1,6 +1,8 @@
+import json
+
 import pytest
-from PySide6.QtCore import QMetaObject, QObject, QUrl
-from PySide6.QtQml import QQmlComponent, QQmlEngine
+from PySide6.QtCore import QMetaObject, QObject, Qt, QUrl
+from PySide6.QtQml import QQmlComponent, QQmlEngine, QQmlProperty
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
 
@@ -9,6 +11,89 @@ from poptools.infrastructure.python_environment import PythonEnvironment
 from poptools.paths import AppPaths, package_root
 from poptools.viewmodels.settings_controller import SettingsController
 from poptools.viewmodels.update_controller import UpdateController
+
+
+@pytest.mark.parametrize("panel_width", [410, 520, 800])
+def test_custom_parameters_share_a_frame_and_elide_long_labels(qapp, qtbot, panel_width):
+    kinds = ["text", "file", "directory", "secret", "integer", "number",
+             "choice", "boolean", "multiline"]
+    parameters = [{
+        "id": kind, "label": "Long parameter description " * 8,
+        "kind": kind, "required": index % 2 == 0,
+        "default": False if kind == "boolean" else "value",
+        "options": ["value", "other"],
+    } for index, kind in enumerate(kinds)]
+    engine = QQmlEngine()
+    component = QQmlComponent(engine)
+    component.setData(('''
+import QtQuick
+import QtQuick.Controls
+import "components"
+ApplicationWindow {
+    id: host
+    width: 800; height: 900; visible: true
+    property var parameters: PARAMETERS
+    CustomToolDetailPanel {
+        objectName: "panel"
+        anchors.fill: parent
+        parentWindow: host
+        androidBackend: null
+        parameterValues: ({})
+        actionsInTitleBar: true
+        displayedTool: ({id: "test", title: "Test script", parameters: host.parameters,
+                         executor: {kind: "powershell"}})
+        controller: ({running: false, consoleText: "", statusText: ""})
+    }
+}
+'''.replace("PARAMETERS", json.dumps(parameters))).encode(),
+        QUrl.fromLocalFile(str(package_root() / "ui/qml/InlineParametersHarness.qml")))
+    window = component.create()
+    assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
+    try:
+        assert QTest.qWaitForWindowExposed(window)
+        window.setWidth(panel_width)
+        with qtbot.waitSignal(window.frameSwapped):
+            window.update()
+
+        def visual_items(item):
+            yield item
+            for child in item.childItems():
+                yield from visual_items(child)
+
+        items = {item.objectName(): item for item in visual_items(window.contentItem())}
+        input_positions = []
+        for kind in kinds:
+            row = items["customParameterRow_" + kind]
+            label_cell = items["customParameterLabelCell_" + kind]
+            label = items["customParameterLabel_" + kind]
+            field = items["customParameterInput_" + kind]
+            assert field.width() == pytest.approx(3 * label_cell.width())
+            assert field.x() >= label_cell.x() + label_cell.width()
+            assert field.x() + field.width() == pytest.approx(row.width() - 1)
+            assert label_cell.x() > 0 and field.y() > 0
+            assert label.property("truncated")
+            assert label.width() <= label_cell.width()
+            assert label.y() + label.height() / 2 == pytest.approx(field.height() / 2)
+            assert row.height() == (88 if kind == "multiline" else 42)
+            assert field.height() == row.height() - 2
+            control = field.property("item")
+            if kind != "boolean":
+                assert control.property("background") is None
+            if kind == "text":
+                label_rect = label_cell.mapRectToItem(window.contentItem(),
+                                                     label_cell.boundingRect())
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton,
+                                 pos=label_rect.center().toPoint())
+                qtbot.waitUntil(lambda current=row: current.property("inputFocused"))
+                assert QQmlProperty.read(row, "border.width") == 2
+            input_positions.append(field.x())
+        assert max(input_positions) == pytest.approx(min(input_positions))
+        checkbox = items["customParameterInput_boolean"].property("item")
+        assert checkbox.property("text") == ""  # Its label appears once, in the left column.
+    finally:
+        window.close()
+        window.deleteLater()
+        engine.deleteLater()
 
 
 @pytest.mark.parametrize("panel_width", [410, 520, 800])

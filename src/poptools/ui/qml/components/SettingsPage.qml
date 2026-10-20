@@ -81,19 +81,9 @@ Rectangle {
         anchors.fill: parent
         anchors.leftMargin: Theme.workspaceInset
         anchors.rightMargin: Theme.workspaceInset
-        anchors.topMargin: 0
+        anchors.topMargin: Theme.workspaceInset
         anchors.bottomMargin: Theme.workspaceInset
-        spacing: Theme.space16
-
-        WorkspacePageHeader {
-            Layout.fillWidth: true
-            Layout.preferredHeight: Theme.settingsHeaderHeight
-            Layout.minimumHeight: Theme.settingsHeaderHeight
-            Layout.maximumHeight: Theme.settingsHeaderHeight
-            title: "设置"
-            titlePixelSize: Theme.workspaceTitleSize
-            description: "应用与开发环境配置"
-        }
+        spacing: Theme.space12
 
         Flickable {
             id: settingsFlick
@@ -110,21 +100,21 @@ Rectangle {
                 id: settingsGrid
                 width: parent.width
                 columns: width >= Theme.settingsTwoColumnWidth ? 2 : 1
-                columnSpacing: Theme.space16
-                rowSpacing: Theme.space16
+                columnSpacing: Theme.space12
+                rowSpacing: Theme.space12
 
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignTop
-                    spacing: 14
+                    spacing: Theme.space12
 
                     Card {
                         Layout.fillWidth: true
-                        implicitHeight: appearanceContent.implicitHeight + 32
+                        implicitHeight: appearanceContent.implicitHeight + Theme.space24
                         ColumnLayout {
                             id: appearanceContent
                             anchors.fill: parent
-                            anchors.margins: Theme.space16
+                            anchors.margins: Theme.space12
                             spacing: 10
                             SectionTitle { Layout.fillWidth: true; iconName: "palette"; title: "外观"; description: "选择应用的外观主题" }
                             RowLayout {
@@ -164,11 +154,32 @@ Rectangle {
 
                     Card {
                         Layout.fillWidth: true
-                        implicitHeight: 208
+                        implicitHeight: launcherSettings.implicitHeight + Theme.space24
+                        ColumnLayout {
+                            id: launcherSettings
+                            anchors.fill: parent
+                            anchors.margins: Theme.space12
+                            spacing: Theme.space12
+                            SectionTitle { Layout.fillWidth: true; iconName: "dock"; title: "后台悬浮入口"; description: "切换到其他应用时，在屏幕右侧显示快捷入口" }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { Layout.fillWidth: true; text: "启用悬浮刘海"; color: Theme.textPrimary; font.pixelSize: Theme.fontBody }
+                                ToggleControl {
+                                    objectName: "floatingLauncherToggle"
+                                    checked: root.controller.floatingLauncherEnabled
+                                    onToggled: function(value) { root.controller.saveFloatingLauncherEnabled(value) }
+                                }
+                            }
+                        }
+                    }
+
+                    Card {
+                        Layout.fillWidth: true
+                        implicitHeight: directoryContent.implicitHeight + Theme.space24
                         ColumnLayout {
                             id: directoryContent
                             anchors.fill: parent
-                            anchors.margins: Theme.space16
+                            anchors.margins: Theme.space12
                             spacing: 10
                             SectionTitle { Layout.fillWidth: true; iconName: "folder"; title: "脚本目录"; description: "设置脚本文件的默认存储目录" }
                             PrimaryButton {
@@ -198,10 +209,10 @@ Rectangle {
 
                     Card {
                         Layout.fillWidth: true
-                        implicitHeight: updateContent.implicitHeight + Theme.space32
+                        implicitHeight: updateContent.implicitHeight + Theme.space24
                         ColumnLayout {
                             id: updateContent
-                            anchors.fill: parent; anchors.margins: Theme.space16; spacing: Theme.space12
+                            anchors.fill: parent; anchors.margins: Theme.space12; spacing: Theme.space12
                             RowLayout {
                                 Layout.fillWidth: true
                                 SectionTitle { Layout.fillWidth: true; iconName: "autorenew"; title: "检查更新"; description: "检查新版本并保持应用为最新" }
@@ -273,15 +284,15 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignTop
-                    spacing: 14
+                    spacing: Theme.space12
 
                     Card {
                         objectName: "runtimePluginsCard"
                         Layout.fillWidth: true
-                        implicitHeight: Math.max(281, pluginsContent.implicitHeight + 32)
+                        implicitHeight: pluginsContent.implicitHeight + Theme.space24
                         ColumnLayout {
                             id: pluginsContent
-                            anchors.fill: parent; anchors.margins: Theme.space16; spacing: 10
+                            anchors.fill: parent; anchors.margins: Theme.space12; spacing: 10
                             SectionTitle { Layout.fillWidth: true; iconName: "extension"; title: "插件"; description: "查看与管理脚本运行环境" }
                             PluginManagerPanel {
                                 Layout.fillWidth: true
@@ -315,10 +326,10 @@ Rectangle {
 
                     Card {
                         Layout.fillWidth: true
-                        implicitHeight: Math.max(192, aboutContent.implicitHeight + 32)
+                        implicitHeight: aboutContent.implicitHeight + Theme.space24
                         ColumnLayout {
                             id: aboutContent
-                            anchors.fill: parent; anchors.margins: Theme.space16; spacing: Theme.space8
+                            anchors.fill: parent; anchors.margins: Theme.space12; spacing: Theme.space8
                             SectionTitle { Layout.fillWidth: true; iconName: "info"; title: "关于"; description: "应用信息与相关链接" }
                             RowLayout {
                                 Layout.fillWidth: true; spacing: Theme.space12
@@ -331,7 +342,7 @@ Rectangle {
                             Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.outlineVariant }
                             GridLayout {
                                 Layout.fillWidth: true
-                                columns: 2; columnSpacing: Theme.space16; rowSpacing: 0
+                                columns: 2; columnSpacing: Theme.space12; rowSpacing: 0
                                 LinkButton { text: "访问官网"; iconName: "public"; onClicked: Qt.openUrlExternally(root.controller.appInfoUrl) }
                                 LinkButton { text: "在 GitHub 上查看"; iconName: "code"; onClicked: Qt.openUrlExternally(root.controller.appInfoUrl) }
                                 LinkButton { text: "反馈问题"; iconName: "bug_report"; onClicked: Qt.openUrlExternally(root.controller.appInfoUrl + "/issues") }

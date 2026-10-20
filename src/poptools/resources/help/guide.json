@@ -25,11 +25,6 @@
         "icon": "terminal"
       },
       {
-        "title": "Jira → 飞书",
-        "body": "用 JQL 查询 Issue，按负责人组织互动卡片。支持多套方案、预览、立即推送，以及按间隔或每日时刻调度。",
-        "icon": "schedule"
-      },
-      {
         "title": "日常体验，也照顾到",
         "body": "调色盘与屏幕取色、系统/浅色/深色外观、托盘快捷入口，以及正式版与 Beta 渠道的应用内更新。",
         "icon": "palette"
@@ -41,7 +36,7 @@
       },
       {
         "title": "使用提示",
-        "body": "联合录制需要 Android 11+ 且设备支持 VOICE_PERFORMANCE；部分应用限制内部音频采集。Jira 飞书定时任务需要保持工具箱进程运行。推送、依赖安装和更新等功能会访问相关服务。",
+        "body": "联合录制需要 Android 11+ 且设备支持 VOICE_PERFORMANCE；部分应用限制内部音频采集。依赖安装和更新等功能会访问相关服务。",
         "icon": "info"
       }
     ]
@@ -81,18 +76,38 @@
     "cards": [
       {
         "title": "自由输入",
-        "code": "${标题}",
-        "body": "例如 ${包名}，每次运行前输入内容。"
+        "code": "${标题@text:示例}",
+        "body": "统一格式为 ${名称@类型:默认值}；类型和默认值均可省略。显式 @text 的默认值始终作为文本处理。"
       },
       {
         "title": "带默认值",
-        "code": "${标题:默认值}",
-        "body": "例如 ${数量:3}。默认值用冒号分隔，数值类型需要脚本自行转换。"
+        "code": "${重试次数@integer:3}\n${比例@number:0.5}",
+        "body": "@integer 校验整数，@number 支持整数、小数和科学计数法。输入和运行前都会校验；脚本收到替换后的文本。"
       },
       {
         "title": "固定选项",
-        "code": "${触摸点显示:开启=1|关闭=0}",
+        "code": "${触摸点显示@choice:开启=1|关闭=0}",
         "body": "左侧是显示文字，右侧是实际值；用竖线分隔选项，第一项为默认选项。"
+      },
+      {
+        "title": "多行文本",
+        "code": "${说明@multiline}",
+        "body": "在多行输入框中填写内容，替换时保留换行。脚本需要自行正确处理引号和转义。"
+      },
+      {
+        "title": "复选框",
+        "code": "${启用缓存@boolean:true}",
+        "body": "默认值使用 true 或 false；省略默认值时不勾选。输出为小写 true 或 false。"
+      },
+      {
+        "title": "单选按钮组",
+        "code": "${环境@radio:开发=dev|生产=prod}",
+        "body": "显示标签，输出对应值；第一项为默认选项。选项较多时自动换行。"
+      },
+      {
+        "title": "密码输入",
+        "code": "${访问令牌@secret}",
+        "body": "隐藏输入内容。密码参数不能声明非空默认值，也不能通过保存按钮保存默认值。"
       },
       {
         "title": "选择已有文件",
@@ -106,8 +121,12 @@
       },
       {
         "title": "声明一次，多处复用",
-        "code": "Var level = ${日志级别:信息=I|警告=W|错误=E}\nadb logcat \"*:${level}\"",
-        "body": "Var 放在脚本开头，正文通过内部名称引用；声明行会在执行前移除，不是脚本语言本身的语法。"
+        "code": "Var level = ${日志级别@choice:信息=I|警告=W|错误=E}\nadb logcat \"*:${level}\"",
+        "body": "Var 放在脚本开头，关键字不区分大小写，var 也有效；正文通过内部名称引用。声明行会在执行前移除，不是脚本语言本身的语法。"
+      },
+      {
+        "title": "兼容旧脚本",
+        "body": "旧版 ${名称}、${名称:默认值}、${名称=默认值}、${标题:开启=1|关闭=0}、${开启=1|关闭=0} 和 pVal 声明继续有效。新脚本推荐显式标注 @类型。"
       },
       {
         "title": "使用提示",
@@ -124,7 +143,7 @@
       {
         "title": "显示 Android 触摸点 PowerShell",
         "body": "生成一个开关选项下拉框。需要已连接并授权的 Android 设备。",
-        "code": "adb shell settings put system show_touches ${触摸点显示:开启=1|关闭=0}\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
+        "code": "adb shell settings put system show_touches ${触摸点显示@choice:开启=1|关闭=0}\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
       },
       {
         "title": "查看日志目录 PowerShell",
@@ -134,7 +153,7 @@
       {
         "title": "按数量输出序号 Python",
         "body": "生成数量输入框，默认 3；演示显式转换和范围校验，仅使用 Python 标准库。",
-        "code": "import sys\n\ntry:\n    count = int(\"${数量:3}\")\nexcept ValueError:\n    sys.exit(\"数量必须是整数\")\n\nif not 1 <= count <= 100:\n    sys.exit(\"请输入 1 到 100 之间的数量\")\n\nfor number in range(1, count + 1):\n    print(f\"第 {number} 项\")"
+        "code": "import sys\n\ntry:\n    count = int(\"${数量@integer:3}\")\nexcept ValueError:\n    sys.exit(\"数量必须是整数\")\n\nif not 1 <= count <= 100:\n    sys.exit(\"请输入 1 到 100 之间的数量\")\n\nfor number in range(1, count + 1):\n    print(f\"第 {number} 项\")"
       },
       {
         "title": "使用提示",
@@ -150,7 +169,7 @@
     "cards": [
       {
         "title": "如何保存默认值？",
-        "body": "在文本参数框中输入内容，点击右侧「设为默认值」保存图标。文件和文件夹参数的保存按钮在选择按钮左侧。空输入也可保存以清空默认值；运行期间不可保存，下拉框和开关不使用此按钮。"
+        "body": "在非密码文本参数框中输入内容，点击右侧「设为默认值」保存图标。文件和文件夹参数的保存按钮在选择按钮左侧。空输入也可保存以清空默认值；运行期间不可保存，密码、下拉框、单选按钮组和复选框不使用此按钮。"
       },
       {
         "title": "ADB 命令会在哪台设备上运行？",

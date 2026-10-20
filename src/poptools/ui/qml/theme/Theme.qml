@@ -24,13 +24,18 @@ QtObject {
     readonly property color tertiaryContainerHover: darkMode ? "#4A326E" : "#E7DAFF"
     readonly property color tertiaryText: darkMode ? "#E3D2FF" : "#6F42C1"
     readonly property color surface: darkMode ? "#11161E" : "#F8FAFC"
-    readonly property color sidebar: darkMode ? "#171D26" : "#FFFFFF"
+    readonly property color chromeBackground: darkMode ? "#2B2D30" : "#F7F8FA"
+    readonly property color chromeForeground: darkMode ? "#DFE1E5" : "#27282E"
+    readonly property int captionControlWidth: 47
+    readonly property int captionGlyphSize: 10
+    readonly property int captionActionHeight: 28
+    readonly property color sidebar: chromeBackground
     readonly property color workspaceBackground: darkMode ? surface : "#FBFCFE"
-    readonly property color navigationHover: darkMode ? surfaceContainerHigh : "#EEF1F5"
+    readonly property color navigationHover: darkMode ? "#393B40" : "#E9EAEC"
     readonly property color navigationBorder: darkMode ? outlineVariant : "#E0E5EB"
     readonly property color navigationActiveBorder: darkMode ? primary : "#88BFFF"
-    readonly property color navigationIcon: darkMode ? textSecondary : "#53606F"
-    readonly property color navigationActiveIcon: darkMode ? primaryText : "#1478E8"
+    readonly property color navigationIcon: darkMode ? "#CED0D6" : "#6C707E"
+    readonly property color navigationActiveIcon: "#FFFFFF"
     readonly property color listSelected: darkMode ? primaryContainer : "#E5F0FF"
     readonly property color listAlternate: darkMode ? "transparent" : "#FAFBFC"
     readonly property color inputBorder: darkMode ? outline : "#A8CFFF"
@@ -44,7 +49,7 @@ QtObject {
     readonly property color terminalTabHover: darkMode ? surfaceContainerHigh : "#E8ECF1"
     readonly property color terminalTabDivider: darkMode ? outlineVariant : "#D8DDE3"
     readonly property color terminalDropHighlight: "#331B78F2"
-    readonly property color navigationSelected: darkMode ? "#16365F" : "#DCEAFF"
+    readonly property color navigationSelected: "#3574F0"
     readonly property color surfaceContainerLow: darkMode ? "#171E28" : "#FFFFFF"
     readonly property color surfaceContainer: darkMode ? "#1D2530" : "#F5F7FA"
     readonly property color surfaceContainerHigh: darkMode ? "#26313F" : "#EDF1F5"
@@ -147,14 +152,17 @@ QtObject {
     // PopTools / Page 1: Screen / 自定义, Screen / 终端, Screen / 设置.
     // Dimensions are logical pixels; responsive rules use available content width.
     readonly property int windowMinimumWidth: 960
-    readonly property int windowMinimumHeight: 720
-    readonly property int titleBarHeight: 40
-    readonly property int navigationRailWidth: 72
-    readonly property int navigationItemHeight: 44
+    readonly property int windowMinimumHeight: 640
+    readonly property int windowDefaultWidth: 1100
+    readonly property int windowDefaultHeight: 740
+    readonly property int navigationRailWidth: 40
+    readonly property int navigationItemHeight: 40
+    readonly property int navigationIconSize: 20
+    readonly property int navigationItemInset: 5
     readonly property int navigationLogoSize: 40
-    readonly property int workspaceInset: 28
+    readonly property int workspaceInset: 16
     readonly property int workspaceGap: 16
-    readonly property int scriptPanelGap: 18
+    readonly property int scriptPanelGap: 12
     readonly property int settingsHeaderHeight: 80
     readonly property int dialogWidth: 548
     readonly property int fontDialogDescription: 18
@@ -186,7 +194,7 @@ QtObject {
     readonly property int radiusControl: 7
     readonly property int radiusCard: 12
     readonly property int radiusConsole: 8
-    readonly property int detailPanelPadding: 24
+    readonly property int detailPanelPadding: 16
     readonly property int detailActionWidth: 94
     readonly property int detailRunWidth: 108
     readonly property int detailCompactWidth: 440
@@ -199,4 +207,9 @@ QtObject {
     readonly property int motionFast: 120
     readonly property int motionStandard: 180
     readonly property int motionSpinner: 750
+    readonly property int floatingNotchWidth: 44
+    readonly property int floatingGripHeight: 20
+    readonly property int floatingPanelWidth: 360
+    readonly property int floatingPanelHeight: 480
+    readonly property real floatingIdleOpacity: 0.55
 }

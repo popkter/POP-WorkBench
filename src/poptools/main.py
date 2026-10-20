@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import cast
 
 from PySide6.QtCore import QCoreApplication, QUrl
-from PySide6.QtGui import QFont, QFontDatabase, QWindow
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication
 
@@ -20,13 +20,15 @@ from poptools.infrastructure.config_store import ConfigStore
 from poptools.infrastructure.python_environment import prepare_managed_python
 from poptools.infrastructure.single_instance import SingleInstanceLock
 from poptools.infrastructure.system_tray import SystemTrayController
+from poptools.infrastructure.window_chrome import WindowChromeController
 from poptools.infrastructure.windows_integration import (
-    apply_windows_window_effects,
+    apply_windows_title_bar_theme,
     apply_windows_window_icon,
     configure_windows_app_identity,
 )
 from poptools.native_terminal import register_terminal_type
 from poptools.paths import AppPaths, package_root, prepare_bundled_android_tools, resource_path
+from poptools.viewmodels.floating_launcher_controller import FloatingLauncherController
 
 
 def _run_worker(arguments: list[str]) -> int:
@@ -200,6 +202,7 @@ def main() -> int:
         app.aboutToQuit.connect(update_controller.shutdown)
         app.aboutToQuit.connect(jira_feishu_controller.shutdown)
         tray_controller.set_app_controller(controller)
+        floating_controller = FloatingLauncherController(app, controller, settings_controller)
         if python_setup_error:
             settings_controller.setStatus(f"运行环境初始化失败：{python_setup_error}")
 
@@ -216,18 +219,31 @@ def main() -> int:
         engine.rootContext().setContextProperty("androidController", android_controller)
         engine.rootContext().setContextProperty("trayController", tray_controller)
         engine.rootContext().setContextProperty("updateController", update_controller)
+        engine.rootContext().setContextProperty("floatingController", floating_controller)
         qml_file = package_root() / "ui" / "qml" / "Main.qml"
         engine.load(QUrl.fromLocalFile(str(qml_file)))
         if not engine.rootObjects():
             logger.error("QML 主窗口加载失败：%s", qml_file)
             return 1
         window = cast(QWindow, engine.rootObjects()[0])
+        _window_chrome = WindowChromeController(window)
         window.setIcon(tray_controller.icon)
         apply_windows_window_icon(
             int(window.winId()), str(resource_path("icons", "app-icon.ico"))
         )
-        apply_windows_window_effects(int(window.winId()))
+        def sync_title_bar_theme() -> None:
+            apply_windows_title_bar_theme(
+                int(window.winId()),
+                dark_mode=settings_controller.darkTheme,
+                background_color=cast(QColor, window.property("chromeBackgroundColor")),
+                foreground_color=cast(QColor, window.property("chromeForegroundColor")),
+            )
+
+        sync_title_bar_theme()
+        for property_name in ("chromeBackgroundColor", "chromeForegroundColor"):
+            getattr(window, f"{property_name}Changed").connect(sync_title_bar_theme)
         tray_controller.attach_window(window)
+        floating_controller.attach_main_window(window)
 
         def handle_activation(payload: dict[str, object]) -> None:
             tray_controller.show_window()

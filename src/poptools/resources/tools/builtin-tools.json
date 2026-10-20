@@ -9,7 +9,7 @@
     "description": "按 JQL 汇总 Jira 功能与问题，通过飞书机器人推送互动卡片，支持多方案与定时推送",
     "tags": ["Jira", "飞书", "机器人", "定时"],
     "editable": false,
-    "enabled": true,
+    "enabled": false,
     "executor": {
       "kind": "internal",
       "command": "jira_feishu",

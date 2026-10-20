@@ -46,6 +46,7 @@ class ParameterKind(StrEnum):
     NUMBER = "number"
     BOOLEAN = "boolean"
     CHOICE = "choice"
+    RADIO = "radio"
     FILE = "file"
     DIRECTORY = "directory"
     ANDROID_DEVICE = "android_device"

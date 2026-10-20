@@ -12,12 +12,14 @@ from poptools.infrastructure.tool_registry import ToolRegistry
 from poptools.paths import AppPaths, package_root
 from poptools.viewmodels.app_controller import AppController
 
-TEXT_KINDS = ["text", "file", "directory", "multiline", "integer", "number", "secret"]
+TEXT_KINDS = ["text", "file", "directory", "multiline", "integer", "number"]
 
 
 @pytest.mark.parametrize("kind", TEXT_KINDS)
 @pytest.mark.parametrize("value", ["", "new value", "first\nsecond {literal}"])
 def test_defaults_persist_without_changing_other_parameters(tmp_path, kind, value):
+    if kind in ("integer", "number") and value:
+        value = "3" if kind == "integer" else "0.5"
     repository = JsonToolRepository(AppPaths(tmp_path / "data"))
     registry = ToolRegistry(tmp_path / "builtin", repository)
     tool = ToolDefinition.model_validate({
@@ -36,6 +38,27 @@ def test_defaults_persist_without_changing_other_parameters(tmp_path, kind, valu
     assert restored.parameters[0].default == value
     assert restored.parameters[0].kind == ParameterKind(kind)
     assert restored.parameters[1].default == "keep"
+
+
+def test_secret_default_cannot_be_saved(tmp_path):
+    repository = JsonToolRepository(AppPaths(tmp_path / "data"))
+    registry = ToolRegistry(tmp_path / "builtin", repository)
+    tool = registry.create_custom(title="Secret", description="", kind="powershell",
+                                  command='echo "${令牌@secret}"')
+    with pytest.raises(ValueError, match="密码"):
+        registry.set_parameter_default(tool.id, "令牌", "private-token")
+    assert registry.get(tool.id).parameters[0].default == ""
+
+
+@pytest.mark.parametrize("kind,value", [("integer", "1.5"), ("number", "NaN")])
+def test_invalid_numeric_default_is_not_persisted(tmp_path, kind, value):
+    repository = JsonToolRepository(AppPaths(tmp_path / "data"))
+    registry = ToolRegistry(tmp_path / "builtin", repository)
+    tool = registry.create_custom(title="Number", description="", kind="powershell",
+                                  command="echo ${值@" + kind + ":3}")
+    with pytest.raises(ValueError):
+        registry.set_parameter_default(tool.id, "值", value)
+    assert registry.get(tool.id).parameters[0].default == "3"
 
 
 def test_builtin_default_is_saved_as_local_override(tmp_path):

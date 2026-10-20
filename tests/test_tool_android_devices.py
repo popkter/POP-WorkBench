@@ -55,42 +55,80 @@ def setup_devices(qapp, tmp_path):
     controller.stopAutoRefresh()
 
 
-def test_independent_choices_persist_and_disconnect_does_not_switch(setup_devices):
+def test_global_choice_persists_across_tools_and_script_deletion(setup_devices):
     controller, devices, config = setup_devices
     devices.set_devices("A", "B")
     assert controller.deviceForTool("one")["serial"] == ""
     controller.selectDeviceForTool("one", "A")
     controller.selectDeviceForTool("two", "B")
-    assert controller.available_device_for_tool("one") == "A"
+    assert controller.available_device_for_tool("one") == "B"
     assert controller.available_device_for_tool("two") == "B"
-    devices.set_devices("B")
-    assert controller.deviceForTool("one")["serial"] == "A"
+    devices.set_devices("A")
+    assert controller.deviceForTool("one")["serial"] == "B"
     assert not controller.deviceForTool("one")["available"]
     assert controller.available_device_for_tool("one") == ""
-    assert controller.available_device_for_tool("two") == "B"
+    assert controller.available_device_for_tool("two") == ""
     restarted = AndroidController(config, devices, Processes())
     restarted.stopAutoRefresh()
-    assert restarted.deviceForTool("one")["serial"] == "A"
+    assert restarted.deviceForTool("one")["serial"] == "B"
     devices.set_devices("A", "B")
-    assert restarted.available_device_for_tool("one") == "A"
+    assert restarted.available_device_for_tool("one") == "B"
     restarted.forget_tool("one")
     assert "one" not in config.android_tool_devices()
+    assert restarted.available_device_for_tool("two") == "B"
+    assert config.android_selected_device() == "B"
 
 
-def test_single_device_auto_selection_and_legacy_preference_ignored(setup_devices):
+def test_single_device_auto_selection_is_shared_and_ignores_old_tool_choices(setup_devices):
     controller, devices, config = setup_devices
     raw = config.load_config()
-    raw["android"]["preferred_device"] = "old"
+    raw["android"]["tool_devices"] = {"other": "old"}
     config.save_config(raw)
     devices.set_devices("A")
     assert controller.available_device_for_tool("new") == "A"
     devices.set_devices("A", "B")
-    assert controller.available_device_for_tool("other") == ""
+    assert controller.available_device_for_tool("other") == "A"
     controller.selectDeviceForTool("new", "offline")
     assert controller.available_device_for_tool("new") == "A"
     assert [d.serial for d in parse_adb_devices(
         "List of devices attached\nA device\nB offline\nC unauthorized\n"
     )] == ["A"]
+
+
+def test_new_device_replaces_disconnected_selection_and_persists(setup_devices):
+    controller, devices, config = setup_devices
+    devices.set_devices("A")
+    assert controller.available_device_for_tool("one") == "A"
+    devices.set_devices()
+    assert not controller.deviceForTool("one")["available"]
+    devices.set_devices("B")
+    assert controller.available_device_for_tool("one") == "B"
+    assert config.android_selected_device() == "B"
+    devices.set_devices("A", "B")
+    assert controller.available_device_for_tool("one") == "B"
+
+
+def test_new_device_does_not_replace_a_connected_selection(setup_devices):
+    controller, devices, config = setup_devices
+    devices.set_devices("A")
+    assert controller.available_device_for_tool("one") == "A"
+    devices.set_devices("B", "A")
+    assert controller.available_device_for_tool("one") == "A"
+    assert config.android_selected_device() == "A"
+
+
+def test_global_selection_follows_new_device_once_current_device_disconnects(setup_devices):
+    controller, devices, config = setup_devices
+    devices.set_devices("A", "B")
+    controller.selectDeviceForTool("one", "A")
+    devices.set_devices("B")
+    assert controller.available_device_for_tool("one") == ""
+    devices.set_devices("B", "C", "D")
+    assert controller.available_device_for_tool("one") == "C"
+    assert controller.available_device_for_tool("two") == "C"
+    assert config.android_selected_device() == "C"
+    assert config.android_tool_devices() == {}
+    assert controller.available_device_for_tool("unselected") == "C"
 
 
 class Manager(QObject):
@@ -197,7 +235,7 @@ def test_device_parameter_uses_its_actual_id_and_environment_is_local(app_setup,
     assert not app.selectedTool["uses_android_device"]
 
 
-def test_edit_mode_preserved_and_deleted_tool_forgets_selection(app_setup):
+def test_edit_mode_preserved_and_deleted_tool_keeps_global_device(app_setup):
     app, registry, coordinator, managers, android, devices = app_setup
     tool = add_script(registry, "dynamic_command", "use")
     app.selectTool(tool.id)
@@ -209,6 +247,8 @@ def test_edit_mode_preserved_and_deleted_tool_forgets_selection(app_setup):
     android.selectDeviceForTool(tool.id, "A")
     assert app.deleteSelected()
     assert tool.id not in android.config_store.android_tool_devices()
+    assert android.config_store.android_selected_device() == "A"
+    assert android.available_device_for_tool("another") == "A"
 
 
 def test_tray_adb_script_without_parameters_opens_local_device_picker(app_setup):
@@ -238,7 +278,7 @@ def test_external_analysis_refresh_does_not_reset_parameter_form(app_setup, tmp_
     assert data_events and not selection_events
 
 
-def test_device_dropdown_selects_locally_and_shows_disconnect(setup_devices, qapp):
+def test_device_dropdown_selects_globally_and_shows_disconnect(setup_devices, qapp):
     android, devices, config = setup_devices
     devices.set_devices("A", "B")
     engine = QQmlEngine()
@@ -291,7 +331,7 @@ ApplicationWindow {
                          pos=row.mapToScene(QPointF(100, 24)).toPoint())
         qapp.processEvents()
         assert android.available_device_for_tool("first") == "B"
-        assert android.available_device_for_tool("second") == ""
+        assert android.available_device_for_tool("second") == "B"
         devices.set_devices("A")
         qapp.processEvents()
         assert not android.deviceForTool("first")["available"]
@@ -302,3 +342,5 @@ ApplicationWindow {
         assert not warnings, warnings
     finally:
         window.close()
+        window.deleteLater()
+        engine.deleteLater()

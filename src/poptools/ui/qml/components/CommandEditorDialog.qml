@@ -9,6 +9,7 @@ AppDialog {
     property bool editMode: false
     property string selectedIcon: "terminal"
     property string androidDetectionText: ""
+    property string saveError: ""
     readonly property var androidModes: [
         { "label": "自动检测", "value": "auto" },
         { "label": "使用", "value": "use" },
@@ -161,6 +162,7 @@ AppDialog {
     }
 
     function openForCreate(command, kind) {
+        saveError = ""
         editMode = false
         titleField.text = ""
         descriptionField.text = ""
@@ -173,6 +175,7 @@ AppDialog {
     }
 
     function openForEdit() {
+        saveError = ""
         var tool = controller.selectedTool
         editMode = true
         titleField.text = tool.title || ""
@@ -196,15 +199,29 @@ AppDialog {
     }
 
     function submit() {
-        var saved = editMode
+        saveError = ""
+        try {
+            var saved = editMode
                 ? controller.saveSelected(titleField.text, descriptionField.text,
                                           kindBox.currentValue, commandArea.text,
                                           selectedIcon, androidModeBox.currentValue)
                 : controller.createCommand(titleField.text, descriptionField.text,
                                            kindBox.currentValue, commandArea.text,
                                            selectedIcon, androidModeBox.currentValue)
-        if (saved)
-            close()
+            if (saved)
+                close()
+            else if (!saveError)
+                saveError = editMode ? "保存失败，请检查脚本内容后重试。"
+                                     : "创建失败，请检查脚本内容后重试。"
+        } catch (error) {
+            saveError = (editMode ? "保存失败：" : "创建失败：") + String(error)
+        }
+    }
+
+    Connections {
+        target: root.controller && root.controller.commandSaveFailed !== undefined
+            ? root.controller : null
+        function onCommandSaveFailed(message) { root.saveError = message }
     }
 
     Timer {
@@ -513,7 +530,7 @@ AppDialog {
                             }
                             Item { Layout.fillWidth: true }
                             Text {
-                                text: "支持文本、默认值、下拉选项、${标题@file} 文件和 ${标题@dir} 文件夹选择参数"
+                                text: "参数格式：${名称@类型:默认值}；支持文本、多行、数字、复选框、下拉、单选、路径和密码"
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontMicro
                             }
@@ -536,6 +553,7 @@ AppDialog {
 
                             TextArea {
                                 id: commandArea
+                                objectName: "commandEditorScriptText"
                                 FilePathDropArea { target: commandArea; append: true }
                                 AppTextEditMenu { target: commandArea }
                                 width: Math.max(commandScroll.availableWidth,
@@ -575,7 +593,7 @@ AppDialog {
                         Text {
                             id: helperText
                             Layout.fillWidth: true
-                            text: "${请输入数值:1} 生成默认值输入框；${触摸点显示:开启=1|关闭=0} 生成下拉菜单；${APK安装包@file} 生成文件选择框；${日志目录@dir} 生成文件夹选择框。重复使用可写 Var value = ${显示名称:默认值}。"
+                            text: "例如 ${次数@integer:3}、${启用@boolean:true}、${模式@choice:开启=1|关闭=0}、${环境@radio:开发=dev|生产=prod}。省略类型默认文本；旧版写法继续兼容。重复参数可用 Var 声明；@secret 隐藏输入且不能保存默认值。"
                             color: Theme.teal
                             font.pixelSize: Theme.fontCaption
                             wrapMode: Text.WordWrap
@@ -585,6 +603,18 @@ AppDialog {
 
                 Item { Layout.preferredHeight: 5 }
             }
+        }
+
+        Text {
+            objectName: "commandEditorSaveError"
+            Layout.fillWidth: true
+            Layout.leftMargin: Theme.space20
+            Layout.rightMargin: Theme.space20
+            visible: root.saveError.length > 0
+            text: root.saveError
+            color: Theme.errorColor
+            font.pixelSize: Theme.fontBody
+            wrapMode: Text.Wrap
         }
 
         Item {

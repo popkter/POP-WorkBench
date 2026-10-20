@@ -16,7 +16,11 @@ from poptools.domain.models import (
     ToolOrigin,
     ToolSection,
 )
-from poptools.domain.parameter_templates import synchronize_parameters, update_parameter_default
+from poptools.domain.parameter_templates import (
+    synchronize_parameters,
+    update_parameter_default,
+    validate_parameter_value,
+)
 from poptools.domain.repositories import ToolRepository
 
 
@@ -30,8 +34,14 @@ class ToolRegistry:
 
     def reload(self) -> None:
         self._builtin = {tool.id: tool for tool in self._load_builtin()}
-        effective = dict(self._builtin)
+        effective = {
+            tool_id: tool for tool_id, tool in self._builtin.items()
+            if tool.enabled or tool.section != ToolSection.PRESET
+        }
         for tool in self.repository.list_tools():
+            # Local overrides cannot restore removed or hidden built-in presets.
+            if tool.section == ToolSection.PRESET and tool.id not in effective:
+                continue
             effective[tool.id] = tool
         self._tools = effective
 
@@ -162,10 +172,14 @@ class ToolRegistry:
         parameter = next((item for item in current.parameters if item.id == parameter_id), None)
         if parameter is None:
             raise ValueError("参数不存在")
+        if parameter.kind == ParameterKind.SECRET:
+            raise ValueError("密码参数不能保存默认值")
         if parameter.kind in (
-            ParameterKind.CHOICE, ParameterKind.BOOLEAN, ParameterKind.ANDROID_DEVICE
+            ParameterKind.CHOICE, ParameterKind.RADIO,
+            ParameterKind.BOOLEAN, ParameterKind.ANDROID_DEVICE
         ):
             raise ValueError("此参数不是文本输入框")
+        validate_parameter_value(parameter, default)
         # Metadata supports every literal value, including multiline text and braces.
         # Keep editable script placeholders in sync where the syntax can represent it.
         command = current.executor.command

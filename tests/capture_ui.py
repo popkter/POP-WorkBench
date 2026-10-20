@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import ctypes
 import os
 import sys
 from pathlib import Path
 from typing import cast
 
 from PySide6.QtCore import QMetaObject, QObject, QTimer, QUrl
-from PySide6.QtGui import QFont, QFontDatabase, QWindow
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QImage, QWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtWidgets import QApplication
@@ -18,6 +19,8 @@ from poptools.infrastructure.json_tool_repository import JsonToolRepository
 from poptools.infrastructure.python_environment import PythonEnvironment
 from poptools.infrastructure.system_tray import SystemTrayController
 from poptools.infrastructure.tool_registry import ToolRegistry
+from poptools.infrastructure.window_chrome import WindowChromeController
+from poptools.infrastructure.windows_integration import apply_windows_title_bar_theme
 from poptools.native_terminal import register_terminal_type
 from poptools.paths import AppPaths, package_root, resource_path
 from poptools.runners import ExecutionCoordinator, ExecutionManager
@@ -30,6 +33,48 @@ from poptools.viewmodels import (
     SettingsController,
     UpdateController,
 )
+
+
+def grab_native_window_frame(window: QWindow) -> QImage:
+    """Capture the target's native frame even when another window overlaps it."""
+    from ctypes import wintypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
+    signatures = (
+        (user32.GetWindowRect, [ctypes.c_void_p, ctypes.POINTER(wintypes.RECT)], ctypes.c_int),
+        (user32.GetWindowDC, [ctypes.c_void_p], ctypes.c_void_p),
+        (user32.ReleaseDC, [ctypes.c_void_p, ctypes.c_void_p], ctypes.c_int),
+        (user32.PrintWindow, [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint], ctypes.c_int),
+        (gdi32.CreateCompatibleDC, [ctypes.c_void_p], ctypes.c_void_p),
+        (gdi32.CreateCompatibleBitmap,
+         [ctypes.c_void_p, ctypes.c_int, ctypes.c_int], ctypes.c_void_p),
+        (gdi32.SelectObject, [ctypes.c_void_p, ctypes.c_void_p], ctypes.c_void_p),
+        (gdi32.DeleteObject, [ctypes.c_void_p], ctypes.c_int),
+        (gdi32.DeleteDC, [ctypes.c_void_p], ctypes.c_int),
+    )
+    for function, argument_types, result_type in signatures:
+        function.argtypes = argument_types
+        function.restype = result_type
+    hwnd = ctypes.c_void_p(int(window.winId()))
+    frame = wintypes.RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(frame)):
+        raise OSError(ctypes.get_last_error(), "Cannot get the preview window frame")
+    source_dc = user32.GetWindowDC(hwnd)
+    memory_dc = gdi32.CreateCompatibleDC(source_dc)
+    bitmap = gdi32.CreateCompatibleBitmap(
+        source_dc, frame.right - frame.left, frame.bottom - frame.top
+    )
+    previous = gdi32.SelectObject(memory_dc, bitmap)
+    try:
+        if not user32.PrintWindow(hwnd, memory_dc, 2):  # PW_RENDERFULLCONTENT
+            raise OSError(ctypes.get_last_error(), "Cannot capture the preview window frame")
+        return QImage.fromHBITMAP(bitmap).copy()
+    finally:
+        gdi32.SelectObject(memory_dc, previous)
+        gdi32.DeleteObject(bitmap)
+        gdi32.DeleteDC(memory_dc)
+        user32.ReleaseDC(hwnd, source_dc)
 
 
 def main() -> int:
@@ -178,6 +223,14 @@ def main() -> int:
         print("\n".join(qml_warnings), file=sys.stderr)
         return 1
     window = cast(QWindow, engine.rootObjects()[0])
+    _window_chrome = WindowChromeController(window)
+    window.setIcon(tray_controller.icon)
+    apply_windows_title_bar_theme(
+        int(window.winId()),
+        dark_mode=settings_controller.darkTheme,
+        background_color=cast(QColor, window.property("chromeBackgroundColor")),
+        foreground_color=cast(QColor, window.property("chromeForegroundColor")),
+    )
     if len(sys.argv) > 3 and sys.argv[3] != "__dynamic__":
         QTimer.singleShot(350, lambda: controller.selectTool(sys.argv[3]))
     if os.environ.get("POPTOOLS_CAPTURE_JIRA_OUTPUT_MAX") == "1":
@@ -223,6 +276,16 @@ def main() -> int:
         window.setHeight(int(capture_height))
         window.setX(0)
         window.setY(0)
+    if os.environ.get("POPTOOLS_CAPTURE_WINDOW_FRAME") == "1":
+        window.setPosition(60, 60)
+        window.raise_()
+        window.requestActivate()
+        if os.environ.get("POPTOOLS_CAPTURE_COMPOSITED_FRAME") == "1" and sys.platform == "win32":
+            user32 = ctypes.WinDLL("user32")
+            user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                           ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                           ctypes.c_int, ctypes.c_uint]
+            user32.SetWindowPos(int(window.winId()), ctypes.c_void_p(-1), 0, 0, 0, 0, 0x0013)
     capture_primary_nav_width = os.environ.get("POPTOOLS_CAPTURE_PRIMARY_NAV_WIDTH", "")
     if capture_primary_nav_width:
         window.setProperty("primaryNavWidth", int(capture_primary_nav_width))
@@ -249,7 +312,9 @@ def main() -> int:
 
             def scroll_guide_preview() -> None:
                 scroll = window.findChild(QObject, "guideScroll")
-                scroll.setProperty("contentY", max(0, scroll.property("contentHeight") - scroll.property("height")))
+                scroll.setProperty(
+                    "contentY", max(0, scroll.property("contentHeight") - scroll.property("height"))
+                )
 
             QTimer.singleShot(500, show_guide_preview)
             QTimer.singleShot(800, scroll_guide_preview)
@@ -343,9 +408,26 @@ def main() -> int:
                 window,
             )
         screen = target_window.screen() or app.primaryScreen()
-        image = (target_window.grabWindow()
-                 if capture_dialog == "recent-tool" and isinstance(target_window, QQuickWindow)
-                 else screen.grabWindow(target_window.winId()).toImage())
+        if os.environ.get("POPTOOLS_CAPTURE_COMPOSITED_FRAME") == "1":
+            # PrintWindow captures rectangular surface pixels before DWM clips
+            # the corners. Capture the composed desktop to verify real rounding
+            # and the system shadow, keeping a small margin around the window.
+            frame = target_window.frameGeometry()
+            image = screen.grabWindow(
+                0, frame.x() - 12, frame.y() - 12, frame.width() + 24, frame.height() + 24,
+            ).toImage()
+        elif os.environ.get("POPTOOLS_CAPTURE_WINDOW_FRAME") == "1":
+            if sys.platform == "win32":
+                image = grab_native_window_frame(target_window)
+            else:
+                frame = target_window.frameGeometry()
+                image = screen.grabWindow(
+                    0, frame.x(), frame.y(), frame.width(), frame.height()
+                ).toImage()
+        else:
+            image = (target_window.grabWindow()
+                     if capture_dialog == "recent-tool" and isinstance(target_window, QQuickWindow)
+                     else screen.grabWindow(target_window.winId()).toImage())
         if image.isNull() or not image.save(str(output_path)):
             app.exit(2)
             return

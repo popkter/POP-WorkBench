@@ -8,19 +8,33 @@ import "../theme"
 Window {
     id: root
     objectName: "recentToolWindow"
+    transientParent: null
+    title: root.toolController.selectedTool.title || "运行工具"
 
     property string toolId: ""
+    property var toolController: appController
+    property bool ownsController: false
+    readonly property bool keepsFloatingLauncherVisible: true
+    signal dismissed(string dismissedToolId)
+
+    onClosing: dismissed(toolId)
+    Component.onDestruction: {
+        if (ownsController && toolController)
+            toolController.dispose()
+    }
     property var parameterValues: ({})
     property var presetUtilities
     property var deviceController
     property var jiraFeishuBackend
-    readonly property bool presetMode: appController.selectedTool.workspace === "preset"
+    readonly property bool presetMode: root.toolController.selectedTool.workspace === "preset"
+    readonly property bool customScriptMode: root.toolController.selectedTool.section === "custom"
+        && root.toolController.selectedTool.workspace === "command"
     readonly property bool recordingPreset: presetMode
-        && appController.selectedTool.executor
-        && appController.selectedTool.executor.command === "recording"
+        && root.toolController.selectedTool.executor
+        && root.toolController.selectedTool.executor.command === "recording"
     readonly property bool operationRunning: recordingPreset
         ? presetUtilities && presetUtilities.recording
-        : appController.running
+        : root.toolController.running
     readonly property real consolePreferredHeight: 292
     readonly property real bodySpacing: 12
 
@@ -37,10 +51,16 @@ Window {
 
     function showWithTool(tid) {
         toolId = tid
-        if (tid.length > 0)
-            appController.selectTool(tid)
+        if (ownsController && toolController)
+            toolController.dispose()
+        var session = appController.createToolSession(tid)
+        if (!session)
+            return
+        toolController = session
+        ownsController = true
+        session.attachWindow(root)
         var values = {}
-        var tool = appController.selectedTool
+        var tool = root.toolController.selectedTool
         var parameters = tool.parameters || []
         for (var i = 0; i < parameters.length; i++)
             values[parameters[i].id] = parameters[i].default
@@ -60,10 +80,17 @@ Window {
                 if (workspaceLoader.item && workspaceLoader.item.openRecordingFolderDialog)
                     workspaceLoader.item.openRecordingFolderDialog()
         } else {
-            const device = deviceController.deviceForTool(root.toolId)
+            const device = deviceController.selectedAndroidDevice
             if (device.available)
                 presetUtilities.startRecording(device.serial)
         }
+    }
+
+    function runCustomScript() {
+        if (root.toolController.running)
+            root.toolController.stopExecution()
+        else
+            root.toolController.runSelected(root.parameterValues)
     }
 
     // ── Main content ───────────────────────────────────────
@@ -84,8 +111,11 @@ Window {
         id: contentRect
         anchors.fill: parent
         anchors.margins: Theme.space8
-        radius: Theme.radiusLarge
-        color: Theme.darkMode ? Theme.surfaceContainer : Theme.surface
+        radius: root.customScriptMode ? Theme.radiusMedium : Theme.radiusLarge
+        color: root.customScriptMode ? Theme.chromeBackground
+            : Theme.darkMode ? Theme.surfaceContainer : Theme.surface
+        border.width: root.customScriptMode ? 1 : 0
+        border.color: Theme.outlineVariant
         clip: true
 
         ColumnLayout {
@@ -96,7 +126,7 @@ Window {
             Rectangle {
                 id: dialogTitleBar
                 Layout.fillWidth: true
-                Layout.preferredHeight: 56
+                Layout.preferredHeight: root.customScriptMode ? 40 : 56
                 color: "transparent"
 
                 // Drag-to-move area (covers title bar, behind interactive elements)
@@ -108,17 +138,30 @@ Window {
                     onPressed: root.startSystemMove()
                 }
 
+                Image {
+                    visible: root.customScriptMode
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.space12
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 20
+                    height: 20
+                    source: "../../../resources/icons/app-icon-ui.png"
+                    sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+                    smooth: true
+                }
+
                 // Title text
                 Text {
                     anchors.left: parent.left
-                    anchors.leftMargin: Theme.space20
+                    anchors.leftMargin: root.customScriptMode ? 40 : Theme.space20
                     anchors.right: titleButtons.left
                     anchors.rightMargin: Theme.space12
                     anchors.verticalCenter: parent.verticalCenter
-                    text: appController.selectedTool.title || "运行工具"
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontSectionTitle
-                    font.weight: Font.Bold
+                    text: root.customScriptMode ? "泡泡工具箱"
+                        : root.toolController.selectedTool.title || "运行工具"
+                    color: root.customScriptMode ? Theme.chromeForeground : Theme.textPrimary
+                    font.pixelSize: root.customScriptMode ? Theme.fontSupporting : Theme.fontSectionTitle
+                    font.weight: root.customScriptMode ? Font.Medium : Font.Bold
                     elide: Text.ElideRight
                 }
 
@@ -132,27 +175,44 @@ Window {
 
                     // ── Custom command run button ─────────
                     PrimaryButton {
+                        objectName: "recentToolRunButton"
                         visible: !root.presetMode
-                        width: 48; height: 32
+                        width: root.customScriptMode ? 102 : 48
+                        height: root.customScriptMode ? Theme.captionActionHeight : 32
                         anchors.verticalCenter: parent.verticalCenter
-                        compact: true
-                        text: root.operationRunning ? "停止运行" : "运行工具"
+                        compact: !root.customScriptMode
+                        text: root.operationRunning ? "停止运行"
+                            : root.customScriptMode ? "运行脚本" : "运行工具"
                         iconName: root.operationRunning ? "stop" : "play_arrow"
-                        glyphSize: 24
+                        glyphSize: root.customScriptMode ? 20 : 24
                         tonal: true
-                        foregroundColor: "white"
+                        foregroundColor: root.customScriptMode
+                            ? (root.operationRunning ? Theme.errorColor : Theme.success) : "white"
                         border.width: 0
-                        radius: Theme.radiusMedium
-                        color: root.operationRunning
+                        radius: root.customScriptMode ? Theme.radiusTiny : Theme.radiusMedium
+                        color: root.customScriptMode
+                            ? (hovered ? Theme.navigationHover : "transparent")
+                            : root.operationRunning
                             ? (hovered ? Qt.darker(Theme.errorColor, 1.1) : Theme.errorColor)
                             : (hovered ? Theme.primaryHover : Theme.primary)
-                        onClicked: {
-                            if (appController.running) {
-                                appController.stopExecution()
-                            } else {
-                                appController.runSelected(root.parameterValues)
-                            }
-                        }
+                        labelFontSize: Theme.fontSupporting
+                        labelFontWeight: Font.Normal
+                        Accessible.role: Accessible.Button
+                        Accessible.name: text
+                        Accessible.onPressAction: if (enabled) clicked()
+                        onClicked: root.runCustomScript()
+                    }
+
+                    DeviceSelector {
+                        objectName: "recentToolDeviceSelector"
+                        visible: root.customScriptMode && !!root.deviceController
+                        width: 160
+                        anchors.verticalCenter: parent.verticalCenter
+                        compact: true
+                        controller: root.deviceController
+                        toolId: root.toolId
+                        requiredDevice: !!root.toolController.selectedTool.requires_android_device
+                        explicitTarget: !!root.toolController.selectedTool.android_explicit_target
                     }
 
                     PrimaryButton {
@@ -173,6 +233,7 @@ Window {
 
                     // Minimize
                     Rectangle {
+                        objectName: "recentToolMinimizeButton"
                         width: 42; height: parent.height
                         color: minimizeArea.containsMouse ? Theme.surfaceContainerHigh : "transparent"
                         MaterialIcon {
@@ -185,6 +246,7 @@ Window {
 
                     // Close
                     Rectangle {
+                        objectName: "recentToolCloseButton"
                         width: 42; height: parent.height
                         topRightRadius: contentRect.radius
                         color: closeArea.containsMouse ? "#C42B1C" : "transparent"
@@ -201,10 +263,32 @@ Window {
                 }
             }
 
+            Loader {
+                id: customScriptLoader
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.margins: Theme.workspaceInset
+                active: root.customScriptMode
+                visible: active
+                sourceComponent: CustomToolDetailPanel {
+                    controller: root.toolController
+                    androidBackend: root.deviceController
+                    parentWindow: root
+                    parameterValues: root.parameterValues
+                    displayedTool: root.toolController.selectedTool
+                    allowManagement: false
+                    actionsInTitleBar: true
+                    deviceInTitleBar: true
+                    externalRun: true
+                    minimumFormReservedHeight: 180
+                    onRunRequested: root.runCustomScript()
+                }
+            }
 
             // ── Body ──────────────────────────────────────
             Item {
                 id: dialogBody
+                visible: !root.customScriptMode
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.topMargin: 16
@@ -219,7 +303,7 @@ Window {
                     Text {
                         Layout.fillWidth: true
                         visible: text.length > 0
-                        text: appController.selectedTool.description || ""
+                        text: root.toolController.selectedTool.description || ""
                         color: Theme.textSecondary
                         Layout.leftMargin: 20
                         Layout.rightMargin: 20
@@ -229,6 +313,7 @@ Window {
 
                     Loader {
                         id: workspaceLoader
+                        active: !root.customScriptMode
                         readonly property real parameterContentHeight:
                                 item && item.parameterContentHeight !== undefined
                             ? item.parameterContentHeight : 0
@@ -239,7 +324,7 @@ Window {
                         Layout.fillHeight: true
                         Layout.leftMargin: 20
                         Layout.rightMargin: 20
-                        sourceComponent: appController.selectedTool.workspace === "preset"
+                        sourceComponent: root.toolController.selectedTool.workspace === "preset"
                             ? presetWorkspace : commandWorkspace
                     }
                 }
@@ -270,7 +355,7 @@ Window {
                                  parameterLimitedHeight))
                     maximumExpandedHeight: fixedExpandedHeight
                     resizable: false
-                    controller: appController
+                    controller: root.toolController
                 }
             }
         }
@@ -279,11 +364,11 @@ Window {
     Component {
         id: commandWorkspace
         CommandWorkspace {
-            controller: appController
+            controller: root.toolController
             androidController: root.deviceController
             parentWindow: root
             parameterValues: root.parameterValues
-            scrcpySelected: appController.selectedTool.workspace === "scrcpy"
+            scrcpySelected: root.toolController.selectedTool.workspace === "scrcpy"
             overlaysVisible: false
         }
     }
@@ -291,7 +376,7 @@ Window {
     Component {
         id: presetWorkspace
         PresetWorkspace {
-            toolController: appController
+            toolController: root.toolController
             utilities: root.presetUtilities
             androidBackend: root.deviceController
             jiraFeishuBackend: root.jiraFeishuBackend

@@ -13,7 +13,7 @@ from poptools.paths import bundled_adb_path
 
 
 class AndroidController(QObject):
-    """Share discovery while keeping device preferences isolated by tool ID."""
+    """Share Android discovery and one selected device across the application."""
 
     stateChanged = Signal()
     pluginManagementRequested = Signal()
@@ -30,7 +30,8 @@ class AndroidController(QObject):
         self._device_service = device_service or AndroidDeviceService(self)
         self._managed_discovery = device_service is None and sys.platform == "win32"
         self._process_service = process_service or AndroidProcessService(self)
-        self._tool_devices = config_store.android_tool_devices()
+        self._selected_device_serial = config_store.android_selected_device()
+        self._known_device_serials = {device.serial for device in self._device_service.devices}
         self._manual_device_refreshing = False
         self._device_service.devicesChanged.connect(self._on_devices_changed)
         self._device_service.refreshingChanged.connect(self._on_device_refreshing_changed)
@@ -54,24 +55,27 @@ class AndroidController(QObject):
     def androidProcesses(self) -> list[dict[str, str]]:
         return self._process_service.processes
 
-    @Slot(str, result="QVariantMap")
-    def deviceForTool(self, tool_id: str) -> dict[str, object]:
+    @Property("QVariantMap", notify=stateChanged)
+    def selectedAndroidDevice(self) -> dict[str, object]:
         if self._managed_discovery and not bundled_adb_path().is_file():
             return {"serial": "", "available": False, "pluginMissing": True,
                     "label": "请先安装 Android 工具插件"}
-        serial = self._tool_devices.get(tool_id, "")
+        serial = self._selected_device_serial
         devices = self._device_service.devices
-        if tool_id and not serial and len(devices) == 1:
-            serial = devices[0].serial
-            self._tool_devices[tool_id] = serial
-            self.config_store.set_android_tool_device(tool_id, serial)
         device = next((d for d in devices if d.serial == serial), None)
         return {
             "serial": serial,
             "available": device is not None,
+            "name": (device.model.replace("_", " ") or device.product or device.serial)
+                if device else serial,
             "label": device.label if device else f"{serial} · 不可用" if serial
             else "请选择 Android 设备" if devices else "未检测到 Android 设备",
         }
+
+    @Slot(str, result="QVariantMap")
+    def deviceForTool(self, tool_id: str) -> dict[str, object]:
+        # Keep existing execution/dialog callers on the same global selection.
+        return self.selectedAndroidDevice
 
     def available_device_for_tool(self, tool_id: str) -> str:
         state = self.deviceForTool(tool_id)
@@ -104,19 +108,23 @@ class AndroidController(QObject):
     def refreshAndroidProcesses(self, serial: str) -> None:
         self._process_service.refresh(serial)
 
-    @Slot(str, str)
-    def selectDeviceForTool(self, tool_id: str, serial: str) -> None:
+    @Slot(str)
+    def selectAndroidDevice(self, serial: str) -> None:
         available = {device.serial for device in self._device_service.devices}
-        if not tool_id or serial not in available or serial == self._tool_devices.get(tool_id):
+        if serial not in available or serial == self._selected_device_serial:
             return
-        self._tool_devices[tool_id] = serial
-        self.config_store.set_android_tool_device(tool_id, serial)
+        self._selected_device_serial = serial
+        self.config_store.set_android_selected_device(serial)
         self.stateChanged.emit()
 
+    @Slot(str, str)
+    def selectDeviceForTool(self, tool_id: str, serial: str) -> None:
+        self.selectAndroidDevice(serial)
+
     def forget_tool(self, tool_id: str) -> None:
-        self._tool_devices.pop(tool_id, None)
-        self.config_store.set_android_tool_device(tool_id, "")
-        self.stateChanged.emit()
+        # Deleting a script must not clear the application's selected device.
+        if tool_id in self.config_store.android_tool_devices():
+            self.config_store.set_android_tool_device(tool_id, "")
 
     def stopAutoRefresh(self) -> None:
         self._refresh_timer.stop()
@@ -148,4 +156,18 @@ class AndroidController(QObject):
         self.stateChanged.emit()
 
     def _on_devices_changed(self) -> None:
+        devices = self._device_service.devices
+        available = {device.serial for device in devices}
+        newly_connected = [device.serial for device in devices
+                           if device.serial not in self._known_device_serials]
+        self._known_device_serials = available
+        replacement = ""
+        if not self._selected_device_serial and len(devices) == 1:
+            replacement = devices[0].serial
+        elif (self._selected_device_serial and self._selected_device_serial not in available
+              and newly_connected):
+            replacement = newly_connected[0]
+        if replacement:
+            self._selected_device_serial = replacement
+            self.config_store.set_android_selected_device(replacement)
         self.stateChanged.emit()

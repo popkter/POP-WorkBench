@@ -20,6 +20,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "last_section": "custom",
         "console_expanded": True,
         "terminal_enabled": False,
+        "floating_launcher_enabled": True,
+        "floating_launcher_position": {"screen": "", "vertical_ratio": 0.5},
         "user_guide_seen": False,
         "skipped_update_version": "",
         "prerelease_updates_enabled": False,
@@ -32,7 +34,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "default_timeout_seconds": 300,
         "confirm_untrusted_commands": True,
     },
-    "android": {"tool_devices": {}, "adb_source": "bundled"},
+    "android": {"selected_device": "", "adb_source": "bundled"},
     "bash": {"provider": "auto", "custom_executable": None},
     "python": {"provider": "managed", "custom_executable": None},
     "custom_tools": {
@@ -41,7 +43,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "added_at": {},
         "usage_count": {},
         "recent_tools": [],
-        "hidden_preset_categories": [],
     },
 }
 
@@ -109,6 +110,19 @@ class ConfigStore:
             execution["max_parallel"] = value
             self.save_config(config)
         return value
+
+    def android_selected_device(self) -> str:
+        android = self.load_config().get("android", {})
+        value = android.get("selected_device", android.get("preferred_device", ""))
+        return value if isinstance(value, str) else ""
+
+    def set_android_selected_device(self, serial: str) -> None:
+        config = self.load_config()
+        android = config.setdefault("android", {})
+        android["selected_device"] = serial
+        android.pop("tool_devices", None)
+        android.pop("preferred_device", None)
+        self.save_config(config)
 
     def android_tool_devices(self) -> dict[str, str]:
         config = self.load_config()
@@ -305,6 +319,40 @@ class ConfigStore:
             and value >= 0
         )
 
+    def floating_launcher_enabled(self) -> bool:
+        app = self.load_config().get("app", {})
+        value = app.get("floating_launcher_enabled", True) if isinstance(app, dict) else True
+        return value if isinstance(value, bool) else True
+
+    def set_floating_launcher_enabled(self, enabled: bool) -> None:
+        config = self.load_config()
+        if not isinstance(config.get("app"), dict):
+            config["app"] = {}
+        config["app"]["floating_launcher_enabled"] = bool(enabled)
+        self.save_config(config)
+
+    def floating_launcher_position(self) -> tuple[str, float]:
+        app = self.load_config().get("app", {})
+        position = app.get("floating_launcher_position", {}) if isinstance(app, dict) else {}
+        if not isinstance(position, dict):
+            return "", 0.5
+        screen = position.get("screen", "")
+        ratio = position.get("vertical_ratio", 0.5)
+        if not self._is_valid_timestamp(ratio):
+            ratio = 0.5
+        return screen if isinstance(screen, str) else "", min(1.0, float(ratio))
+
+    def set_floating_launcher_position(self, screen: str, vertical_ratio: float) -> None:
+        if not self._is_valid_timestamp(vertical_ratio) or vertical_ratio > 1:
+            raise ValueError("悬浮入口位置无效")
+        config = self.load_config()
+        if not isinstance(config.get("app"), dict):
+            config["app"] = {}
+        config["app"]["floating_launcher_position"] = {
+            "screen": screen, "vertical_ratio": vertical_ratio,
+        }
+        self.save_config(config)
+
     def terminal_enabled(self) -> bool:
         config = self.load_config()
         app = config.get("app")
@@ -429,23 +477,6 @@ class ConfigStore:
     def set_tool_order(self, tool_ids: list[str]) -> None:
         config, settings = self._custom_tool_settings()
         settings["order"] = list(dict.fromkeys(tool_ids))
-        self.save_config(config)
-
-    def hidden_preset_categories(self) -> list[str]:
-        config, settings = self._custom_tool_settings()
-        raw = settings.get("hidden_preset_categories", [])
-        value = list(dict.fromkeys(item for item in raw if isinstance(item, str))) \
-            if isinstance(raw, list) else []
-        if raw != value:
-            settings["hidden_preset_categories"] = value
-            self.save_config(config)
-        return value
-
-    def set_hidden_preset_categories(self, categories: list[str]) -> None:
-        config, settings = self._custom_tool_settings()
-        settings["hidden_preset_categories"] = list(dict.fromkeys(
-            category for category in categories if isinstance(category, str)
-        ))
         self.save_config(config)
 
     def tool_added_times(self, tool_ids: list[str]) -> dict[str, float]:

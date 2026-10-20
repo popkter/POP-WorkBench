@@ -34,6 +34,7 @@ class SettingsController(QObject):
     themeChanged = Signal()
     themeStylesChanged = Signal()
     terminalEnabledChanged = Signal()
+    floatingLauncherEnabledChanged = Signal()
     userGuideSeenChanged = Signal()
     scriptsImported = Signal()
     pluginsChanged = Signal()
@@ -140,6 +141,20 @@ class SettingsController(QObject):
     @Property(bool, notify=terminalEnabledChanged)
     def terminalEnabled(self) -> bool:
         return self._terminal_enabled
+
+    @Property(bool, notify=floatingLauncherEnabledChanged)
+    def floatingLauncherEnabled(self) -> bool:
+        return self.config_store.floating_launcher_enabled()
+
+    @Slot(bool, result=bool)
+    def saveFloatingLauncherEnabled(self, enabled: bool) -> bool:
+        try:
+            self.config_store.set_floating_launcher_enabled(enabled)
+        except OSError as exc:
+            self.setStatus(f"悬浮入口设置保存失败：{exc}")
+            return False
+        self.floatingLauncherEnabledChanged.emit()
+        return True
 
     @Property(bool, notify=userGuideSeenChanged)
     def userGuideSeen(self) -> bool:

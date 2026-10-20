@@ -3,6 +3,8 @@ from __future__ import annotations
 import ctypes
 import sys
 
+from PySide6.QtGui import QColor
+
 APP_USER_MODEL_ID = "PopTools.ZhangPaopaoToolbox"
 _WM_SETICON = 0x0080
 _ICON_SMALL = 0
@@ -12,28 +14,12 @@ _LR_LOADFROMFILE = 0x0010
 _GCLP_HICON = -14
 _GCLP_HICONSM = -34
 _NATIVE_ICON_HANDLES: list[int] = []
-_DWMWA_NCRENDERING_POLICY = 2
-_DWMNCRP_ENABLED = 2
+_DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 _DWMWA_WINDOW_CORNER_PREFERENCE = 33
 _DWMWCP_ROUND = 2
 _DWMWA_BORDER_COLOR = 34
-_WINDOW_BORDER_COLOR = 0x00E7DEE2
-_GWL_STYLE = -16
-_WS_THICKFRAME = 0x00040000
-_SWP_NOSIZE = 0x0001
-_SWP_NOMOVE = 0x0002
-_SWP_NOZORDER = 0x0004
-_SWP_NOACTIVATE = 0x0010
-_SWP_FRAMECHANGED = 0x0020
-
-
-class _Margins(ctypes.Structure):
-    _fields_ = [
-        ("left", ctypes.c_int),
-        ("right", ctypes.c_int),
-        ("top", ctypes.c_int),
-        ("bottom", ctypes.c_int),
-    ]
+_DWMWA_CAPTION_COLOR = 35
+_DWMWA_TEXT_COLOR = 36
 
 
 def configure_windows_app_identity() -> None:
@@ -78,22 +64,18 @@ def apply_windows_window_icon(window_id: int, icon_path: str) -> None:
     user32.SetClassLongPtrW(hwnd, _GCLP_HICON, large)
     user32.SetClassLongPtrW(hwnd, _GCLP_HICONSM, small)
 
-def apply_windows_window_effects(window_id: int) -> None:
+
+def apply_windows_title_bar_theme(
+    window_id: int,
+    *,
+    dark_mode: bool,
+    background_color: QColor | None = None,
+    foreground_color: QColor | None = None,
+) -> None:
+    """Match the native caption and frame to the navigation rail's palette."""
     if sys.platform != "win32":
         return
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
     dwmapi = ctypes.WinDLL("dwmapi", use_last_error=True)
-    hwnd = ctypes.c_void_p(window_id)
-    user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
-    user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
-    user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
-    user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
-    style = user32.GetWindowLongPtrW(hwnd, _GWL_STYLE)
-    user32.SetWindowLongPtrW(hwnd, _GWL_STYLE, style | _WS_THICKFRAME)
-    frame_flags = (
-        _SWP_NOSIZE | _SWP_NOMOVE | _SWP_NOZORDER | _SWP_NOACTIVATE | _SWP_FRAMECHANGED
-    )
-    user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, frame_flags)
     dwmapi.DwmSetWindowAttribute.argtypes = [
         ctypes.c_void_p,
         ctypes.c_uint,
@@ -101,23 +83,28 @@ def apply_windows_window_effects(window_id: int) -> None:
         ctypes.c_uint,
     ]
     dwmapi.DwmSetWindowAttribute.restype = ctypes.c_long
-    policy = ctypes.c_int(_DWMNCRP_ENABLED)
+    enabled = ctypes.c_int(dark_mode)
+    # Older Windows versions may not support this attribute; their native
+    # title bar remains usable with the system's default appearance.
     dwmapi.DwmSetWindowAttribute(
-        hwnd, _DWMWA_NCRENDERING_POLICY, ctypes.byref(policy), ctypes.sizeof(policy)
+        ctypes.c_void_p(window_id),
+        _DWMWA_USE_IMMERSIVE_DARK_MODE,
+        ctypes.byref(enabled),
+        ctypes.sizeof(enabled),
     )
-    if sys.getwindowsversion().build >= 22000:
-        corner = ctypes.c_int(_DWMWCP_ROUND)
+    corner_preference = ctypes.c_int(_DWMWCP_ROUND)
+    dwmapi.DwmSetWindowAttribute(
+        ctypes.c_void_p(window_id), _DWMWA_WINDOW_CORNER_PREFERENCE,
+        ctypes.byref(corner_preference), ctypes.sizeof(corner_preference),
+    )
+    for attribute, color in (
+        (_DWMWA_CAPTION_COLOR, background_color),
+        (_DWMWA_BORDER_COLOR, background_color),
+        (_DWMWA_TEXT_COLOR, foreground_color),
+    ):
+        if color is None:
+            continue
+        color_ref = ctypes.c_uint(color.red() | (color.green() << 8) | (color.blue() << 16))
         dwmapi.DwmSetWindowAttribute(
-            hwnd,
-            _DWMWA_WINDOW_CORNER_PREFERENCE,
-            ctypes.byref(corner),
-            ctypes.sizeof(corner),
+            ctypes.c_void_p(window_id), attribute, ctypes.byref(color_ref), ctypes.sizeof(color_ref)
         )
-        border = ctypes.c_uint(_WINDOW_BORDER_COLOR)
-        dwmapi.DwmSetWindowAttribute(
-            hwnd, _DWMWA_BORDER_COLOR, ctypes.byref(border), ctypes.sizeof(border)
-        )
-    dwmapi.DwmExtendFrameIntoClientArea.argtypes = [ctypes.c_void_p, ctypes.POINTER(_Margins)]
-    dwmapi.DwmExtendFrameIntoClientArea.restype = ctypes.c_long
-    margins = _Margins(1, 1, 1, 1)
-    dwmapi.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(margins))

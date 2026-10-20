@@ -9,13 +9,28 @@ ApplicationWindow {
     id: window
     minimumWidth: Theme.windowMinimumWidth
     minimumHeight: Theme.windowMinimumHeight
-    width: Math.max(minimumWidth, Math.round(Screen.width * 0.8))
-    height: Math.max(minimumHeight, Math.round(Screen.height * 0.8))
-    visible: true
+    width: Theme.windowDefaultWidth
+    height: Theme.windowDefaultHeight
+    visible: false
     title: "泡泡工具箱"
-    flags: Qt.Window | Qt.FramelessWindowHint
-    color: Theme.surface
-    palette.window: Theme.surface
+    flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint
+        | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint
+    readonly property bool customTitleBar: Qt.platform.os === "windows"
+    property var chromeController: null
+    property int captionHovered: -1
+    property int captionPressed: -1
+    property rect titleBarActionsRect: Qt.rect(0, 0, 0, 0)
+    property bool modernCaptionControls: true
+    readonly property int captionControlWidth: Theme.captionControlWidth
+    readonly property color chromeBackgroundColor: Theme.chromeBackground
+    readonly property color chromeForegroundColor: Theme.chromeForeground
+    property real nativeTitleBarHeight: 0
+    readonly property real titleBarHeight: customTitleBar ? Theme.navigationRailWidth
+        : Math.max(Theme.navigationRailWidth, nativeTitleBarHeight)
+    readonly property real titleBarContentInset: customTitleBar ? titleBarHeight
+        : titleBarHeight - nativeTitleBarHeight
+    color: chromeBackgroundColor
+    palette.window: chromeBackgroundColor
     palette.windowText: Theme.textPrimary
     palette.base: Theme.surfaceContainerLow
     palette.text: Theme.textPrimary
@@ -33,7 +48,7 @@ ApplicationWindow {
 
     property var parameterValues: ({})
     property string toolSearchQuery: ""
-    readonly property real primaryNavWidth: Theme.navigationRailWidth
+    readonly property real primaryNavWidth: titleBarHeight
     readonly property real toolListWidth: Math.max(
         minimumToolListWidth,
         Math.min(maximumNavigationWidth,
@@ -53,8 +68,7 @@ ApplicationWindow {
     readonly property bool scrcpySelected:
         appController.selectedTool.workspace === "scrcpy"
     readonly property bool applicationOverlayVisible:
-        presetFunctionsPage.popupVisible
-        || executionCapacityDialog.visible
+        executionCapacityDialog.visible
         || customScriptImportDialog.visible
         || powershellPluginDialog.visible
         || (updateDialogLoader.item && updateDialogLoader.item.visible)
@@ -301,12 +315,10 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        // Break the initial Screen-based bindings so interactive resizing owns
-        // the window geometry after startup.
-        window.width = Math.max(window.minimumWidth,
-                                Math.round(Screen.width * 0.8))
-        window.height = Math.max(window.minimumHeight,
-                                 Math.round(Screen.height * 0.8))
+        // Release the startup bindings. The platform controller fits the full
+        // window, including its native frame, to the current screen once.
+        window.width = window.width
+        window.height = window.height
         resetParameters()
         if (settingsController.terminalEnabled
                 && !developerConsoleController.pluginInstalled)
@@ -319,260 +331,43 @@ ApplicationWindow {
             updateController.checkForUpdatesAutomatically()
     }
 
-    component ResizeHandle: MouseArea {
-        required property int resizeEdges
-        property bool systemResizeActive: false
-        property real resizeStartGlobalX: 0
-        property real resizeStartGlobalY: 0
-        property real resizeStartX: 0
-        property real resizeStartY: 0
-        property real resizeStartWidth: 0
-        property real resizeStartHeight: 0
-
-        visible: window.visibility !== Window.Maximized
-        z: 1000
-        hoverEnabled: true
-        preventStealing: true
-
-        onPressed: function(mouse) {
-            // Let the window manager synchronize both axes and the window position.
-            // Separate geometry writes expose intermediate sizes during corner drags.
-            systemResizeActive = window.startSystemResize(resizeEdges)
-            mouse.accepted = true
-            if (systemResizeActive)
-                return
-
-            const globalPoint = mapToGlobal(mouse.x, mouse.y)
-            resizeStartGlobalX = globalPoint.x
-            resizeStartGlobalY = globalPoint.y
-            resizeStartX = window.x
-            resizeStartY = window.y
-            resizeStartWidth = window.width
-            resizeStartHeight = window.height
-        }
-
-        onPositionChanged: function(mouse) {
-            if (!pressed || systemResizeActive)
-                return
-
-            const globalPoint = mapToGlobal(mouse.x, mouse.y)
-            const deltaX = globalPoint.x - resizeStartGlobalX
-            const deltaY = globalPoint.y - resizeStartGlobalY
-            const resizeLeft = (resizeEdges & Qt.LeftEdge) !== 0
-            const resizeRight = (resizeEdges & Qt.RightEdge) !== 0
-            const resizeTop = (resizeEdges & Qt.TopEdge) !== 0
-            const resizeBottom = (resizeEdges & Qt.BottomEdge) !== 0
-            let newX = resizeStartX
-            let newY = resizeStartY
-            let newWidth = resizeStartWidth
-            let newHeight = resizeStartHeight
-
-            if (resizeLeft || resizeRight) {
-                const requestedWidth = resizeLeft
-                    ? resizeStartWidth - deltaX
-                    : resizeStartWidth + deltaX
-                newWidth = Math.round(Math.max(
-                    window.minimumWidth,
-                    Math.min(window.maximumWidth, requestedWidth)))
-                if (resizeLeft)
-                    newX = resizeStartX + resizeStartWidth - newWidth
-            }
-
-            if (resizeTop || resizeBottom) {
-                const requestedHeight = resizeTop
-                    ? resizeStartHeight - deltaY
-                    : resizeStartHeight + deltaY
-                newHeight = Math.round(Math.max(
-                    window.minimumHeight,
-                    Math.min(window.maximumHeight, requestedHeight)))
-                if (resizeTop)
-                    newY = resizeStartY + resizeStartHeight - newHeight
-            }
-
-            // Platforms without native resizing still receive one geometry update.
-            if (window.x !== newX || window.y !== newY
-                    || window.width !== newWidth || window.height !== newHeight)
-                window.setGeometry(newX, newY, newWidth, newHeight)
-        }
-    }
-
-    ResizeHandle {
-        resizeEdges: Qt.LeftEdge
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.topMargin: Theme.space8
-        anchors.bottomMargin: Theme.space8
-        width: 6
-        cursorShape: Qt.SizeHorCursor
-    }
-    ResizeHandle {
-        resizeEdges: Qt.RightEdge
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.topMargin: Theme.space8
-        anchors.bottomMargin: Theme.space8
-        width: 6
-        cursorShape: Qt.SizeHorCursor
-    }
-    ResizeHandle {
-        resizeEdges: Qt.TopEdge
+    WindowTitleBar {
+        id: titleBar
+        objectName: "windowTitleBar"
+        hostWindow: window
+        androidBackend: androidController
+        selectedScript: appController.selectedTool
+        terminalController: developerConsoleController
+        terminalTabsVisible: window.developerSelected && !window.settingsSelected
+        terminalTabsEnabled: !window.applicationOverlayVisible
+        onTerminalFocusRequested: Qt.callLater(terminalPage.focusTerminal)
+        scriptActionsVisible: !window.settingsSelected && !window.developerSelected
+            && appController.section === "custom"
+        scriptActionsEnabled: !window.applicationOverlayVisible
+        scriptSelected: !!appController.selectedTool.id
+        scriptEditable: !!appController.selectedTool.editable
+        scriptRunning: appController.running
+        onImportRequested: window.importCustomScriptFromClipboard()
+        onCreateRequested: window.openCommandEditorForCreate()
+        onShareRequested: customScriptsPage.shareSelectedTool()
+        onEditRequested: window.openCommandEditorForEdit()
+        onDeleteRequested: window.openDeleteCommandDialog()
+        onRunRequested: customScriptsPage.runSelectedTool()
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: Theme.space8
-        anchors.rightMargin: Theme.space8
-        height: 6
-        cursorShape: Qt.SizeVerCursor
-    }
-    ResizeHandle {
-        resizeEdges: Qt.BottomEdge
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.leftMargin: Theme.space8
-        anchors.rightMargin: Theme.space8
-        height: 6
-        cursorShape: Qt.SizeVerCursor
-    }
-    ResizeHandle {
-        resizeEdges: Qt.TopEdge | Qt.LeftEdge
-        anchors.top: parent.top
-        anchors.left: parent.left
-        width: 8
-        height: 8
-        cursorShape: Qt.SizeFDiagCursor
-    }
-    ResizeHandle {
-        resizeEdges: Qt.TopEdge | Qt.RightEdge
-        anchors.top: parent.top
-        anchors.right: parent.right
-        width: 8
-        height: 8
-        cursorShape: Qt.SizeBDiagCursor
-    }
-    ResizeHandle {
-        resizeEdges: Qt.BottomEdge | Qt.LeftEdge
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        width: 8
-        height: 8
-        cursorShape: Qt.SizeBDiagCursor
-    }
-    ResizeHandle {
-        resizeEdges: Qt.BottomEdge | Qt.RightEdge
-        anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        width: 8
-        height: 8
-        cursorShape: Qt.SizeFDiagCursor
-    }
-
-    Rectangle {
-        id: customTitleBar
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: Theme.titleBarHeight
-        color: window.developerSelected
-            ? (Theme.sidebar) : Theme.workspaceBackground
-        z: 900
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: window.primaryNavWidth
-            color: Theme.sidebar
-            z: -1
-        }
-
-        MouseArea {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: parent.width
-            onPressed: window.startSystemMove()
-            onDoubleClicked: {
-                if (window.visibility === Window.Maximized)
-                    window.showNormal()
-                else
-                    window.showMaximized()
-            }
-        }
-
-        RowLayout {
-            id: windowButtons
-            anchors.left: parent.left
-            anchors.leftMargin: 9
-            anchors.top: parent.top
-            anchors.topMargin: 12
-            spacing: 8
-            z: 2
-
-            Rectangle {
-                Layout.preferredWidth: 14
-                Layout.preferredHeight: 14
-                radius: Theme.radiusControl
-                color: "#FF5F57"
-                MaterialIcon {
-                    anchors.centerIn: parent; icon: "close"; iconSize: 9
-                    color: closeArea.containsMouse ? "#6B1512" : "transparent"
-                }
-                MouseArea {
-                    id: closeArea; anchors.fill: parent; hoverEnabled: true; onClicked: window.close()
-                }
-            }
-            Rectangle {
-                Layout.preferredWidth: 14
-                Layout.preferredHeight: 14
-                radius: Theme.radiusControl
-                color: "#FFBD2E"
-                MaterialIcon {
-                    anchors.centerIn: parent; icon: "remove"; iconSize: 9
-                    color: minimizeArea.containsMouse ? "#765300" : "transparent"
-                }
-                MouseArea {
-                    id: minimizeArea; anchors.fill: parent; hoverEnabled: true; onClicked: window.showMinimized()
-                }
-            }
-            Rectangle {
-                Layout.preferredWidth: 14
-                Layout.preferredHeight: 14
-                radius: Theme.radiusControl
-                color: "#28C840"
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    icon: window.visibility === Window.Maximized ? "filter_none" : "crop_square"
-                    iconSize: 8
-                    color: maximizeArea.containsMouse ? "#0A5B16" : "transparent"
-                }
-                MouseArea {
-                    id: maximizeArea; anchors.fill: parent; hoverEnabled: true
-                    onClicked: window.visibility === Window.Maximized
-                        ? window.showNormal() : window.showMaximized()
-                }
-            }
-        }
-
-        Text {
-            visible: window.developerSelected
-            anchors.left: parent.left
-            anchors.leftMargin: window.primaryNavWidth + 12
-            anchors.verticalCenter: parent.verticalCenter
-            text: "UTerminal"
-            color: Theme.darkMode ? Theme.textPrimary : "#252A31"
-            font.pixelSize: Theme.fontBody
-            font.weight: Font.DemiBold
-        }
+        height: window.titleBarContentInset
+        visible: window.customTitleBar
     }
 
     RowLayout {
-        anchors.top: customTitleBar.bottom
+        anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
+        anchors.topMargin: window.titleBarContentInset
+        anchors.rightMargin: Theme.space8
+        anchors.bottomMargin: Theme.space8
         spacing: 0
 
         Rectangle {
@@ -586,55 +381,7 @@ ApplicationWindow {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 14
-                anchors.rightMargin: 14
-                anchors.topMargin: 6
-                anchors.bottomMargin: Theme.space12
-                spacing: Theme.space20
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 44
-
-                    RowLayout {
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        height: 40
-                        spacing: 0
-
-                        AppMark {
-                            id: appLogo
-                            Layout.preferredWidth: 40
-                            Layout.preferredHeight: 40
-                            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-                        }
-
-                        ColumnLayout {
-                            visible: !window.compactPrimaryNav
-                            Layout.fillWidth: true
-                            Layout.minimumWidth: 0
-                            spacing: Theme.space4
-                            Text {
-                                Layout.fillWidth: true
-                                Layout.minimumWidth: 0
-                                text: "泡泡工具箱"
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontDetailTitle
-                                font.weight: Font.Bold
-                                elide: Text.ElideRight
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                Layout.minimumWidth: 0
-                                text: "Android 开发者工具"
-                                color: Theme.textSecondary
-                                font.pixelSize: Theme.fontSupporting
-                                elide: Text.ElideRight
-                            }
-                        }
-                    }
-                }
+                spacing: 0
 
                 NavItem {
                     Layout.fillWidth: true
@@ -699,9 +446,12 @@ ApplicationWindow {
             }
         }
 
-        Item {
+        Rectangle {
+            objectName: "workspaceSurface"
             Layout.fillWidth: true
             Layout.fillHeight: true
+            color: Theme.workspaceBackground
+            radius: Theme.radiusSmall
             clip: true
 
             StackLayout {
@@ -712,6 +462,7 @@ ApplicationWindow {
 
                 CustomScriptsPage {
                     id: customScriptsPage
+                    color: "transparent"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     controller: appController
@@ -722,6 +473,7 @@ ApplicationWindow {
                     compact: window.compactContentActions
                     compactHeight: window.compactHeight
                     overlaysVisible: window.applicationOverlayVisible
+                    deviceInTitleBar: window.customTitleBar
                     onSearchEdited: function(query) {
                         window.toolSearchQuery = query
                     }
@@ -739,6 +491,7 @@ ApplicationWindow {
 
                 PresetFunctionsPage {
                     id: presetFunctionsPage
+                    color: "transparent"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     controller: appController
@@ -750,14 +503,9 @@ ApplicationWindow {
                     toolListWidth: window.toolListWidth
                     searchQuery: window.toolSearchQuery
                     compact: window.compactContentActions
-                    compactHeight: window.compactHeight
-                    compactToolList: window.compactToolList
                     overlaysVisible: window.applicationOverlayVisible
                     onSearchEdited: function(query) {
                         window.toolSearchQuery = query
-                    }
-                    onConfirmRunRequested: function(values) {
-                        window.openConfirmRunDialog(values)
                     }
                 }
 
@@ -767,6 +515,7 @@ ApplicationWindow {
                     Layout.fillHeight: true
                     controller: developerConsoleController
                     parentWindow: window
+                    tabsInTitleBar: window.customTitleBar
                     onCreateScriptRequested: function(command, kind) {
                         window.openCommandEditorForCreate(command, kind)
                     }
@@ -774,6 +523,7 @@ ApplicationWindow {
 
                 SettingsPage {
                     id: settingsPage
+                    color: "transparent"
                     objectName: "settingsDialog"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -926,7 +676,37 @@ ApplicationWindow {
         }
     }
 
-    property var recentToolWindow: null
+    property var recentToolWindows: ({})
+    property string lastRequestedToolWindow: ""
+
+    function closeRecentToolWindows() {
+        var opened = recentToolWindows
+        for (var toolId in opened)
+            opened[toolId].close()
+    }
+
+    Component.onDestruction: closeRecentToolWindows()
+
+    Connections {
+        target: trayController
+        function onQuittingChanged() {
+            if (trayController.quitting)
+                window.closeRecentToolWindows()
+        }
+    }
+
+    Loader {
+        active: typeof floatingController !== "undefined"
+        sourceComponent: FloatingLauncher { controller: floatingController }
+    }
+
+    Connections {
+        target: typeof floatingController !== "undefined" ? floatingController : null
+        function onSettingsRequested() {
+            window.openSettingsDialog()
+            trayController.show_window()
+        }
+    }
 
     Connections {
         target: updateController
@@ -938,12 +718,33 @@ ApplicationWindow {
     Connections {
         target: appController
         function onRecentToolDialogRequested(toolId) {
-            if (window.recentToolWindow !== null) {
-                window.recentToolWindow.close()
-                window.recentToolWindow = null
+            window.lastRequestedToolWindow = toolId
+            var existing = Object.prototype.hasOwnProperty.call(window.recentToolWindows, toolId)
+                ? window.recentToolWindows[toolId] : null
+            if (existing) {
+                existing.showNormal()
+                existing.raise()
+                existing.requestActivate()
+                Qt.callLater(function() {
+                    if (window.lastRequestedToolWindow === toolId
+                            && window.recentToolWindows[toolId] === existing && existing.visible)
+                        existing.requestActivate()
+                })
+                return
             }
             var win = recentToolWindowComponent.createObject(null)
-            window.recentToolWindow = win
+            if (!win)
+                return
+            var opened = Object.assign({}, window.recentToolWindows)
+            opened[toolId] = win
+            window.recentToolWindows = opened
+            win.dismissed.connect(function(closedToolId) {
+                var remaining = Object.assign({}, window.recentToolWindows)
+                if (remaining[closedToolId] === win)
+                    delete remaining[closedToolId]
+                window.recentToolWindows = remaining
+                win.destroy()
+            })
             win.showWithTool(toolId)
         }
     }

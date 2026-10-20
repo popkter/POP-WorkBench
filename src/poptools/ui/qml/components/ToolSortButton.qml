@@ -8,6 +8,7 @@ PrimaryButton {
     required property var controller
     property color backgroundColor: "transparent"
     property color hoverColor: Theme.primaryContainerHover
+    readonly property bool menuOpen: sortPopup.visible
     readonly property var options: [
         { "label": "按添加时间", "value": "added_time", "icon": "schedule" },
         { "label": "按名称", "value": "name", "icon": "sort_by_alpha" },
@@ -28,6 +29,8 @@ PrimaryButton {
     color: root.hovered || sortPopup.opened
            ? root.hoverColor : root.backgroundColor
     onClicked: root.openMenu()
+
+    function closeMenu() { sortPopup.close() }
 
     function openMenu() {
         var point = root.mapToItem(Overlay.overlay, 0, root.height)

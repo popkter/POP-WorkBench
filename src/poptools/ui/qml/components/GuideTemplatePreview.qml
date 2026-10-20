@@ -23,14 +23,14 @@ ColumnLayout {
     }
     Text { text: "试一试 · 参数如何变成命令"; color: Theme.textPrimary; font.pixelSize: Theme.fontTitleSmall; font.weight: Font.DemiBold }
     Text {
-        Layout.fillWidth: true; text: "输入模板后自动生成参数，只预览替换结果，不执行命令。支持 @file、@dir、Var 和旧版 pVal 声明。"
+        Layout.fillWidth: true; text: "使用 ${名称@类型:默认值} 自动生成参数，只预览替换结果，不执行命令。支持全部参数类型、Var 和旧版 pVal 声明。"
         color: Theme.textSecondary; font.pixelSize: Theme.fontBody; wrapMode: Text.Wrap
     }
     TextArea {
         id: editor
         objectName: "guideTemplateEditor"
         Layout.fillWidth: true
-        text: "adb shell settings put system show_touches ${触摸点显示:开启=1|关闭=0}"
+        text: "adb shell settings put system show_touches ${触摸点显示@choice:开启=1|关闭=0}"
         wrapMode: TextEdit.Wrap; selectByMouse: true; textFormat: TextEdit.PlainText
         font.family: "Cascadia Mono"; font.pixelSize: Theme.fontCode
         color: Theme.textPrimary; padding: Theme.space12
@@ -47,8 +47,10 @@ ColumnLayout {
                 Layout.fillWidth: true
                 AppTextField {
                     id: field
-                    Layout.fillWidth: true; visible: modelData.kind !== "choice"
-                    text: modelData.default || ""; color: Theme.textPrimary; selectByMouse: true
+                    Layout.fillWidth: true
+                    visible: ["choice", "radio", "boolean", "multiline"].indexOf(modelData.kind) < 0
+                    text: String(modelData.default ?? ""); color: Theme.textPrimary; selectByMouse: true
+                    echoMode: modelData.kind === "secret" ? TextInput.Password : TextInput.Normal
                     font.pixelSize: Theme.fontBody
                     background: Rectangle { radius: Theme.radiusControl; color: Theme.inputDefault; border.color: Theme.outline }
                     onTextEdited: root.setValue(modelData.id, text)
@@ -58,6 +60,11 @@ ColumnLayout {
                     model: modelData.options; textRole: "label"; valueRole: "value"
                     onActivated: root.setValue(modelData.id, currentValue)
                 }
+                AppCheckBox {
+                    visible: modelData.kind === "boolean"
+                    checked: modelData.default === true
+                    onToggled: root.setValue(modelData.id, checked)
+                }
                 PrimaryButton {
                     visible: modelData.kind === "file" || modelData.kind === "directory"
                     text: "选择"; iconName: "folder_open"; tonal: true
@@ -65,6 +72,28 @@ ColumnLayout {
                         const path = root.controller.chooseGuidePath(modelData.kind)
                         if (path) { field.text = path; root.setValue(modelData.id, path) }
                     }
+                }
+            }
+            TextArea {
+                Layout.fillWidth: true
+                Layout.minimumHeight: 88
+                visible: modelData.kind === "multiline"
+                text: String(modelData.default ?? "")
+                color: Theme.textPrimary
+                wrapMode: TextEdit.Wrap
+                background: Rectangle {
+                    color: Theme.inputDefault; radius: Theme.radiusControl
+                    border.color: Theme.outline
+                }
+                onTextChanged: if (visible) root.setValue(modelData.id, text)
+            }
+            ParameterRadioGroup {
+                Layout.fillWidth: true
+                visible: modelData.kind === "radio"
+                options: modelData.options || []
+                currentValue: String(modelData.default ?? "")
+                onValueChanged: function(value) {
+                    if (visible) root.setValue(modelData.id, value)
                 }
             }
         }

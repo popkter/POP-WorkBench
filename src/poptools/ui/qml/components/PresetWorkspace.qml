@@ -11,6 +11,8 @@ ColumnLayout {
     required property var androidBackend
     required property var jiraFeishuBackend
     property bool compact: false
+    readonly property string workspaceCommand: toolController.selectedTool.executor
+        ? toolController.selectedTool.executor.command : ""
 
     function openRecordingFolderDialog() {
         recordingWorkspace.openSaveDialog()
@@ -21,8 +23,8 @@ ColumnLayout {
     StackLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        currentIndex: root.toolController.selectedTool.executor.command === "recording" ? 1
-                      : root.toolController.selectedTool.executor.command === "jira_feishu" ? 2
+        currentIndex: root.workspaceCommand === "recording" ? 1
+                      : root.workspaceCommand === "jira_feishu" ? 2
                       : 0
 
         InteractiveColorPicker {
