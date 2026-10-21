@@ -37,7 +37,6 @@ Item {
         palette.highlightedText: Theme.primaryForeground
         contentItem.clip: true
 
-        onRevealProgressChanged: root.controller.setDrawerProgress(revealProgress)
         onVisibleChanged: if (!visible) scripts.closeMenus()
         onFrameSwapped: {
             if (pendingMaskSettlement && !panelSlide.running) {
@@ -55,6 +54,7 @@ Item {
             if (!root.controller.visible) {
                 panelSlide.stop();
                 revealProgress = 0;
+                root.controller.setDrawerProgress(0);
                 pendingMaskSettlement = false;
                 root.controller.setDrawerAnimating(false);
                 return;
@@ -85,6 +85,7 @@ Item {
                     panel.pendingMaskSettlement = false;
                     root.controller.setDrawerAnimating(true);
                 } else {
+                    root.controller.setDrawerProgress(panel.revealProgress);
                     panel.pendingMaskSettlement = true;
                     panel.update();
                 }
@@ -95,9 +96,11 @@ Item {
             id: drawerSurface
             objectName: "floatingDrawerSurface"
             x: (panel.width - Theme.floatingTipWidth)
-                - Math.round((panel.width - Theme.floatingTipWidth) * panel.revealProgress)
+                * (1 - panel.revealProgress)
             width: panel.width
             height: panel.height
+            layer.enabled: true
+            layer.smooth: true
 
             Rectangle {
                 id: tip

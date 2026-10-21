@@ -441,6 +441,63 @@ def test_panel_animation_reverses_without_restarting_on_window_show(launcher, qt
         engine.deleteLater()
 
 
+def test_slide_does_not_reposition_or_rebuild_the_list_per_frame(launcher, qtbot, monkeypatch):
+    controller, backend, _, _ = launcher
+    create_tool(backend, "Animation sample")
+    monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
+    engine = QQmlEngine()
+    component = QQmlComponent(engine, QUrl.fromLocalFile(str(
+        package_root() / "ui/qml/components/FloatingLauncher.qml"
+    )))
+    root = component.createWithInitialProperties({"controller": controller})
+    assert root is not None, [error.toString() for error in component.errors()]
+    panel = root.findChild(QQuickWindow, "floatingScriptPanelWindow")
+    animation = root.findChild(QObject, "floatingPanelSlideAnimation")
+    animation.setProperty("duration", 400)
+    reposition_calls, resets = [], []
+    reposition = controller.reposition
+
+    def track_reposition(*args):
+        reposition_calls.append(panel.property("revealProgress"))
+        reposition(*args)
+
+    monkeypatch.setattr(controller, "reposition", track_reposition)
+    controller.toolsModel.modelReset.connect(lambda: resets.append(True))
+    try:
+        assert QTest.qWaitForWindowExposed(panel)
+        for expanded in (True, False, True, False):
+            reposition_calls.clear()
+            controller.toggleExpanded()
+            qtbot.waitUntil(lambda: 0.1 < panel.property("revealProgress") < 0.9)
+            boundary_calls = len(reposition_calls)
+            qtbot.wait(60)
+            assert len(reposition_calls) == boundary_calls
+            qtbot.waitUntil(lambda: not animation.property("running"))
+            qtbot.waitUntil(lambda: not panel.property("pendingMaskSettlement"))
+            assert panel.property("revealProgress") == (1 if expanded else 0)
+            assert len(reposition_calls) <= 3  # Start/end only, independent of frame count.
+        assert not resets
+    finally:
+        controller.shutdown()
+        root.deleteLater()
+        engine.deleteLater()
+
+
+def test_main_window_run_state_refreshes_the_cached_floating_list(launcher, monkeypatch):
+    controller, backend, _, _ = launcher
+    tool = create_tool(backend, "Run from main window")
+    active = set()
+    coordinator = backend.execution_coordinator
+    monkeypatch.setattr(coordinator, "running", lambda tool_id: tool_id in active)
+    model = controller.toolsModel
+    active.add(tool.id)
+    coordinator.runningChanged.emit(tool.id, True)
+    assert model.data(model.index(0, 0), model.RunningRole)
+    active.clear()
+    coordinator.runningChanged.emit(tool.id, False)
+    assert not model.data(model.index(0, 0), model.RunningRole)
+
+
 @pytest.mark.parametrize("command", [
     "print('hello')", "print('${文本}')", "import os; os.system('adb devices')",
 ])

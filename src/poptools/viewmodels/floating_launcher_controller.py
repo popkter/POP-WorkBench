@@ -83,6 +83,7 @@ class FloatingLauncherController(QObject):
         coordinator = app_controller.execution_coordinator
         coordinator.started.connect(self._on_started)
         coordinator.finished.connect(self._on_finished)
+        coordinator.runningChanged.connect(self.refreshTools)
         coordinator.capacityRequested.connect(self._on_capacity)
         self.refreshTools()
 
@@ -166,11 +167,13 @@ class FloatingLauncherController(QObject):
     @Slot(float)
     def setDrawerProgress(self, progress: float) -> None:
         self._drawer_progress = max(0.0, min(1.0, progress))
-        if self._drawer_mode:
+        if self._drawer_mode and not self._drawer_animating:
             self.reposition()
 
     @Slot(bool)
     def setDrawerAnimating(self, animating: bool) -> None:
+        if self._drawer_animating == animating:
+            return
         self._drawer_animating = animating
         if self._drawer_mode:
             self.reposition()
@@ -235,7 +238,6 @@ class FloatingLauncherController(QObject):
         if self._expanded:
             self.collapse()
         else:
-            self.refreshTools()
             self.reposition()
             self._expanded = True
             self.stateChanged.emit()
