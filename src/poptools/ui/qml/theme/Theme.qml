@@ -208,8 +208,8 @@ QtObject {
     readonly property int motionFast: 120
     readonly property int motionStandard: 180
     readonly property int motionSpinner: 750
-    readonly property int floatingNotchWidth: 44
-    readonly property int floatingGripHeight: 20
+    readonly property int floatingTipWidth: 24
+    readonly property int floatingTipHeight: 64
     readonly property int floatingPanelWidth: 360
     readonly property int floatingPanelHeight: 480
     readonly property real floatingIdleOpacity: 0.55

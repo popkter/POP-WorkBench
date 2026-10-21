@@ -38,8 +38,8 @@ Window {
     readonly property real consolePreferredHeight: 292
     readonly property real bodySpacing: 12
 
-    width: presetMode ? 720 : 680
-    height: presetMode ? 560 : 600
+    width: customScriptMode ? 440 : presetMode ? 720 : 680
+    height: Math.min(customScriptMode ? 680 : presetMode ? 560 : 600, Screen.height - 48)
     visible: false
     flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
@@ -65,7 +65,7 @@ Window {
         for (var i = 0; i < parameters.length; i++)
             values[parameters[i].id] = parameters[i].default
         parameterValues = values
-        centerOnScreen()
+        session.placeWindow()
         visible = true
         requestActivate()
     }
@@ -110,7 +110,7 @@ Window {
     Rectangle {
         id: contentRect
         anchors.fill: parent
-        anchors.margins: Theme.space8
+        anchors.margins: root.customScriptMode ? Theme.space4 : Theme.space8
         radius: root.customScriptMode ? Theme.radiusMedium : Theme.radiusLarge
         color: root.customScriptMode ? Theme.chromeBackground
             : Theme.darkMode ? Theme.surfaceContainer : Theme.surface
@@ -152,6 +152,7 @@ Window {
 
                 // Title text
                 Text {
+                    visible: !root.customScriptMode
                     anchors.left: parent.left
                     anchors.leftMargin: root.customScriptMode ? 40 : Theme.space20
                     anchors.right: titleButtons.left
@@ -206,7 +207,7 @@ Window {
                     DeviceSelector {
                         objectName: "recentToolDeviceSelector"
                         visible: root.customScriptMode && !!root.deviceController
-                        width: 160
+                        width: root.customScriptMode ? 148 : 160
                         anchors.verticalCenter: parent.verticalCenter
                         compact: true
                         controller: root.deviceController
@@ -267,7 +268,7 @@ Window {
                 id: customScriptLoader
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.margins: Theme.workspaceInset
+                Layout.margins: 0
                 active: root.customScriptMode
                 visible: active
                 sourceComponent: CustomToolDetailPanel {
@@ -280,7 +281,8 @@ Window {
                     actionsInTitleBar: true
                     deviceInTitleBar: true
                     externalRun: true
-                    minimumFormReservedHeight: 180
+                    compactLayout: true
+                    minimumFormReservedHeight: 0
                     onRunRequested: root.runCustomScript()
                 }
             }

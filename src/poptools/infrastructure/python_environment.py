@@ -66,7 +66,14 @@ class PythonEnvironment:
         )
 
     def state(self) -> PythonEnvironmentState:
-        provider, _ = self.config_store.python_environment()
+        provider, custom = self.config_store.python_environment()
+        if provider == "custom":
+            available = bool(custom) and Path(custom).is_file()
+            return PythonEnvironmentState(
+                provider, custom, available,
+                "使用本地 Python 环境" if available
+                else "本地 Python 路径不可用，请在设置中重新选择",
+            )
         managed = self.managed_executable
         if managed.is_file():
             return PythonEnvironmentState(
@@ -95,11 +102,15 @@ class PythonEnvironment:
         IPC resources with the first process ID, so scripts must run with the
         bundled runtime executable itself.
         """
+        if self.config_store.python_environment()[0] == "custom":
+            return self.executable()
         if self.managed_executable.is_file() and self.managed_runtime_executable.is_file():
             return str(self.managed_runtime_executable.resolve())
         return self.executable()
 
     def execution_site_packages(self) -> str | None:
+        if self.config_store.python_environment()[0] == "custom":
+            return None
         if self.managed_executable.is_file() and self.managed_site_packages.is_dir():
             return str(self.managed_site_packages.resolve())
         return None
@@ -108,12 +119,22 @@ class PythonEnvironment:
         self, base: Mapping[str, str] | None = None
     ) -> dict[str, str]:
         environment = dict(os.environ if base is None else base)
+        custom = self.config_store.python_environment()[0] == "custom"
+        if custom:
+            for key in list(environment):
+                if (key.upper() in {"PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
+                        or key.upper().startswith("POPTOOLS_PYTHON")):
+                    environment.pop(key)
         executable = self.executable()
         current_path = _pop_environment_value(environment, "PATH")
         executable_directory = str(Path(executable).parent) if executable else ""
         environment["PATH"] = os.pathsep.join(
             part for part in (executable_directory, current_path) if part
         )
+        if custom and executable:
+            prefix = Path(executable).parent.parent
+            if (prefix / "pyvenv.cfg").is_file():
+                environment["VIRTUAL_ENV"] = str(prefix)
         site_packages = self.execution_site_packages()
         if not site_packages:
             return environment
@@ -181,7 +202,8 @@ class PythonEnvironment:
 
     def ensure_ready(self) -> PythonEnvironmentState:
         if (
-            sys.platform != "win32"
+            self.config_store.python_environment()[0] != "custom"
+            and sys.platform != "win32"
             and getattr(sys, "frozen", False)
             and not self.managed_executable.is_file()
         ):

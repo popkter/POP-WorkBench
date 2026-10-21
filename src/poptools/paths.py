@@ -72,6 +72,11 @@ def installed_runtime_path(*parts: str) -> Path:
 
 def bundled_android_tools_dir() -> Path:
     if sys.platform == "win32" and _managed_paths is not None:
+        from poptools.infrastructure.runtime_environment import RuntimeEnvironment
+
+        runtime = RuntimeEnvironment(_managed_paths)
+        if runtime.source("android")[0] == "custom":
+            return runtime.scrcpy_executable().parent
         return managed_plugin_directory(_managed_paths, "android") / "runtime"
     override = os.environ.get(ANDROID_TOOLS_DIR_ENV)
     if override:
@@ -83,10 +88,18 @@ def bundled_android_tools_dir() -> Path:
 
 
 def bundled_adb_path() -> Path:
+    if sys.platform == "win32" and _managed_paths is not None:
+        from poptools.infrastructure.runtime_environment import RuntimeEnvironment
+
+        return RuntimeEnvironment(_managed_paths).executable("android")
     return bundled_android_tools_dir() / _android_tool_name("adb")
 
 
 def bundled_scrcpy_path() -> Path:
+    if sys.platform == "win32" and _managed_paths is not None:
+        from poptools.infrastructure.runtime_environment import RuntimeEnvironment
+
+        return RuntimeEnvironment(_managed_paths).scrcpy_executable()
     return bundled_android_tools_dir() / _android_tool_name("scrcpy")
 
 

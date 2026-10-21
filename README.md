@@ -6,6 +6,8 @@
 
 > 本文适用于当前 1.1.3 源码版本；已安装版本的功能以对应发布版本为准。
 
+Windows 推荐下载**完整版 `PopTools-Setup.exe`**：预置 Python、Android 工具（ADB + scrcpy）和 PowerShell，安装后即可使用。纯净版 `PopTools-Clean-Setup.exe` 不附带这三套运行时，可按需安装插件或指定本地环境。
+
 ## 主要功能
 
 - **自定义脚本**：在双栏工作区中创建、编辑、删除、搜索、筛选和运行 PowerShell、Bash、Batch、Python 脚本。
@@ -217,13 +219,17 @@ print(keyword, count * 2)
 
 ## Windows 插件管理
 
-在“设置 → 插件”中统一安装、检查更新、修复和卸载 Python、Android 工具（ADB + scrcpy）及 PowerShell。PowerShell 在两种安装包中均需按需安装。首次安装和检查更新访问官方 NuGet 或 GitHub；更新跟随官方稳定版，由用户手动确认执行，不自动安装预发布版本。
+在“设置 → 插件”中可为 Python、Android 工具（ADB + scrcpy）和 PowerShell 选择“应用管理”或“本地环境”。完整版默认附带三套运行时；纯净版不附带运行时，可按需安装。安装和检查插件更新访问官方 NuGet 或 GitHub，更新由用户手动执行。
 
-插件保存在用户数据目录的 `plugins` 下，不修改系统环境。集成版附带插件可彻底卸载，重启或更新应用不会装回。Python 卸载会删除其环境及依赖，但保留用户脚本、配置和输出。Python 升级先迁移依赖，验证通过再启用；迁移失败保留旧版本并显示原因。运行中的插件不能被更新或卸载，请先结束相关任务；ADB 后台服务仍在运行时，可先点击 Android 插件的“停止设备服务”；再次手动刷新设备会恢复扫描。
+选择本地环境后，填写或浏览选择 `python.exe`（CPython 3.11 及以上，支持虚拟环境）、`pwsh.exe`（PowerShell 7 及以上）或 `adb.exe`，检测成功后保存。Android 环境可额外指定完整 scrcpy 发行包中的 `scrcpy.exe`，供投屏和录屏使用；只指定 ADB 也可使用设备扫描和 ADB 命令。本地模式隐藏并拒绝插件更新、修复、卸载等操作，由用户自行维护外部环境。
 
-纯净版未安装 Android 工具时不会扫描设备；未安装 Python 时仍能使用其他功能。安装 PowerShell 插件即可使用终端，不要求同时安装 Python。
+应用管理的插件保存在用户数据目录 `plugins` 中，不修改系统环境。单独更新 Python 插件时会迁移已有依赖，验证通过再启用，失败保留旧环境。运行期间不能切换环境或更新、卸载相关插件；ADB 后台服务仍在运行时，可先点击“停止设备服务”。
 
-Windows 本地构建：`packaging/build.ps1 -Edition Both`（默认），也可选择 `Bundled` 或 `Clean`。纯净版构建不需要 Python、scrcpy 的插件发行包。macOS 打包方式保持不变。
+**安装或 OTA 升级完整版时，按安装包中的版本检查应用管理的运行时**：版本相同且文件完整则保留现有环境，缺失或已卸载的运行时会补齐。Python 版本变化时，先导出原专用环境的依赖，在新环境中自动安装并执行依赖检查；验证成功后才切换并清理旧目录，失败则保留旧环境供继续使用和重试。依赖迁移可能需要联网。pwsh、ADB/scrcpy 也只在版本变化或运行时不完整时替换。用户指定的外部环境、所选路径、脚本、配置和输出均保留。纯净版升级不预置或替换运行时。
+
+Windows 本地构建：`packaging/build.ps1 -Edition Both`（默认），也可选择 `Bundled` 或 `Clean`。完整版构建校验并预置三套运行时，纯净版构建无需它们的发行包。macOS 打包方式保持不变。
+
+运行时发行包不提交到源码仓库，只保留固定版本、官方下载地址、SHA-256 和许可证。Windows 构建缺少 Python、scrcpy/ADB 或 PowerShell 包时会自动下载并校验；macOS 构建同样按架构清单下载。GitHub Workflow 按系统、架构和清单内容缓存原始发行包，每次构建仍校验 SHA-256，缓存缺失不会影响正常下载。下载只发生在构建阶段，完整版安装后仍可离线使用三套运行时。
 
 ## Python 环境与依赖
 
@@ -291,7 +297,7 @@ adb devices
 - 可以下次提醒、跳过当前版本、立即下载、取消下载、稍后安装或安装并重启；选择“稍后安装”后，下次启动会先校验并自动应用已下载的更新；
 - 下载文件会校验大小以及 GitHub digest 或配套 SHA-256。
 
-Windows 同时发布集成版 `PopTools-Setup.exe`（附带 Python、Android 工具）和纯净版 `PopTools-Clean-Setup.exe`（不附带可选插件）。两者都能独立启动，应用自身必需的 Python 库不属于可卸载插件。自动更新保持当前发行类型；切换安装包不会删除用户已有插件。macOS 根据架构使用 `PopTools-macos-arm64.zip` 或 `PopTools-macos-x64.zip`。
+Windows 主推完整版 `PopTools-Setup.exe`（附带 Python、Android 工具、PowerShell），同时提供纯净版 `PopTools-Clean-Setup.exe`（不附带可选插件）。两者都能独立启动，应用自身必需的 Python 库不属于可卸载插件。自动更新保持当前发行类型；完整版安装或升级按版本更新应用管理的运行时；纯净版升级保留已有插件，外部本地环境始终保留。macOS 根据架构使用 `PopTools-macos-arm64.zip` 或 `PopTools-macos-x64.zip`。
 
 Windows Release 还必须保留 `PopTools.exe` 和 `PopTools.exe.sha256`，用于兼容 1.1.0 及以前具备 OTA 功能的客户端。它是内嵌同次构建集成版安装包的独立升级程序，不能用改名的安装包或新版目录式应用入口代替。旧版下载后会自动迁移到原目录、保留用户数据和插件，并启动新版；后续更新恢复使用正常安装包，无需手动覆盖安装或经过中间版本。
 

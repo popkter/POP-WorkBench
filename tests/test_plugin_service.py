@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import shutil
 import sys
 import zipfile
 from dataclasses import asdict
@@ -39,6 +40,16 @@ def runtime(tmp_path, plugin="powershell"):
 
 def package(version="7.6.3"):
     return PluginPackage(version, "https://example.test/runtime.zip", "a" * 64)
+
+
+def bundled_seed(service, plugin, source, version):
+    seed = service.paths.plugins_dir / plugin / "seed"
+    seed.mkdir()
+    shutil.copytree(source, seed / "runtime")
+    (seed / "package.json").write_text(json.dumps({
+        **asdict(package(version)), "replace_managed": True,
+    }))
+    return seed
 
 
 def test_install_update_uninstall_preserves_user_data(service, tmp_path):
@@ -202,6 +213,178 @@ def test_removed_bundled_plugin_is_not_reseeded(service, tmp_path):
     service.seed()
     assert not seed.exists()
     assert service.record("android") == {"removed": True}
+
+
+@pytest.mark.parametrize("plugin,version", [
+    ("python", "3.13.14"), ("android", "4.0"), ("powershell", "7.6.6"),
+])
+def test_same_version_bundled_runtime_keeps_environment_and_dependencies(
+    service, tmp_path, monkeypatch, plugin, version,
+):
+    source = runtime(tmp_path, plugin)
+    service.install(plugin, package(version), source=source)
+    old = service.directory(plugin)
+    if plugin == "python":
+        python = old / "env/Scripts/python.exe"
+        python.parent.mkdir(parents=True)
+        python.touch()
+    marker = old / "installed-dependency"
+    marker.write_text("keep")
+    record = service.record(plugin)
+    seed = bundled_seed(service, plugin, source, version)
+    monkeypatch.setattr(
+        service, "install", lambda *args, **kwargs: pytest.fail("must reuse runtime")
+    )
+    monkeypatch.setattr(service, "_stop_managed_adb", lambda: pytest.fail("must keep ADB running"))
+    service.seed()
+    assert service.record(plugin) == record
+    assert marker.read_text() == "keep"
+    assert not seed.exists()
+
+
+@pytest.mark.parametrize("plugin", ["python", "android", "powershell"])
+def test_same_version_incomplete_runtime_is_repaired(service, tmp_path, plugin):
+    source = runtime(tmp_path, plugin)
+    service.install(plugin, package("7.0"), source=source)
+    old = service.directory(plugin)
+    service.executable(plugin).unlink()
+    bundled_seed(service, plugin, source, "7.0")
+    service.seed()
+    assert service.directory(plugin) != old
+    assert service.available(plugin)
+    assert not old.exists()
+
+
+@pytest.mark.parametrize("failure", ["", "freeze", "install", "check", "validation"])
+def test_bundled_python_version_change_migrates_before_commit_and_can_retry(
+    service, tmp_path, monkeypatch, failure,
+):
+    source = runtime(tmp_path, "python")
+    service.install("python", package("3.13.14"), source=source)
+    old = service.directory("python")
+    old_python = old / "env/Scripts/python.exe"
+    old_python.parent.mkdir(parents=True)
+    old_python.touch()
+    old_dependency = old / "installed-dependency"
+    old_dependency.write_text("keep until commit")
+    record = service.record("python")
+    seed = bundled_seed(service, "python", source, "3.14.7")
+    external = tmp_path / "external/python.exe"
+    external.parent.mkdir()
+    external.write_text("user-owned")
+    config = ConfigStore(service.paths)
+    config.set_runtime_environment("python", "custom", str(external))
+    selection = config.load_config()
+    failing = [failure]
+    commands = []
+    requirements = "library-one==1.0\nlibrary-two==2.0\n"
+
+    def execute(args, cancelled):
+        commands.append(args)
+        assert service.record("python") == record
+        assert old_dependency.read_text() == "keep until commit"
+        assert args[0] != str(external)
+        if args[1:3] == ["-m", "pip"]:
+            phase = args[3]
+        elif args[1:3] == ["-m", "venv"]:
+            phase = "venv"
+        else:
+            phase = "validation"
+        if phase == failing[0]:
+            raise RuntimeError("migration failed during " + phase)
+        if phase == "freeze":
+            assert args[0] == str(old_python)
+            return requirements
+        if "install" in args:
+            assert Path(args[-1]).read_text() == requirements
+        return ""
+
+    monkeypatch.setattr(service, "_run", execute)
+    if failure:
+        with pytest.raises(RuntimeError, match="migration failed"):
+            service.seed()
+        assert service.record("python") == record
+        assert old_dependency.read_text() == "keep until commit"
+        assert seed.exists()
+        assert not list(service.paths.plugins_dir.glob("*/*/.pending"))
+        failing[0] = ""
+    service.seed()
+    new = service.directory("python")
+    assert new != old and not old.exists() and not seed.exists()
+    assert service.record("python")["package"]["version"] == "3.14.7"
+    assert (new / "migrated-requirements.txt").read_text() == requirements
+    assert any(args[1:4] == ["-m", "pip", "install"] for args in commands)
+    assert any(args[1:4] == ["-m", "pip", "check"] for args in commands)
+    assert config.load_config() == selection
+    assert external.read_text() == "user-owned"
+
+
+@pytest.mark.parametrize("plugin", ["python", "android", "powershell"])
+def test_full_upgrade_replaces_managed_runtime_but_preserves_external_choice(
+    service, tmp_path, plugin,
+):
+    source = runtime(tmp_path, plugin)
+    service.install(plugin, package("7.0"), source=source)
+    old = service.directory(plugin)
+    (old / "old-dependency.txt").touch()
+    external = tmp_path / "external" / plugins.EXECUTABLES[plugin]
+    external.parent.mkdir()
+    external.write_text("user-owned")
+    config = ConfigStore(service.paths)
+    config.set_runtime_environment(plugin, "custom", str(external))
+    seed = service.paths.plugins_dir / plugin / "seed"
+    seed.mkdir()
+    shutil.copytree(source, seed / "runtime")
+    (seed / "package.json").write_text(json.dumps({
+        **asdict(package("7.1")), "replace_managed": True,
+    }))
+    service.seed()
+    assert service.record(plugin)["package"]["version"] == "7.1"
+    assert not old.exists() and not seed.exists()
+    assert external.read_text() == "user-owned"
+    assert config.runtime_environment(plugin)[:2] == ("custom", str(external))
+
+
+def test_failed_replacement_keeps_old_runtime_and_seed_for_retry(service, tmp_path, monkeypatch):
+    source = runtime(tmp_path)
+    service.install("powershell", package(), source=source)
+    old = service.directory("powershell")
+    seed = service.paths.plugins_dir / "powershell/seed"
+    (seed / "runtime").mkdir(parents=True)
+    (seed / "runtime/pwsh.exe").touch()
+    (seed / "package.json").write_text(json.dumps({
+        **asdict(package("7.6.6")), "replace_managed": True,
+    }))
+
+    def fail(*args):
+        raise RuntimeError("invalid runtime")
+
+    monkeypatch.setattr(service, "_run", fail)
+    with pytest.raises(RuntimeError, match="invalid runtime"):
+        service.seed()
+    assert old.exists() and service.directory("powershell") == old
+    assert seed.exists()
+
+
+def test_seed_stops_only_application_owned_adb(service, tmp_path, monkeypatch):
+    service.install("android", package("4.0"), source=runtime(tmp_path, "android"))
+    calls = []
+    owned = SimpleNamespace(info={"exe": str(service.executable("android").with_name("adb.exe"))},
+                            terminate=lambda: calls.append("owned"), wait=lambda **kwargs: None)
+    external = SimpleNamespace(info={"exe": str(tmp_path / "external/adb.exe")},
+                               terminate=lambda: pytest.fail("external ADB must not be stopped"))
+    monkeypatch.setattr(plugins.psutil, "process_iter", lambda *args: [owned, external])
+    service._stop_managed_adb()
+    assert calls == ["owned"]
+
+
+def test_cleanup_cannot_remove_external_environment(service, tmp_path):
+    external = tmp_path / "external"
+    external.mkdir()
+    (external / "keep.txt").write_text("keep")
+    with pytest.raises(ValueError, match="插件目录之外"):
+        service._remove_directory("python", external)
+    assert (external / "keep.txt").read_text() == "keep"
 
 
 def test_python_dependency_migration_failure_preserves_old_environment(

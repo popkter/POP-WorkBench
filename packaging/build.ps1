@@ -8,6 +8,7 @@
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "runtime-download.ps1")
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $PythonVendorDir = Join-Path $ProjectRoot "src\poptools\resources\vendor\python"
@@ -28,6 +29,10 @@ $ScrcpyRuntimeInnerDirectory = if ($ScrcpyManifest.directory) {
 } else {
     "scrcpy-win64-v$($ScrcpyManifest.version)"
 }
+$PowerShellManifestPath = Join-Path $ScrcpyVendorDir "powershell-plugin.json"
+$PowerShellManifest = Get-Content -LiteralPath $PowerShellManifestPath -Raw | ConvertFrom-Json
+$PowerShellPackage = $PowerShellManifest.packages.x64
+$PowerShellRuntimePackage = Join-Path $ScrcpyVendorDir "PowerShell-$($PowerShellManifest.version)-win-x64.zip"
 
 function Find-UvExecutable {
     $UvCommand = Get-Command "uv" -ErrorAction SilentlyContinue
@@ -151,7 +156,7 @@ function Remove-OneFolderOutput {
 function Expand-VerifiedRuntime {
     param(
         [Parameter(Mandatory = $true)][string]$Archive,
-        [Parameter(Mandatory = $true)][string]$InnerDirectory,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$InnerDirectory,
         [Parameter(Mandatory = $true)][string]$Destination
     )
 
@@ -160,7 +165,7 @@ function Expand-VerifiedRuntime {
         New-Item -ItemType Directory -Path $Staging -Force | Out-Null
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [System.IO.Compression.ZipFile]::ExtractToDirectory($Archive, $Staging)
-        $Source = Join-Path $Staging $InnerDirectory
+        $Source = if ($InnerDirectory) { Join-Path $Staging $InnerDirectory } else { $Staging }
         if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
             throw "Runtime package does not contain the expected directory: $InnerDirectory"
         }
@@ -177,22 +182,12 @@ function Expand-VerifiedRuntime {
 }
 
 if ($Edition -ne "Clean") {
-    if (-not (Test-Path -LiteralPath $PythonRuntimePackage)) {
-        New-Item -ItemType Directory -Path $PythonVendorDir -Force | Out-Null
-        Write-Host "Downloading the private Python runtime package..."
-        Invoke-WebRequest -Uri $PythonManifest.url -OutFile $PythonRuntimePackage
-    }
-    $PythonRuntimePackageHash = (Get-FileHash -LiteralPath $PythonRuntimePackage -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($PythonRuntimePackageHash -ne $PythonManifest.sha256) {
-        throw "Private Python runtime package checksum mismatch: $PythonRuntimePackage"
-    }
-    if (-not (Test-Path -LiteralPath $ScrcpyRuntimePackage -PathType Leaf)) {
-        throw "Bundled scrcpy package is missing: $ScrcpyRuntimePackage"
-    }
-    $ScrcpyRuntimePackageHash = (Get-FileHash -LiteralPath $ScrcpyRuntimePackage -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($ScrcpyRuntimePackageHash -ne $ScrcpyManifest.sha256) {
-        throw "Bundled scrcpy package checksum mismatch: $ScrcpyRuntimePackage"
-    }
+    Get-VerifiedRuntime -Uri $PythonManifest.url -Destination $PythonRuntimePackage `
+        -Sha256 $PythonManifest.sha256
+    Get-VerifiedRuntime -Uri $ScrcpyManifest.url -Destination $ScrcpyRuntimePackage `
+        -Sha256 $ScrcpyManifest.sha256
+    Get-VerifiedRuntime -Uri $PowerShellPackage.url -Destination $PowerShellRuntimePackage `
+        -Sha256 $PowerShellPackage.sha256
 }
 
 if (-not (Test-Path -LiteralPath $VenvPython)) {
@@ -383,6 +378,13 @@ try {
             -Archive $ScrcpyRuntimePackage `
             -InnerDirectory $ScrcpyRuntimeInnerDirectory `
             -Destination (Join-Path $RuntimeOutput "scrcpy")
+        Expand-VerifiedRuntime `
+            -Archive $PowerShellRuntimePackage `
+            -InnerDirectory "" `
+            -Destination (Join-Path $RuntimeOutput "powershell")
+        if (-not (Test-Path -LiteralPath (Join-Path $RuntimeOutput "powershell\pwsh.exe"))) {
+            throw "Prepared PowerShell runtime is missing pwsh.exe"
+        }
         Copy-Item -LiteralPath $PythonManifestPath `
             -Destination (Join-Path $RuntimeOutput "python\manifest.json")
         Copy-Item -LiteralPath (Join-Path $PythonVendorDir "PYTHON-LICENSE.txt") `
@@ -399,10 +401,12 @@ try {
                 throw "Prepared scrcpy runtime is missing $RequiredScrcpyFile"
             }
         }
-        $PythonSeed = @{version=$PythonManifest.version; url=$PythonManifest.url; digest=$PythonManifest.sha256; algorithm="sha256"; inner="tools"}
-        $AndroidSeed = @{version=$ScrcpyManifest.version; url="https://github.com/Genymobile/scrcpy/releases/download/v$($ScrcpyManifest.version)/$($ScrcpyManifest.archive)"; digest=$ScrcpyManifest.sha256; algorithm="sha256"; inner=$ScrcpyRuntimeInnerDirectory}
+        $PythonSeed = @{version=$PythonManifest.version; url=$PythonManifest.url; digest=$PythonManifest.sha256; algorithm="sha256"; inner="tools"; replace_managed=$true}
+        $AndroidSeed = @{version=$ScrcpyManifest.version; url="https://github.com/Genymobile/scrcpy/releases/download/v$($ScrcpyManifest.version)/$($ScrcpyManifest.archive)"; digest=$ScrcpyManifest.sha256; algorithm="sha256"; inner=$ScrcpyRuntimeInnerDirectory; replace_managed=$true}
+        $PowerShellSeed = @{version=$PowerShellManifest.version; url=$PowerShellPackage.url; digest=$PowerShellPackage.sha256; algorithm="sha256"; inner=""; replace_managed=$true}
         [IO.File]::WriteAllText((Join-Path $RuntimeOutput "python-package.json"), ($PythonSeed | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
         [IO.File]::WriteAllText((Join-Path $RuntimeOutput "android-package.json"), ($AndroidSeed | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText((Join-Path $RuntimeOutput "powershell-package.json"), ($PowerShellSeed | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
     }
     Write-Host (
         "Application core created at dist\泡泡工具箱; optional plugin seeds prepared separately"

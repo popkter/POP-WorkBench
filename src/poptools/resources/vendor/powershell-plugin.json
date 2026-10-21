@@ -1,17 +1,17 @@
 {
   "name": "PowerShell 7",
-  "version": "7.6.3",
+  "version": "7.6.6",
   "license": "MIT",
   "packages": {
     "x64": {
-      "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.3/PowerShell-7.6.3-win-x64.zip",
-      "sha256": "07ddb0d00b660459560ef82a9841da7705b27cd5dcca5a0d7b025a98eca29eca",
-      "size": 122600000
+      "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.6/PowerShell-7.6.6-win-x64.zip",
+      "sha256": "02fe458be20493fbdf43f61ea20610b811ee6c738ab1676c61b9cfcd1a33c860",
+      "size": 106328873
     },
     "arm64": {
-      "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.3/PowerShell-7.6.3-win-arm64.zip",
-      "sha256": "2ece90557c370bb5ee03275ef41f2a49e26ea85defcf2052aca32c20dadb62c2",
-      "size": 116000000
+      "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.6/PowerShell-7.6.6-win-arm64.zip",
+      "sha256": "bbde9dda31d148415eccb5fbe1638e6400a144187b006e5b3fd8ec2f39d781be",
+      "size": 94900000
     }
   }
 }

@@ -166,7 +166,7 @@ class DeveloperConsoleController(QObject):
     def canCreateTerminalTab(self) -> bool:
         return True
 
-    @Property(str, constant=True)
+    @Property(str, notify=pluginStateChanged)
     def pythonExecutable(self) -> str:
         return self.python_environment.execution_executable() or "不可用"
 
@@ -304,7 +304,7 @@ class DeveloperConsoleController(QObject):
         if tab.session is not None:
             return True
         if not self.pluginInstalled:
-            message = "请先安装应用内 PowerShell 7 插件。\n"
+            message = "PowerShell 不可用，请在设置中安装插件或指定有效的本地环境。\n"
             if not tab.output.endswith(message):
                 self._append_to_tab(tab, message)
             return False

@@ -18,6 +18,7 @@ from poptools.infrastructure.app_updater import (
     UpdateRelease,
     file_sha256,
     is_newer_version,
+    update_asset_name,
     validate_pending_update,
 )
 from poptools.infrastructure.config_store import ConfigStore
@@ -151,6 +152,13 @@ class UpdateController(QObject):
     @Property(str, constant=True)
     def currentVersion(self) -> str:
         return self._current_version
+
+    @Property(str, constant=True)
+    def runtimeUpdateNotice(self) -> str:
+        if sys.platform != "win32" or update_asset_name() == "PopTools-Clean-Setup.exe":
+            return ""
+        return ("运行时版本未变时保留现有环境；Python 版本变化时自动迁移依赖，"
+                "验证成功后再切换，失败保留旧环境。迁移可能需要联网，外部本地环境及其选择会保留。")
 
     @Property(str, notify=stateChanged)
     def state(self) -> str:

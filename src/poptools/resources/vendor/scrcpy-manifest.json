@@ -3,5 +3,6 @@
   "version": "4.0",
   "platform": "windows-x64",
   "archive": "scrcpy-win64-v4.0.zip",
+  "url": "https://github.com/Genymobile/scrcpy/releases/download/v4.0/scrcpy-win64-v4.0.zip",
   "sha256": "75dbeb5b00e6f64292f26f70900ae55ca397786bdfb0b9bbeb481a0549047457"
 }

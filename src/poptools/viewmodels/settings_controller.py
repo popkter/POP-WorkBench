@@ -71,6 +71,7 @@ class SettingsController(QObject):
             from poptools.infrastructure.plugin_service import PluginService
             from poptools.viewmodels.plugin_controller import PluginController
             self._plugin_controller = PluginController(PluginService(config_store.paths), self)
+            self._plugin_controller.changed.connect(self.pluginsChanged)
 
         application = cast(QGuiApplication | None, QGuiApplication.instance())
         if application is not None:
@@ -90,11 +91,11 @@ class SettingsController(QObject):
     def configurationStatus(self) -> str:
         return self._configuration_status
 
-    @Property(str)
+    @Property(str, notify=pluginsChanged)
     def pythonExecutable(self) -> str:
         return self.python_environment.state().executable
 
-    @Property(str)
+    @Property(str, notify=pluginsChanged)
     def pythonEnvironmentStatus(self) -> str:
         return self.python_environment.state().status
 

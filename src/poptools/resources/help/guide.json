@@ -64,7 +64,7 @@
       },
       {
         "title": "使用提示",
-        "body": "脚本类型要与内容一致。 Windows 运行 Bash 需要可用的 Bash 环境，如 Git Bash；Windows 内置终端首次使用时按提示准备 PowerShell 7，macOS 使用系统 Shell。",
+        "body": "脚本类型要与内容一致。 Windows 运行 Bash 需要可用的 Bash 环境，如 Git Bash；Windows 完整版内置 PowerShell 7，纯净版可安装插件或指定本地 pwsh，macOS 使用系统 Shell。",
         "icon": "info"
       }
     ]
@@ -192,11 +192,11 @@
     "cards": [
       {
         "title": "选择安装版本",
-        "body": "在设置的插件区域安装、更新、修复或卸载 Python、Android 工具（ADB + scrcpy）及 PowerShell。集成版附带 Python 和 Android 工具，纯净版不附带插件，两种版本均需单独安装 PowerShell。"
+        "body": "在设置的插件区域安装、更新、修复或卸载 Python、Android 工具（ADB + scrcpy）及 PowerShell。完整版附带 Python、Android 工具和 PowerShell，纯净版不附带运行时。可选择本地环境并指定可执行文件，应用不更新或卸载外部环境。"
       },
       {
         "title": "更新与卸载",
-        "body": "插件更新采用官方稳定版，需要手动执行。Python 升级会先迁移原有依赖，失败时保留旧环境。卸载 Python 会同时删除其依赖，用户脚本、配置及输出会保留。已卸载插件不会因应用重启或升级自动恢复。"
+        "body": "插件更新采用官方稳定版，需要手动执行。Python 升级会先迁移原有依赖，失败时保留旧环境。卸载 Python 会同时删除其依赖，用户脚本、配置及输出会保留。重启应用不会恢复已卸载插件；安装或 OTA 升级完整版时，版本相同且完整的运行时会保留；Python 版本变化时自动迁移依赖，验证成功后才切换和清理旧环境，失败保留旧环境供继续使用及重试。迁移可能需要联网。外部本地环境及其选择会保留。"
       },
       {
         "title": "运行中的插件",

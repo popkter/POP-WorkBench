@@ -38,17 +38,63 @@ ColumnLayout {
                 anchors.top: parent.top
                 anchors.margins: Theme.space12
                 spacing: Theme.space8
-                Text {
+                RowLayout {
+                    id: pluginHeader
                     Layout.fillWidth: true
-                    text: modelData.name + (modelData.version ? "  " + modelData.version : "")
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontSupporting
-                    font.weight: Font.DemiBold
-                    wrapMode: Text.Wrap
+                    spacing: Theme.space8
+                    Text {
+                        Layout.preferredWidth: implicitWidth
+                        Layout.maximumWidth: Math.max(0, pluginContent.width
+                            - (installedBadge.visible ? installedBadge.implicitWidth + Theme.space8 : 0)
+                            - (latestLabel.visible ? Math.min(latestLabel.implicitWidth,
+                                140, pluginContent.width * 0.3) + Theme.space8 : 0)
+                            - Theme.space8)
+                        Layout.minimumWidth: 0
+                        text: modelData.name + (modelData.version ? "  " + modelData.version : "")
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontSupporting
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
+                    Rectangle {
+                        id: installedBadge
+                        visible: modelData.installed
+                        implicitWidth: installedLabel.implicitWidth + Theme.space12
+                        implicitHeight: installedLabel.implicitHeight + Theme.space4
+                        radius: Theme.radiusTiny
+                        color: Theme.successContainer
+                        Text {
+                            id: installedLabel
+                            anchors.centerIn: parent
+                            text: "已安装"
+                            color: Theme.success
+                            font.pixelSize: Theme.fontCaption
+                        }
+                    }
+                    Text {
+                        id: latestLabel
+                        visible: !!modelData.latest
+                        Layout.preferredWidth: implicitWidth
+                        Layout.maximumWidth: Math.min(140, pluginContent.width * 0.3)
+                        Layout.minimumWidth: 0
+                        text: modelData.latest ? "最新 " + modelData.latest : ""
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontCaption
+                        elide: Text.ElideRight
+                    }
+                    Item { Layout.fillWidth: true }
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: modelData.status + (modelData.latest ? " · 最新 " + modelData.latest : "")
+                    text: modelData.path || ""
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontCaption
+                    elide: Text.ElideMiddle
+                }
+                Text {
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: (modelData.status === "已安装" ? "" : modelData.status)
                     color: Theme.textSecondary
                     font.pixelSize: Theme.fontCaption
                     wrapMode: Text.Wrap
@@ -63,32 +109,40 @@ ColumnLayout {
                     Layout.fillWidth: true
                     spacing: Theme.space8
                     PluginAction {
+                        objectName: "configureRuntime_" + modelData.id
+                        implicitWidth: 100
+                        enabled: !modelData.busy
+                        text: modelData.managed ? "应用管理" : "本地环境"
+                        onClicked: runtimeDialog.configure(modelData)
+                    }
+                    PluginAction {
                         implicitWidth: 68; tonal: false
-                        visible: !modelData.installed; enabled: !modelData.busy
+                        visible: modelData.managed && !modelData.installed; enabled: !modelData.busy
                         text: "安装"
                         onClicked: root.backend.operate(modelData.id, "install")
                     }
                     PluginAction {
                         implicitWidth: 88
+                        visible: modelData.managed
                         enabled: !modelData.busy; tonal: true
                         text: "检查更新"
                         onClicked: root.backend.operate(modelData.id, "check")
                     }
                     PluginAction {
                         implicitWidth: 68; tonal: false
-                        visible: modelData.installed && modelData.canUpdate; enabled: !modelData.busy
+                        visible: modelData.managed && modelData.installed && modelData.canUpdate; enabled: !modelData.busy
                         text: "更新"
                         onClicked: root.backend.operate(modelData.id, "update")
                     }
                     PluginAction {
                         implicitWidth: 68
-                        visible: modelData.recorded; enabled: !modelData.busy; tonal: true
+                        visible: modelData.managed && modelData.recorded; enabled: !modelData.busy; tonal: true
                         text: "修复"
                         onClicked: root.backend.operate(modelData.id, "repair")
                     }
                     PluginAction {
                         implicitWidth: 68
-                        visible: modelData.recorded; enabled: !modelData.busy; tonal: true
+                        visible: modelData.managed && modelData.recorded; enabled: !modelData.busy; tonal: true
                         text: "卸载"
                         onClicked: { confirm.pluginId = modelData.id; confirm.pluginName = modelData.name; confirm.open() }
                     }
@@ -100,7 +154,7 @@ ColumnLayout {
                     }
                     PluginAction {
                         implicitWidth: 112
-                        visible: modelData.id === "android" && modelData.installed
+                        visible: modelData.managed && modelData.id === "android" && modelData.installed
                         enabled: !modelData.busy; tonal: true
                         text: "停止设备服务"
                         onClicked: root.backend.operate(modelData.id, "stop-server")
@@ -109,6 +163,7 @@ ColumnLayout {
             }
         }
     }
+    RuntimeEnvironmentDialog { id: runtimeDialog; backend: root.backend }
     AppDialog {
         id: confirm
         objectName: "pluginUninstallDialog"

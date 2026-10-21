@@ -68,14 +68,15 @@ The complete CPython license is distributed as `PYTHON-LICENSE.txt` beside the
 runtime package. Package sources and SHA-256 values are recorded in
 `python-runtime*.json`.
 
-## PowerShell 7.6.3
+## PowerShell 7.6.6
 
-On Windows, users can enable the terminal by downloading the official
-PowerShell 7.6.3 ZIP for x64 or arm64. The package is optional, downloaded only
-after confirmation, and verified against the SHA-256 value in
-`powershell-plugin.json`.
+The Windows full edition includes the official PowerShell 7.6.6 x64 ZIP
+runtime. The clean edition can download it on demand. Bundled packages are
+verified against the SHA-256 value in `powershell-plugin.json`; application-managed
+updates use official release checksums. The runtime retains its upstream
+LICENSE.txt and ThirdPartyNotices.txt files.
 
 - Source: https://github.com/PowerShell/PowerShell
-- Release: https://github.com/PowerShell/PowerShell/releases/tag/v7.6.3
+- Release: https://github.com/PowerShell/PowerShell/releases/tag/v7.6.6
 - License: MIT License
 - Copyright: Microsoft Corporation and PowerShell contributors

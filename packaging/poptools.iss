@@ -72,10 +72,12 @@ Source: "..\dist\{#MyAppName}\*"; DestDir: "{app}"; Flags: ignoreversion recurse
 Source: "..\dist\{#MyAppName}\*"; DestDir: "{tmp}\plugin-migration"; Flags: dontcopy recursesubdirs createallsubdirs
 Source: "..\build\edition-{#Edition}.json"; DestDir: "{app}"; DestName: "edition.json"; Flags: ignoreversion
 #if Edition == "Bundled"
-Source: "..\build\plugin-seeds\python\*"; DestDir: "{code:PluginDataDirectory}\plugins\python\seed\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall; Check: SeedPython
-Source: "..\build\plugin-seeds\python-package.json"; DestDir: "{code:PluginDataDirectory}\plugins\python\seed"; DestName: "package.json"; Flags: ignoreversion uninsneveruninstall; Check: SeedPython
-Source: "..\build\plugin-seeds\scrcpy\*"; DestDir: "{code:PluginDataDirectory}\plugins\android\seed\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall; Check: SeedAndroid
-Source: "..\build\plugin-seeds\android-package.json"; DestDir: "{code:PluginDataDirectory}\plugins\android\seed"; DestName: "package.json"; Flags: ignoreversion uninsneveruninstall; Check: SeedAndroid
+Source: "..\build\plugin-seeds\python\*"; DestDir: "{code:PluginDataDirectory}\plugins\python\seed\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
+Source: "..\build\plugin-seeds\python-package.json"; DestDir: "{code:PluginDataDirectory}\plugins\python\seed"; DestName: "package.json"; Flags: ignoreversion uninsneveruninstall
+Source: "..\build\plugin-seeds\scrcpy\*"; DestDir: "{code:PluginDataDirectory}\plugins\android\seed\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
+Source: "..\build\plugin-seeds\android-package.json"; DestDir: "{code:PluginDataDirectory}\plugins\android\seed"; DestName: "package.json"; Flags: ignoreversion uninsneveruninstall
+Source: "..\build\plugin-seeds\powershell\*"; DestDir: "{code:PluginDataDirectory}\plugins\powershell\seed\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
+Source: "..\build\plugin-seeds\powershell-package.json"; DestDir: "{code:PluginDataDirectory}\plugins\powershell\seed"; DestName: "package.json"; Flags: ignoreversion uninsneveruninstall
 #endif
 
 [InstallDelete]
@@ -103,16 +105,6 @@ function PluginDataDirectory(Param: String): String;
 begin
   Result := GetEnv('POPTOOLS_DATA_DIR');
   if Result = '' then Result := ExpandConstant('{localappdata}\PopTools');
-end;
-
-function SeedPython(): Boolean;
-begin
-  Result := not FileExists(PluginDataDirectory('') + '\plugins\python\installed.json');
-end;
-
-function SeedAndroid(): Boolean;
-begin
-  Result := not FileExists(PluginDataDirectory('') + '\plugins\android\installed.json');
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;

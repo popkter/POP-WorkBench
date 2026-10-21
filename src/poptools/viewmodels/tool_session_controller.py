@@ -6,6 +6,7 @@ from PySide6.QtCore import Property, QObject, QRect, Signal, Slot
 from PySide6.QtGui import QWindow
 from PySide6.QtWidgets import QDialog, QFileDialog
 
+from poptools.infrastructure.window_placement import place_tool_window
 from poptools.viewmodels.app_controller import _file_picker_start_directory
 
 if TYPE_CHECKING:
@@ -59,6 +60,11 @@ class ToolSessionController(QObject):
     def attachWindow(self, window: QObject) -> None:
         if isinstance(window, QWindow):
             self._window = window
+
+    @Slot()
+    def placeWindow(self) -> None:
+        if self._window is not None:
+            place_tool_window(self._window)
 
     @Slot("QVariantMap", result=bool)
     def runSelected(self, values: dict[str, Any]) -> bool:

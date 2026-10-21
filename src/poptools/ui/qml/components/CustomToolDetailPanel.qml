@@ -27,6 +27,8 @@ Rectangle {
     property bool actionsInTitleBar: false
     property bool deviceInTitleBar: false
     property bool externalRun: false
+    property bool compactLayout: false
+    readonly property real panelPadding: compactLayout ? Theme.space8 : Theme.detailPanelPadding
     property real minimumFormReservedHeight: Theme.detailFormReservedHeight
     readonly property bool narrowManagementLayout: allowManagement && width < Theme.detailCompactWidth
     readonly property bool compactConsoleActions: consolePanel.width < 458
@@ -46,7 +48,7 @@ Rectangle {
     radius: Theme.radiusMedium
     color: splitConsole ? "transparent" : Theme.surfaceContainerLow
     border.color: Theme.outlineVariant
-    border.width: splitConsole ? 0 : 1
+    border.width: splitConsole || compactLayout ? 0 : 1
     clip: true
 
     component ParameterDefaultButton: PrimaryButton {
@@ -120,19 +122,19 @@ Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: headingRow.implicitHeight + Theme.detailPanelPadding * 2
+            height: headingRow.implicitHeight + root.panelPadding * 2
 
             RowLayout {
                 id: headingRow
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.margins: Theme.detailPanelPadding
-                spacing: Theme.space16
+                anchors.margins: root.panelPadding
+                spacing: root.compactLayout ? Theme.space8 : Theme.space16
 
                 Rectangle {
-                    Layout.preferredWidth: 46
-                    Layout.preferredHeight: 46
+                    Layout.preferredWidth: root.compactLayout ? 32 : 46
+                    Layout.preferredHeight: root.compactLayout ? 32 : 46
                     Layout.alignment: Qt.AlignTop
                     radius: Theme.radiusMedium
                     color: root.kindBackground()
@@ -153,7 +155,7 @@ Rectangle {
                         Layout.fillWidth: true
                         text: root.displayedTool.title || "请选择脚本"
                         color: Theme.textPrimary
-                        font.pixelSize: Theme.fontDetailTitle
+                        font.pixelSize: root.compactLayout ? Theme.fontSectionTitle : Theme.fontDetailTitle
                         font.weight: Font.Bold
                         elide: Text.ElideRight
                     }
@@ -161,7 +163,9 @@ Rectangle {
                         Layout.fillWidth: true
                         text: root.displayedTool.description || "选择脚本以查看参数、运行状态和输出"
                         color: Theme.textSecondary
-                        font.pixelSize: Theme.fontBody
+                        font.pixelSize: root.compactLayout ? Theme.fontSupporting : Theme.fontBody
+                        wrapMode: root.compactLayout ? Text.Wrap : Text.NoWrap
+                        maximumLineCount: root.compactLayout ? 2 : 1
                         elide: Text.ElideRight
                     }
                 }
@@ -169,10 +173,10 @@ Rectangle {
                 Rectangle {
                     objectName: "customScriptKindBadge"
                     visible: root.kindLabel().length > 0
-                    implicitWidth: 98
+                    implicitWidth: root.compactLayout ? 76 : 98
                     implicitHeight: 22
                     Layout.alignment: Qt.AlignTop
-                    Layout.topMargin: 6
+                    Layout.topMargin: root.compactLayout ? 0 : 6
                     radius: Theme.radiusTiny
                     color: root.kindBackground()
                     Text {
@@ -187,8 +191,8 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                anchors.leftMargin: Theme.detailPanelPadding
-                anchors.rightMargin: Theme.detailPanelPadding
+                anchors.leftMargin: root.panelPadding
+                anchors.rightMargin: root.panelPadding
                 height: Theme.borderWidthThin
                 color: Theme.outlineVariant
             }
@@ -197,10 +201,10 @@ Rectangle {
         Flickable {
             id: parameterArea
             objectName: "customParameterArea"
-            x: Theme.detailPanelPadding
+            x: root.panelPadding
             anchors.top: header.bottom
-            anchors.topMargin: Theme.space12
-            width: parent.width - Theme.detailPanelPadding * 2
+            anchors.topMargin: root.compactLayout ? Theme.space8 : Theme.space12
+            width: parent.width - root.panelPadding * 2
             height: Math.max(0, actionArea.y - y - Theme.space8)
             clip: true
             contentWidth: width
@@ -242,7 +246,8 @@ Rectangle {
                                 objectName: "customParameterLabelCell_" + parameterItem.modelData.id
                                 x: 1
                                 y: 1
-                                width: Math.max(0, (parameterRow.width - 2) / 4)
+                                width: Math.max(0, (parameterRow.width - 2)
+                                    * (root.compactLayout ? 0.34 : 0.25))
                                 height: parameterInput.height
                                 MouseArea {
                                     anchors.fill: parent
@@ -294,7 +299,7 @@ Rectangle {
                                 objectName: "customParameterInput_" + parameterItem.modelData.id
                                 x: parameterLabelCell.x + parameterLabelCell.width
                                 y: 1
-                                width: parameterLabelCell.width * 3
+                                width: parameterRow.width - x - 1
                                 height: parameterRow.height - 2
                                 clip: true
                                 sourceComponent: parameterItem.modelData.kind === "choice"
@@ -493,9 +498,9 @@ Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.leftMargin: Theme.detailPanelPadding
-            anchors.rightMargin: Theme.detailPanelPadding
-            anchors.bottomMargin: root.splitConsole ? Theme.detailPanelPadding : 0
+            anchors.leftMargin: root.panelPadding
+            anchors.rightMargin: root.panelPadding
+            anchors.bottomMargin: root.splitConsole ? root.panelPadding : 0
             height: root.actionsInTitleBar ? 0 : actionFlow.implicitHeight
             visible: !root.actionsInTitleBar
 
@@ -631,27 +636,27 @@ Rectangle {
     Rectangle {
         id: consolePanel
         objectName: "customConsolePanel"
-        x: root.splitConsole ? 0 : Theme.detailPanelPadding
+        x: root.splitConsole ? 0 : root.panelPadding
         width: parent.width - x * 2
         readonly property real maximumSplitHeight: Math.max(Theme.consoleHeaderHeight,
             root.height - header.height - actionArea.height
-            - Theme.detailPanelPadding * 2 - Theme.inputHeight - root.separatorHeight)
+            - root.panelPadding * 2 - Theme.inputHeight - root.separatorHeight)
         readonly property real minimumSplitHeight: Math.min(140, maximumSplitHeight)
         readonly property real formReservedHeight: Math.max(root.minimumFormReservedHeight,
             parameterArea.y + Math.min(parameterColumn.height, Theme.detailFormMaximumVisibleHeight)
-            + actionArea.height + Theme.space8 * 2 + Theme.detailPanelPadding)
+            + actionArea.height + Theme.space8 * 2 + root.panelPadding)
         height: root.consoleExpanded
             ? (root.splitConsole
                 ? Math.max(minimumSplitHeight,
                     Math.min(maximumSplitHeight, root.height * root.consoleHeightRatio))
-                : Math.min(Theme.consoleMaximumHeight,
+                : Math.min(root.compactLayout ? root.height : Theme.consoleMaximumHeight,
                        Math.max(Math.min(Theme.consoleMinimumHeight,
                            Math.max(Theme.consoleHeaderHeight, root.height - parameterArea.y
-                               - actionArea.height - Theme.detailPanelPadding * 2)),
+                               - actionArea.height - root.panelPadding * 2)),
                            root.height - formReservedHeight)))
             : Theme.consoleHeaderHeight
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: root.splitConsole ? 0 : Theme.detailPanelPadding
+        anchors.bottomMargin: root.splitConsole ? 0 : root.panelPadding
         radius: 9
         color: Theme.consoleBackground
         clip: true

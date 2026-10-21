@@ -81,6 +81,8 @@ AppDialog {
                         id: releaseNotesText
                         width: releaseNotesScroll.availableWidth
                         text: root.controller.releaseNotes
+                            + (root.controller.runtimeUpdateNotice
+                               ? "\n\n" + root.controller.runtimeUpdateNotice : "")
                         textFormat: Text.MarkdownText
                         wrapMode: Text.Wrap
                         color: Theme.textPrimary

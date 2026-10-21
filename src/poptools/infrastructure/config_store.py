@@ -37,6 +37,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "android": {"selected_device": "", "adb_source": "bundled"},
     "bash": {"provider": "auto", "custom_executable": None},
     "python": {"provider": "managed", "custom_executable": None},
+    "powershell": {"provider": "managed", "custom_executable": None},
     "custom_tools": {
         "sort_mode": "added_time",
         "order": [],
@@ -561,19 +562,33 @@ class ConfigStore:
         return fallback
 
     def python_environment(self) -> tuple[str, str]:
+        provider, executable, _ = self.runtime_environment("python")
+        return provider, executable
+
+    def runtime_environment(self, plugin: str) -> tuple[str, str, str]:
+        if plugin not in {"python", "powershell", "android"}:
+            raise ValueError("未知运行环境")
+        section = self.load_config().get(plugin, {})
+        if not isinstance(section, dict):
+            return "managed", "", ""
+        provider = "custom" if section.get("provider") == "custom" else "managed"
+        return (provider, str(section.get("custom_executable") or ""),
+                str(section.get("custom_scrcpy") or ""))
+
+    def set_runtime_environment(
+        self, plugin: str, provider: str, executable: str = "", scrcpy: str = "",
+        version: str = "",
+    ) -> None:
+        self.runtime_environment(plugin)  # Validate the configuration section name.
+        if provider not in {"managed", "custom"}:
+            raise ValueError("未知运行环境来源")
+        if provider == "custom" and not executable:
+            raise ValueError("请选择本地可执行文件")
         config = self.load_config()
-        python = config.get("python")
-        if not isinstance(python, dict):
-            python = {}
-            config["python"] = python
-        # Python scripts always use the application-managed environment.
-        # Normalize legacy custom-provider settings during read so upgrades
-        # cannot continue pointing scripts at a removed interpreter.
-        if python.get("provider") != "managed" or python.get("custom_executable") is not None:
-            python["provider"] = "managed"
-            python["custom_executable"] = None
-            self.save_config(config)
-        return "managed", ""
+        section = config.setdefault(plugin, {})
+        section.update(provider=provider, custom_executable=executable or None,
+                       custom_scrcpy=scrcpy or None, custom_version=version)
+        self.save_config(config)
 
     @staticmethod
     def _copy_default() -> dict[str, Any]:

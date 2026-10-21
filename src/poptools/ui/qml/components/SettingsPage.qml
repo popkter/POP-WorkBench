@@ -459,7 +459,7 @@ Rectangle {
                 SectionCard {
                     objectName: "runtimePluginsCard"
                     title: "运行环境"
-                    description: "管理 Python、Android 工具与 PowerShell 插件"
+                    description: "为 Python、Android 工具与 PowerShell 选择应用管理或本地环境"
                     iconName: "extension"
                     PluginManagerPanel {
                         Layout.fillWidth: true

@@ -122,6 +122,12 @@ def build_components(
         app_controller.plugin_mutation_active = lambda: manager.mutating
         manager.busy_check = lambda plugin: plugin_usage_reason(
             plugin, developer_console_controller, execution_coordinator, app_controller
+        ) or ("请先结束正在运行的录屏任务"
+              if plugin == "android" and preset_controller.recording else "")
+        manager.configuration_busy_check = lambda plugin: (
+            "请先停止终端会话后切换运行环境"
+            if any(tab.session is not None for tab in developer_console_controller._tabs)
+            else manager.busy_check(plugin)
         )
         from PySide6.QtCore import QCoreApplication
         if QCoreApplication.instance():

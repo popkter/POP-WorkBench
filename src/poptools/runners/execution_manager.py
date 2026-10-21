@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import uuid
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -189,14 +190,11 @@ class ExecutionManager(QObject):
                 arguments = ["-c", rendered_command, *arguments]
         elif executor.kind == ExecutorKind.POWERSHELL:
             if sys.platform == "win32":
-                from poptools.infrastructure.plugin_service import PluginService
-                service = PluginService(self.paths)
-                program = (
-                    str(service.executable("powershell"))
-                    if service.available("powershell") else None
-                )
+                from poptools.infrastructure.runtime_environment import RuntimeEnvironment
+                shell = RuntimeEnvironment(self.paths).executable("powershell")
+                program = str(shell) if shell.is_file() else None
                 if not program:
-                    self.output.emit("请在设置的插件管理中安装 PowerShell。\n")
+                    self.output.emit("PowerShell 不可用，请在设置中安装插件或指定本地环境。\n")
                     return None
             else:
                 program = shutil.which("pwsh") or shutil.which("powershell")
@@ -256,8 +254,13 @@ class ExecutionManager(QObject):
             environment.insert("PATH", f"{Path(adb).parent}{os.pathsep}{current_path}")
         for key, value in tool.executor.env.items():
             environment.insert(key, self._render(value, values))
-        if tool.executor.kind == ExecutorKind.PYTHON:
-            self._configure_managed_python_environment(environment)
+        self._configure_managed_python_environment(environment)
+        if sys.platform == "win32":
+            from poptools.infrastructure.runtime_environment import RuntimeEnvironment
+
+            shell = RuntimeEnvironment(self.paths).executable("powershell")
+            if shell.is_file():
+                environment.insert("PATH", f"{shell.parent}{os.pathsep}{environment.value('PATH')}")
         selected_device = str(values.get("__android_device__", "")).strip()
         if selected_device:
             environment.insert("ANDROID_SERIAL", selected_device)
@@ -267,7 +270,11 @@ class ExecutionManager(QObject):
         self, environment: QProcessEnvironment
     ) -> None:
         values = {key: environment.value(key) for key in environment.keys()}  # noqa: SIM118
-        for key, value in self.python_environment.execution_environment(values).items():
+        configured = self.python_environment.execution_environment(values)
+        for key in environment.keys():  # noqa: SIM118
+            if key not in configured:
+                environment.remove(key)
+        for key, value in configured.items():
             environment.insert(key, value)
 
     def _resolve_program(self, command: str) -> str | None:
@@ -388,11 +395,9 @@ class ExecutionManager(QObject):
         self._output_dir = None
         if output_dir is None:
             return
-        try:
+        # Preserve files intentionally written by the executed tool.
+        with suppress(OSError):
             output_dir.rmdir()
-        except OSError:
-            # Preserve files intentionally written by the executed tool.
-            pass
 
     def _flush_decoder(self, decoder: codecs.IncrementalDecoder | None) -> None:
         if decoder is None:

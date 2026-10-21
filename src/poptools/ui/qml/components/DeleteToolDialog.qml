@@ -21,7 +21,6 @@ AppDialog {
             destructive: true
             description: "“" + (root.controller.selectedTool.title || "当前脚本") + "”将从本地删除，删除前会自动备份。"
         }
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
         RowLayout {
             Layout.fillWidth: true; spacing: Theme.space8
             Item { Layout.fillWidth: true }

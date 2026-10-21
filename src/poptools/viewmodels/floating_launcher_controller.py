@@ -4,7 +4,7 @@ import logging
 from typing import cast
 
 from PySide6.QtCore import Property, QEvent, QObject, QRect, Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QCursor, QScreen, QWindow
+from PySide6.QtGui import QCursor, QRegion, QScreen, QWindow
 from PySide6.QtWidgets import QApplication
 
 from poptools.domain.models import ToolSection
@@ -33,6 +33,7 @@ class FloatingLauncherController(QObject):
     stateChanged = Signal()
     settingsRequested = Signal()
     toolSortModeChanged = Signal()
+    drawerGeometryChanged = Signal()
 
     def __init__(
         self, app: QApplication, app_controller: AppController, settings: SettingsController,
@@ -45,6 +46,10 @@ class FloatingLauncherController(QObject):
         self._main_window: QWindow | None = None
         self._notch: QWindow | None = None
         self._panel: QWindow | None = None
+        self._drawer_mode = False
+        self._drawer_progress = 0.0
+        self._drawer_animating = False
+        self._drawer_tip_offset = 0
         self._screen: QScreen | None = None
         self._screen_name, self._ratio = settings.config_store.floating_launcher_position()
         self._notch_size = (44, 108)
@@ -97,6 +102,10 @@ class FloatingLauncherController(QObject):
     def dragging(self) -> bool:
         return self._dragging
 
+    @Property(int, notify=drawerGeometryChanged)
+    def drawerTipOffset(self) -> int:
+        return self._drawer_tip_offset
+
     @Property(str, notify=toolSortModeChanged)
     def toolSortMode(self) -> str:
         return cast(str, self._backend.toolSortMode)
@@ -136,11 +145,35 @@ class FloatingLauncherController(QObject):
         self, notch: QObject, panel: QObject, width: int, height: int,
         panel_width: int, panel_height: int,
     ) -> None:
+        self._drawer_mode = False
         self._notch = cast(QWindow, notch)
         self._panel = cast(QWindow, panel)
         self._notch_size = (width, height)
         self._panel_size = (panel_width, panel_height)
         self.reposition()
+
+    @Slot(QObject, int, int, int, int)
+    def attachDrawerWindow(
+        self, window: QObject, tip_width: int, tip_height: int,
+        panel_width: int, panel_height: int,
+    ) -> None:
+        self._drawer_mode = True
+        self._notch = self._panel = cast(QWindow, window)
+        self._notch_size = (tip_width, tip_height)
+        self._panel_size = (panel_width, panel_height)
+        self.reposition()
+
+    @Slot(float)
+    def setDrawerProgress(self, progress: float) -> None:
+        self._drawer_progress = max(0.0, min(1.0, progress))
+        if self._drawer_mode:
+            self.reposition()
+
+    @Slot(bool)
+    def setDrawerAnimating(self, animating: bool) -> None:
+        self._drawer_animating = animating
+        if self._drawer_mode:
+            self.reposition()
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if isinstance(watched, QWindow) and event.type() in {
@@ -222,6 +255,9 @@ class FloatingLauncherController(QObject):
 
     def _pointer_inside(self) -> bool:
         point = QCursor.pos()
+        if self._drawer_mode and self._panel is not None:
+            return (self._panel.isVisible()
+                    and self._panel.mask().contains(point - self._panel.position()))
         return any(window is not None and window.isVisible() and window.geometry().contains(point)
                    for window in (self._notch, self._panel))
 
@@ -238,9 +274,11 @@ class FloatingLauncherController(QObject):
 
     @Slot()
     def beginDrag(self) -> None:
-        self.collapse()
+        if not self._drawer_mode:
+            self.collapse()
         if self._notch is not None:
-            self._drag_pointer_offset = QCursor.pos().y() - self._notch.y()
+            self._drag_pointer_offset = (QCursor.pos().y() - self._notch.y()
+                                         - self._drawer_tip_offset)
         self._dragging = True
         self.stateChanged.emit()
 
@@ -341,6 +379,30 @@ class FloatingLauncherController(QObject):
         notch, panel = edge_geometry(
             self._screen.availableGeometry(), self._notch_size, self._panel_size, self._ratio,
         )
+        if self._drawer_mode:
+            exposed_width = int(panel.width() * self._drawer_progress + 0.5)
+            surface_offset = panel.width() - exposed_width
+            tip_offset = notch.y() - panel.y()
+            # Keep the native backing surface stable during the animation.
+            # Resizing it on every frame can leave stale/clipped textures in DWM.
+            geometry = QRect(panel.x(), panel.y(), notch.width() + panel.width(), panel.height())
+            if self._panel.geometry() != geometry:
+                self._panel.setGeometry(geometry)
+            mask = QRegion(QRect(surface_offset, tip_offset, notch.width(), notch.height()))
+            if exposed_width:
+                mask |= QRegion(QRect(surface_offset + notch.width(), 0,
+                                      exposed_width, panel.height()))
+            if self._drawer_animating:
+                # DWM applies native regions independently of the Qt render frame.
+                # A moving region can crop the preceding frame; let Qt clip the
+                # slide, then restore the precise input region after the final swap.
+                mask = QRegion(QRect(0, 0, geometry.width(), geometry.height()))
+            if self._panel.mask() != mask:
+                self._panel.setMask(mask)
+            if tip_offset != self._drawer_tip_offset:
+                self._drawer_tip_offset = tip_offset
+                self.drawerGeometryChanged.emit()
+            return
         self._notch.setGeometry(notch)
         self._panel.setGeometry(panel)
 

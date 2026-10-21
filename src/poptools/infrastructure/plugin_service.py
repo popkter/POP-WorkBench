@@ -152,6 +152,17 @@ class PluginService:
     def available(self, plugin: str) -> bool:
         return self.executable(plugin).is_file()
 
+    def _installed_runtime_ready(self, plugin: str) -> bool:
+        directory = self.directory(plugin)
+        if directory is None or not self.available(plugin):
+            return False
+        if plugin == "python":
+            return (directory / "env/Scripts/python.exe").is_file()
+        if plugin == "android":
+            return all((directory / "runtime" / name).is_file()
+                       for name in ("adb.exe", "scrcpy-server", "SDL3.dll"))
+        return True
+
     def _write(self, plugin: str, record: dict) -> None:
         root = self.paths.plugins_dir / plugin
         root.mkdir(parents=True, exist_ok=True)
@@ -165,6 +176,14 @@ class PluginService:
             lock = _locks.setdefault(key, threading.Lock())
         return _OperationLock(Path(key), lock)
 
+    def _remove_directory(self, plugin: str, directory: Path, *, ignore_errors=False) -> None:
+        root = (self.paths.plugins_dir / plugin).resolve()
+        target = directory.resolve()
+        if (not root.is_relative_to(self.paths.plugins_dir.resolve())
+                or target == root or not target.is_relative_to(root)):
+            raise ValueError("拒绝清理应用插件目录之外的文件")
+        shutil.rmtree(directory, ignore_errors=ignore_errors)
+
     def assert_unused(self, plugin: str) -> None:
         root = (self.paths.plugins_dir / plugin).resolve()
         for process in psutil.process_iter(["exe", "name"]):
@@ -175,6 +194,23 @@ class PluginService:
                         f"{NAMES[plugin]} 正在使用，请先结束相关任务（{process.info['name']}）"
                     )
             except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+    def _stop_managed_adb(self) -> None:
+        """Stop only the daemon whose executable belongs to this app's old runtime."""
+        executable = self.executable("android").with_name("adb.exe").resolve()
+        for process in psutil.process_iter(["exe"]):
+            try:
+                current = process.info.get("exe")
+                if not current or Path(current).resolve() != executable:
+                    continue
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except psutil.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+            except psutil.NoSuchProcess:
                 continue
 
     @staticmethod
@@ -328,11 +364,11 @@ class PluginService:
             (target / ".pending").unlink(missing_ok=True)
             for previous in root.iterdir():
                 if previous.is_dir() and previous != target and previous.name != "seed":
-                    shutil.rmtree(previous, ignore_errors=True)
+                    self._remove_directory(plugin, previous, ignore_errors=True)
             progress(100)
         finally:
             if target and not committed:
-                shutil.rmtree(target, ignore_errors=True)
+                self._remove_directory(plugin, target, ignore_errors=True)
             lock.release()
 
     def uninstall(self, plugin: str) -> None:
@@ -349,7 +385,7 @@ class PluginService:
             try:
                 for entry in root.iterdir():
                     if entry.is_dir():
-                        shutil.rmtree(entry)
+                        self._remove_directory(plugin, entry)
             except OSError:
                 # Keep a repair/uninstall entry if Windows denied a deletion.
                 self._write(plugin, previous)
@@ -368,7 +404,7 @@ class PluginService:
                     active = self.directory(plugin)
                     for entry in root.iterdir():
                         if entry.is_dir() and entry != active and (entry / ".pending").is_file():
-                            shutil.rmtree(entry, ignore_errors=True)
+                            self._remove_directory(plugin, entry, ignore_errors=True)
                 finally:
                     lock.release()
 
@@ -427,15 +463,20 @@ class PluginService:
                     break
 
     def seed(self) -> None:
-        for plugin in ("python", "android"):
+        for plugin in NAMES:
             root = self.paths.plugins_dir / plugin / "seed"
             if not root.exists():
                 continue
-            try:
-                if not self.record(plugin):
-                    data = json.loads((root / "package.json").read_text(encoding="utf-8"))
-                    self.install(plugin, PluginPackage(**data), source=root / "runtime")
-            finally:
-                # Keep a failed seed for retry; never keep a duplicate after success/removal.
-                if self.record(plugin):
-                    shutil.rmtree(root)
+            data = json.loads((root / "package.json").read_text(encoding="utf-8"))
+            replace = data.pop("replace_managed", False)
+            record = self.record(plugin)
+            same_version = record.get("package", {}).get("version") == data.get("version")
+            keep_installed = same_version and self._installed_runtime_ready(plugin)
+            if (replace and not keep_installed) or not record:
+                if replace and plugin == "android":
+                    self._stop_managed_adb()
+                # Python always migrates the application's existing environment;
+                # the selected external interpreter is never used as the source.
+                self.install(plugin, PluginPackage(**data), source=root / "runtime")
+            # Failed preparation leaves the seed intact so startup can retry.
+            self._remove_directory(plugin, root)

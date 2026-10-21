@@ -17,6 +17,10 @@ dist/
 design-qa-*.png
 .capture-*
 src/poptools/resources/vendor/python/*.nupkg
+src/poptools/resources/vendor/PowerShell-*-win-*.zip
+src/poptools/resources/vendor/scrcpy-win64-*.zip
+src/poptools/resources/vendor/**/*.download-*
+src/poptools/resources/vendor/*.download-*
 src/poptools/resources/vendor/python/*.tar.gz
 src/poptools/resources/vendor/scrcpy-macos-*.tar.gz
 src/poptools/_build_version.py

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import Q_ARG, QEvent, QMetaObject, QObject, QPoint, QPointF, QRect, Qt, QUrl
-from PySide6.QtGui import QCursor, QFontDatabase, QMouseEvent, QWindow
+from PySide6.QtGui import QCursor, QFontDatabase, QMouseEvent, QRegion, QWindow
 from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent, QQmlEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
@@ -79,6 +79,58 @@ def test_geometry_keeps_both_windows_visible_and_adjacent(available, ratio):
     assert available.contains(panel)
     assert notch.right() == available.right()
     assert panel.right() + 1 == notch.left()
+
+
+@pytest.mark.parametrize("ratio", [0, 0.5, 1])
+@pytest.mark.parametrize("available", [QRect(0, 0, 1920, 1040), QRect(-1280, -100, 1280, 720),
+                                       QRect(50, 20, 300, 250)])
+def test_drawer_tip_and_list_move_together_with_an_exact_input_mask(
+    launcher, qapp, monkeypatch, available, ratio,
+):
+    controller, _, _, _ = launcher
+
+    class Screen:
+        def name(self):
+            return "drawer-screen"
+
+        def availableGeometry(self):
+            return available
+
+    screen = Screen()
+    monkeypatch.setattr(qapp, "screens", lambda: [screen])
+    monkeypatch.setattr(qapp, "primaryScreen", lambda: screen)
+    controller._screen = screen
+    controller._ratio = ratio
+    drawer = QWindow()
+    drawer.setFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
+    controller.attachDrawerWindow(drawer, 24, 64, 360, 480)
+    drawer.show()
+    stable_geometry = drawer.geometry()
+    collapsed_y = drawer.y() + controller.drawerTipOffset
+    try:
+        for progress in (0, 0.25, 1, 0.5, 0):
+            controller.setDrawerProgress(progress)
+            assert available.contains(drawer.geometry())
+            assert drawer.geometry().right() == available.right()
+            assert drawer.geometry() == stable_geometry
+            body_width = drawer.width() - 24
+            exposed_width = int(body_width * progress + 0.5)
+            offset = body_width - exposed_width
+            assert drawer.mask().boundingRect().width() == 24 + exposed_width
+            tip = QPoint(offset + 12, controller.drawerTipOffset + 32)
+            assert drawer.y() + controller.drawerTipOffset == collapsed_y
+            assert drawer.mask().contains(tip)
+            monkeypatch.setattr(QCursor, "pos", lambda point=tip: drawer.position() + point)
+            assert controller._pointer_inside()
+            if controller.drawerTipOffset:
+                blank = QPoint(1, 1)
+                assert not drawer.mask().contains(blank)
+                monkeypatch.setattr(QCursor, "pos", lambda point=blank: drawer.position() + point)
+                assert not controller._pointer_inside()
+    finally:
+        controller.shutdown()
+        drawer.close()
+        drawer.deleteLater()
 
 
 def test_preferences_default_malformed_and_persist(tmp_path):
@@ -210,8 +262,9 @@ def test_saved_screen_geometry_changes_and_disconnection(launcher, qapp, monkeyp
     assert settings.config_store.floating_launcher_position() == ("primary", 0.8)
 
 
+@pytest.mark.parametrize("expanded", [False, True])
 def test_grip_drag_uses_screen_coordinates_after_leaving_window(
-    launcher, qapp, qtbot, monkeypatch,
+    launcher, qapp, qtbot, monkeypatch, expanded,
 ):
     controller, _, settings, _ = launcher
     engine = QQmlEngine()
@@ -220,12 +273,18 @@ def test_grip_drag_uses_screen_coordinates_after_leaving_window(
     )))
     root = component.createWithInitialProperties({"controller": controller})
     assert root is not None, [e.toString() for e in component.errors()]
-    notch = root.findChild(QQuickWindow, "floatingNotchWindow")
+    notch = root.findChild(QQuickWindow, "floatingScriptPanelWindow")
     qtbot.waitUntil(notch.isVisible)
     assert QTest.qWaitForWindowExposed(notch)
+    if expanded:
+        controller.toggleExpanded()
+        qtbot.waitUntil(lambda: notch.property("revealProgress") == 1)
     qtbot.wait(30)
     initial = notch.position()
-    grab = QPoint(notch.width() // 2, 10)
+    initial_tip_y = notch.y() + controller.drawerTipOffset
+    tip = root.findChild(QObject, "floatingDrawerTip")
+    grab = tip.mapRectToItem(notch.contentItem(), tip.boundingRect()).topLeft().toPoint()
+    grab += QPoint(12, 10)
     pointer = initial + grab
     monkeypatch.setattr(QCursor, "pos", lambda: QPoint(pointer))
 
@@ -245,17 +304,137 @@ def test_grip_drag_uses_screen_coordinates_after_leaving_window(
 
     try:
         send(QEvent.Type.MouseButtonPress, QPoint())
-        assert controller.dragging
+        assert not controller.dragging  # A press alone is still a possible Tip click.
         for delta in (QPoint(-120, 0), QPoint(-120, 40), QPoint(-180, 40),
                       QPoint(-120, -40), QPoint(-180, -40), QPoint(0, 0)):
             send(QEvent.Type.MouseMove, delta)
-            assert notch.position() == initial + QPoint(0, delta.y())
+            assert controller.dragging
+            assert notch.x() == initial.x()
+            assert notch.y() + controller.drawerTipOffset == initial_tip_y + delta.y()
         send(QEvent.Type.MouseButtonRelease, QPoint(), pressed=False)
         assert not controller.dragging
+        assert controller.expanded == expanded
         saved = settings.config_store.floating_launcher_position()
         send(QEvent.Type.MouseMove, QPoint(-120, 60), pressed=False)
         assert notch.position() == initial
         assert settings.config_store.floating_launcher_position() == saved
+    finally:
+        controller.shutdown()
+        root.deleteLater()
+        engine.deleteLater()
+
+
+def test_script_panel_ignores_repeated_clicks_and_slides_closed(launcher, qtbot, monkeypatch):
+    controller, _, _, _ = launcher
+    monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
+    engine = QQmlEngine()
+    component = QQmlComponent(engine, QUrl.fromLocalFile(str(
+        package_root() / "ui/qml/components/FloatingLauncher.qml"
+    )))
+    root = component.createWithInitialProperties({"controller": controller})
+    assert root is not None, [error.toString() for error in component.errors()]
+    panel = root.findChild(QQuickWindow, "floatingScriptPanelWindow")
+    button = root.findChild(QObject, "floatingDragGrip")
+    animation = root.findChild(QObject, "floatingPanelSlideAnimation")
+    surface = root.findChild(QObject, "floatingDrawerSurface")
+    animation.setProperty("duration", 400)
+    visibility = []
+    panel.visibleChanged.connect(visibility.append)
+
+    def click():
+        rect = button.mapRectToItem(panel.contentItem(), button.boundingRect())
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
+
+    try:
+        assert QTest.qWaitForWindowExposed(panel)
+        tip_width = root.findChild(QObject, "floatingDrawerTip").width()
+        body_width = panel.width() - tip_width
+        stable_geometry = panel.geometry()
+        assert surface.x() == body_width
+        assert root.findChild(QObject, "floatingScriptsButton") is None
+        assert root.findChild(QObject, "floatingSettingsButton") is None
+        assert len(root.findChildren(QQuickWindow)) == 1
+        click()
+        assert controller.expanded and animation.property("running")
+        click()
+        click()
+        assert controller.expanded
+        qtbot.waitUntil(lambda: 0.1 < panel.property("revealProgress") < 0.9)
+        full_frame = QRegion(QRect(0, 0, panel.width(), panel.height()))
+        assert panel.mask() == full_frame
+        assert panel.geometry() == stable_geometry
+        qtbot.waitUntil(lambda: not animation.property("running"))
+        qtbot.waitUntil(lambda: not panel.property("pendingMaskSettlement"))
+        assert button.isEnabled() and surface.x() == 0
+        assert panel.geometry() == stable_geometry
+        assert visibility == []  # The Tip and list share one persistent native window.
+
+        click()
+        assert not controller.expanded and panel.isVisible()
+        assert not root.findChild(QObject, "floatingPanelSurface").isEnabled()
+        qtbot.waitUntil(lambda: 0 < panel.property("revealProgress") < 1)
+        assert panel.mask() == full_frame
+        assert panel.isVisible()
+        click()  # A second close click must not reopen the panel mid-transition.
+        assert not controller.expanded
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 0)
+        qtbot.waitUntil(lambda: not panel.property("pendingMaskSettlement"))
+        assert panel.property("revealProgress") == 0
+        assert panel.geometry() == stable_geometry
+        assert surface.x() == body_width
+        assert panel.mask().boundingRect().width() == tip_width
+        assert visibility == []
+
+        click()
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+        assert visibility == []
+        assert panel.geometry() == stable_geometry
+        assert surface.x() == 0
+    finally:
+        controller.shutdown()
+        root.deleteLater()
+        engine.deleteLater()
+
+
+def test_panel_animation_reverses_without_restarting_on_window_show(launcher, qtbot, monkeypatch):
+    controller, _, _, _ = launcher
+    monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
+    engine = QQmlEngine()
+    component = QQmlComponent(engine, QUrl.fromLocalFile(str(
+        package_root() / "ui/qml/components/FloatingLauncher.qml"
+    )))
+    root = component.createWithInitialProperties({"controller": controller})
+    assert root is not None, [error.toString() for error in component.errors()]
+    panel = root.findChild(QQuickWindow, "floatingScriptPanelWindow")
+    animation = root.findChild(QObject, "floatingPanelSlideAnimation")
+    animation.setProperty("duration", 400)
+    try:
+        controller.toggleExpanded()
+        qtbot.waitUntil(lambda: 0.1 < panel.property("revealProgress") < 0.9)
+        progress = panel.property("revealProgress")
+        controller.collapse()
+        assert panel.isVisible()
+        assert panel.property("revealProgress") == pytest.approx(progress)
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 0)
+
+        controller.toggleExpanded()
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+        # Windows can report another show while processing activation changes;
+        # this must not replay the entrance animation for an already-open panel.
+        panel.hide()
+        panel.show()
+        qtbot.wait(50)
+        assert not animation.property("running")
+        assert panel.property("revealProgress") == 1
+        # A rapid foreground/background change must not reveal a leftover
+        # closing frame when the launcher becomes available again.
+        monkeypatch.setattr(controller, "_ordinary_window_active", lambda: True)
+        controller.reconcile()
+        assert not panel.isVisible() and panel.property("revealProgress") == 0
+        monkeypatch.setattr(controller, "_ordinary_window_active", lambda: False)
+        controller.reconcile()
+        assert not controller.expanded and panel.isVisible()
+        assert panel.mask().boundingRect().width() == 24
     finally:
         controller.shutdown()
         root.deleteLater()
@@ -302,7 +481,7 @@ def test_running_shortcuts_are_blocked_and_async_launch_errors_are_visible(launc
     assert dialogs == [tool.id]
 
 
-@pytest.mark.parametrize("dark,window_width", [(False, 600), (True, 680)])
+@pytest.mark.parametrize("dark,window_width", [(False, 440), (True, 480)])
 def test_recent_script_window_uses_shared_form_and_console(launcher, qapp, qtbot, monkeypatch,
                                                          dark, window_width):
     _, backend, _, _ = launcher
@@ -369,9 +548,17 @@ RecentToolDialog {
         console = items["customConsolePanel"]
         assert panel.isVisible() and panel.property("actionsInTitleBar")
         assert panel.property("deviceInTitleBar")
+        assert panel.property("compactLayout")
+        assert panel.width() >= window.width() - 8
         assert panel.property("color").name() == ("#171e28" if dark else "#ffffff")
         assert items["recentToolDeviceSelector"].property("compact")
         assert console.height() >= 200
+        assert console.width() >= panel.width() - 16
+        for name in ("recentToolRunButton", "recentToolDeviceSelector",
+                     "customConsoleCopyButton", "customConsoleClearButton", "customConsoleToggle"):
+            item = items[name]
+            rect = item.mapRectToItem(window.contentItem(), item.boundingRect())
+            assert 0 <= rect.left() < rect.right() <= window.width()
         field = items["customParameterInput_message"]
         assert field.mapRectToItem(panel, field.boundingRect()).bottom() < console.y()
         field.property("item").setProperty("text", "updated")
@@ -474,18 +661,21 @@ Item {
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/FloatingTestHarness.qml")))
     root = component.createWithInitialProperties({"backend": controller, "dark": dark})
     assert root is not None, [e.toString() for e in component.errors()]
-    notch = root.findChild(QQuickWindow, "floatingNotchWindow")
     panel = root.findChild(QQuickWindow, "floatingScriptPanelWindow")
     try:
         controller.reconcile()
-        qtbot.waitUntil(notch.isVisible)
-        assert notch.flags() & Qt.WindowType.WindowDoesNotAcceptFocus
-        assert not panel.isVisible()
+        qtbot.waitUntil(panel.isVisible)
+        assert panel.mask().boundingRect().width() == 24
+        assert panel.mask().boundingRect().height() == 64
         assert root.findChild(QObject, "floatingScriptsTip") is None
         assert root.findChild(QObject, "floatingSettingsTip") is None
-        assert QMetaObject.invokeMethod(root.findChild(QObject, "floatingScriptsButton"), "clicked")
-        qtbot.waitUntil(panel.isVisible)
-        qtbot.wait(220)
+        tip = root.findChild(QObject, "floatingDragGrip")
+        assert QTest.qWaitForWindowExposed(panel)
+        with qtbot.waitSignal(panel.frameSwapped):
+            panel.update()
+        rect = tip.mapRectToItem(panel.contentItem(), tip.boundingRect())
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
         assert controller._is_launcher_window(panel)
         script_list = root.findChild(QObject, "floatingScriptList")
         assert script_list.property("visibleCount") == 18
@@ -511,7 +701,11 @@ Item {
         output = Path("build") / f"floating-launcher-{'dark' if dark else 'light'}.png"
         output.parent.mkdir(exist_ok=True)
         assert panel.grabWindow().save(str(output))
-        assert notch.grabWindow().save(str(output.with_name(f"floating-notch-{dark}.png")))
+        controller.collapse()
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 0)
+        assert panel.grabWindow().save(str(output.with_name(f"floating-notch-{dark}.png")))
+        controller.toggleExpanded()
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
         # Exercise real native activation after the deterministic controller checks.
         monkeypatch.setattr(controller, "_ordinary_window_active", lambda:
                             FloatingLauncherController._ordinary_window_active(controller))
@@ -617,10 +811,15 @@ def test_main_window_settings_navigation_and_close_to_tray(
             assert controller.visible and window.isVisible()
             set_message(first, "draft A")
             session_a = first.property("toolController")
+            first_position = first.position()
             controller.launchTool(beta.id)
             qtbot.waitUntil(lambda: beta.id in tool_windows())
             second = tool_windows()[beta.id]
             qtbot.waitUntil(second.isActive)
+            second_position = second.position()
+            assert second_position != first_position
+            assert first.position() == first_position
+            assert second.screen().availableGeometry().contains(second.geometry())
             controller.reconcile()
             assert first.isVisible() and controller.visible
             set_message(second, "draft B")
@@ -631,6 +830,8 @@ def test_main_window_settings_navigation_and_close_to_tray(
             backend.recentToolDialogRequested.emit(alpha.id)
             qtbot.waitUntil(first.isActive)
             assert len(tool_windows()) == 2
+            assert first.position() == first_position
+            assert second.position() == second_position
             values_a = parameter_values(first)
             values_b = parameter_values(second)
             assert values_a == {"message": "draft A"}
