@@ -291,6 +291,10 @@ adb devices
 
 Windows 同时发布集成版 `PopTools-Setup.exe`（附带 Python、Android 工具）和纯净版 `PopTools-Clean-Setup.exe`（不附带可选插件）。两者都能独立启动，应用自身必需的 Python 库不属于可卸载插件。自动更新保持当前发行类型；切换安装包不会删除用户已有插件。macOS 根据架构使用 `PopTools-macos-arm64.zip` 或 `PopTools-macos-x64.zip`。
 
+Windows Release 还必须保留 `PopTools.exe` 和 `PopTools.exe.sha256`，用于兼容 1.1.0 及以前具备 OTA 功能的客户端。它是内嵌同次构建集成版安装包的独立升级程序，不能用改名的安装包或新版目录式应用入口代替。旧版下载后会自动迁移到原目录、保留用户数据和插件，并启动新版；后续更新恢复使用正常安装包，无需手动覆盖安装或经过中间版本。
+
+迁移失败时会显示错误，安装包、`migration.log` 和 Inno Setup 的 `setup.log` 保存在 `%LOCALAPPDATA%\PopTools\updates\legacy-ota-*`（设置 `POPTOOLS_DATA_DIR` 时位于该目录下的 `updates`）。辅助进程输出记录在 `helper.log`，启动准备失败时记录 `bridge-error.txt`。关闭占用进程后，可以在失败目录中通过 PowerShell 运行 `apply.ps1` 重试。成功后自动清理安装包和辅助脚本，保留 `helper.log` 供排查。兼容能力从包含这些资产的新 Release 开始生效；正式渠道需发布正式 Release 才可发现更新。
+
 ## 数据位置与隐私
 
 默认用户数据目录：
@@ -334,6 +338,8 @@ uv venv --python 3.11 .venv
 ```
 
 Windows 构建：
+
+需要安装 Visual Studio 2022 Build Tools 的“使用 C++ 的桌面开发”工作负载（含 MSVC 和 Windows SDK）。CMake 已包含在开发依赖中；直接运行原生构建脚本时，缺少的 CMake 也会自动安装到项目 `.venv`。未设置 `QT_ROOT_DIR` / `Qt6_DIR` 且找不到 qmake 时，脚本会自动下载 Qt C++ SDK 到 `build/qt-sdk`，首次构建需要联网。
 
 ```powershell
 .\packaging\build.ps1

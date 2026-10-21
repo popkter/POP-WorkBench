@@ -59,6 +59,8 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
       - uses: jurplel/install-qt-action@v4
         with:
           version: "6.10.3"
@@ -89,7 +91,7 @@ jobs:
       - name: Prepare stable asset names
         run: |
           New-Item -ItemType Directory -Path dist\release-assets -Force | Out-Null
-          foreach ($name in @("PopTools-Setup.exe", "PopTools-Clean-Setup.exe")) {
+          foreach ($name in @("PopTools.exe", "PopTools-Setup.exe", "PopTools-Clean-Setup.exe")) {
             Copy-Item "dist\$name" "dist\release-assets\$name"
             Copy-Item "dist\$name.sha256" "dist\release-assets\$name.sha256"
           }
@@ -122,6 +124,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
       - uses: jurplel/install-qt-action@v4
         with:
           version: "6.10.3"
@@ -174,7 +178,7 @@ jobs:
         working-directory: release-assets
         run: |
           checksums=()
-          [[ "${{ inputs.build_windows }}" == "true" ]] && checksums+=(PopTools-Setup.exe.sha256 PopTools-Clean-Setup.exe.sha256)
+          [[ "${{ inputs.build_windows }}" == "true" ]] && checksums+=(PopTools.exe.sha256 PopTools-Setup.exe.sha256 PopTools-Clean-Setup.exe.sha256)
           [[ "${{ inputs.build_macos }}" == "true" ]] && checksums+=(PopTools-macos-arm64.zip.sha256 PopTools-macos-x64.zip.sha256)
           if [[ ${#checksums[@]} -gt 0 ]]; then
             sha256sum --check "${checksums[@]}"
@@ -199,6 +203,8 @@ jobs:
           )
           if [[ "$BUILD_WINDOWS" == "true" ]]; then
             arguments+=(
+              "release-assets/PopTools.exe#旧版本OTA兼容升级程序.exe"
+              "release-assets/PopTools.exe.sha256#旧版本OTA兼容升级程序.exe.sha256"
               "release-assets/PopTools-Setup.exe#泡泡工具箱-Setup.exe"
               "release-assets/PopTools-Setup.exe.sha256#泡泡工具箱-Setup.exe.sha256"
               "release-assets/PopTools-Clean-Setup.exe#泡泡工具箱-纯净版-Setup.exe"

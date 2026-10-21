@@ -22,6 +22,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "aqtinstall>=3.3,<4",
+  "cmake>=3.21,<4",
   "mypy>=1.18",
   "Pillow>=12,<13",
   "pyinstaller>=6.16",

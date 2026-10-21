@@ -28,6 +28,7 @@ Item {
     signal runRequested()
     readonly property bool dark: Theme.darkMode
     readonly property bool active: hostWindow.active
+    readonly property real contentLeftInset: hostWindow.titleBarHeight + Theme.workspaceInset
     // JetBrains Runtime uses three 47-DIP controls, with 10-DIP glyphs.
     readonly property int controlWidth: hostWindow.captionControlWidth
     readonly property bool modern: hostWindow.modernCaptionControls
@@ -73,26 +74,11 @@ Item {
         opacity: root.active ? 1 : 0.6
     }
 
-    Text {
-        id: appTitle
-        anchors.left: parent.left
-        anchors.leftMargin: Theme.navigationRailWidth
-        width: Math.min(implicitWidth, Math.max(0, controls.x - x - 12
-            - (root.scriptActionsVisible ? scriptActions.width + Theme.space16 : 0)))
-        anchors.verticalCenter: parent.verticalCenter
-        text: root.hostWindow.title
-        font.family: "Segoe UI"
-        font.pixelSize: 13
-        color: Theme.chromeForeground
-        opacity: root.active ? 1 : 0.6
-        elide: Text.ElideRight
-    }
-
     Loader {
         id: terminalTabsLoader
         objectName: "titleBarTerminalTabs"
-        anchors.left: appTitle.right
-        anchors.leftMargin: Theme.space16
+        anchors.left: parent.left
+        anchors.leftMargin: root.contentLeftInset
         anchors.right: controls.left
         // Keep a reliable caption drag target even when tabs overflow.
         anchors.rightMargin: 64
@@ -110,8 +96,8 @@ Item {
     RowLayout {
         id: scriptActions
         objectName: "titleBarScriptActions"
-        anchors.left: appTitle.right
-        anchors.leftMargin: Theme.space16
+        anchors.left: parent.left
+        anchors.leftMargin: root.contentLeftInset
         anchors.verticalCenter: parent.verticalCenter
         height: Theme.captionActionHeight
         spacing: Theme.space4
@@ -182,8 +168,8 @@ Item {
             objectName: "titleBarDeviceSelector"
             visible: root.scriptDeviceVisible
             Layout.preferredWidth: Math.max(110, Math.min(210,
-                controls.x - Theme.navigationRailWidth - appTitle.implicitWidth
-                - Theme.space16 - scriptButtons.implicitWidth - Theme.space12 - 32))
+                controls.x - root.contentLeftInset
+                - scriptButtons.implicitWidth - Theme.space12 - 32))
             Layout.preferredHeight: Theme.captionActionHeight
             Layout.leftMargin: Theme.space8
             compact: true

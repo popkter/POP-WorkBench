@@ -106,7 +106,24 @@ $CMake = if ($CMakeCommand) { $CMakeCommand.Source } else {
     Join-Path $ProjectRoot ".venv\Scripts\cmake.exe"
 }
 if (-not (Test-Path -LiteralPath $CMake -PathType Leaf)) {
-    throw "CMake was not found. Install CMake and a Qt 6.10+ C++ SDK compatible with PySide6."
+    if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
+        throw (
+            "CMake was not found and the project venv is unavailable: $VenvPython. " +
+            "Run 'uv sync --extra dev' first."
+        )
+    }
+
+    Write-Host "CMake was not found. Installing it into the project venv..." -ForegroundColor Yellow
+    # uv virtual environments do not necessarily include pip.
+    & $VenvPython -m ensurepip --default-pip
+    if ($LASTEXITCODE -ne 0) { throw "Failed to bootstrap pip for the CMake installation" }
+    & $VenvPython -m pip install "cmake>=3.21,<4"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install CMake. Check network access and run 'uv sync --extra dev' again."
+    }
+    if (-not (Test-Path -LiteralPath $CMake -PathType Leaf)) {
+        throw "CMake installation did not produce the expected executable: $CMake"
+    }
 }
 
 $QtPrefix = ""

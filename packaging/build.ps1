@@ -226,7 +226,7 @@ try {
         }
 
         # Ensure dev dependencies (pytest, pyinstaller, etc.) are installed.
-        & $VenvPython -c "import aqt, pytest, PyInstaller" 2>$null
+        & $VenvPython -c "import aqt, cmake, pytest, PyInstaller" 2>$null
         $DevMissing = ($LASTEXITCODE -ne 0)
 
         if ($DevMissing) {
@@ -438,6 +438,16 @@ try {
                 )
                 Write-Host "Per-user $BuildEdition installer created: $InstallerOutput"
                 Write-Host "Installer checksum created: $InstallerChecksum"
+            }
+            if ($Edition -ne "Clean") {
+                # Old clients only recognize PopTools.exe and copy it over their
+                # entry point. Ship a bridge, never a renamed Inno installer.
+                & $VenvPython -m PyInstaller --noconfirm --clean "packaging\legacy_ota.spec"
+                if ($LASTEXITCODE -ne 0) { throw "Legacy OTA bridge build failed" }
+                $BridgeOutput = Join-Path $ProjectRoot "dist\PopTools.exe"
+                $BridgeHash = (Get-FileHash -LiteralPath $BridgeOutput -Algorithm SHA256).Hash.ToLowerInvariant()
+                [IO.File]::WriteAllText("$BridgeOutput.sha256", "$BridgeHash  PopTools.exe`n", [Text.UTF8Encoding]::new($false))
+                Write-Host "Legacy OTA bridge created: $BridgeOutput"
             }
         }
     }
