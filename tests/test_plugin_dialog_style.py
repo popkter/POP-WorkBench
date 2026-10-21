@@ -57,8 +57,8 @@ ApplicationWindow {
         dialog.setProperty("pluginName", "Python")
         QMetaObject.invokeMethod(dialog, "open")
         qtbot.waitUntil(lambda: dialog.property("opened"))
-        assert dialog.property("width") == 548
-        assert dialog.property("topPadding") == 24
+        assert dialog.property("width") == 420
+        assert dialog.property("topPadding") == 20
         assert not backend.operations
         qtbot.wait(150)
         window.grabWindow().save(str(Path("build") / f"plugin-uninstall-{dark}.png"))

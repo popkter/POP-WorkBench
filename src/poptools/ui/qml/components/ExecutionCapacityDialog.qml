@@ -10,8 +10,10 @@ AppDialog {
     property string victimTitle: ""
     property string requestedTitle: ""
 
-    width: Math.min(560, parent ? parent.width - 24 : 560)
-    height: Math.min(310, parent ? parent.height - 24 : 310)
+    compactLayout: true
+    width: Math.min(Theme.compactDialogWidth, parent ? parent.width - 24 : Theme.compactDialogWidth)
+    height: Math.min(body.implicitHeight + topPadding + bottomPadding,
+                     parent ? parent.height - 24 : 480)
     anchors.centerIn: Overlay.overlay
     modal: true
     closePolicy: Popup.NoAutoClose
@@ -25,7 +27,8 @@ AppDialog {
     }
 
     contentItem: ColumnLayout {
-        spacing: Theme.space16
+        id: body
+        spacing: Theme.space12
 
         DialogHeading {
             Layout.fillWidth: true
@@ -46,7 +49,6 @@ AppDialog {
             spacing: Theme.space8
             Item { Layout.fillWidth: true }
             DialogActionButton {
-                implicitWidth: 110
                 implicitHeight: Theme.controlHeight
                 text: "取消"
                 iconName: "close"
@@ -57,7 +59,6 @@ AppDialog {
                 }
             }
             DialogActionButton {
-                implicitWidth: 150
                 implicitHeight: Theme.controlHeight
                 text: "停止并运行"
                 primaryAction: true

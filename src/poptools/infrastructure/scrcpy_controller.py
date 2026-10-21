@@ -21,7 +21,7 @@ _VIDEO_SIZE_PATTERN = re.compile(r"(?:Texture|Video size):\s*(\d+)x(\d+)", re.IG
 
 
 def _projection_arguments(
-    serial: str, window_title: str, embed: bool | None = None
+    serial: str, window_title: str, embed: bool | None = None, display_id: int = 0
 ) -> list[str]:
     """Create a native projection window appropriate for the host platform."""
     arguments = [
@@ -30,6 +30,7 @@ def _projection_arguments(
         "--window-title",
         window_title,
         "--no-audio",
+        f"--display-id={display_id}",
     ]
     if embed is None:
         embed = os.name == "nt"
@@ -84,7 +85,7 @@ class ScrcpyController(QObject):
     def attach_window(self, window: QWindow) -> None:
         self._host_window = window
 
-    def start(self, serial: str) -> bool:
+    def start(self, serial: str, display_id: int = 0) -> bool:
         if self.active:
             return False
         scrcpy = bundled_scrcpy_path()
@@ -121,7 +122,7 @@ class ScrcpyController(QObject):
         environment["PATH"] = f"{scrcpy.parent}{os.pathsep}{environment.get('PATH', '')}"
         accepted = process.start(
             str(scrcpy),
-            _projection_arguments(serial, self._window_title),
+            _projection_arguments(serial, self._window_title, display_id=display_id),
             cwd=scrcpy.parent,
             environment=environment,
         )
@@ -129,7 +130,7 @@ class ScrcpyController(QObject):
             self._process = None
             process.deleteLater()
             return False
-        self.output.emit(f"正在连接设备 {serial} 并启动应用内投屏…\n")
+        self.output.emit(f"正在连接设备 {serial} 的屏幕 {display_id} 并启动应用内投屏…\n")
         return True
 
     def stop(self) -> None:
@@ -142,8 +143,9 @@ class ScrcpyController(QObject):
             _close_window(self._scrcpy_window)
         else:
             process.terminate()
-        QTimer.singleShot(500, self._terminate_if_running)
-        QTimer.singleShot(2500, self._kill_if_running)
+        # Delayed cleanup must never terminate a replacement projection session.
+        QTimer.singleShot(500, lambda: process.terminate() if self._process is process else None)
+        QTimer.singleShot(2500, lambda: process.kill() if self._process is process else None)
 
     def set_geometry(self, rect: QRect, visible: bool) -> None:
         self._host_rect = QRect(rect)

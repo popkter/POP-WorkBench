@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$BuildDirectory = Join-Path $ProjectRoot "build\native-windows-msvc2022"
+$BuildDirectory = Join-Path $ProjectRoot "build\native-windows-msvc-nmake"
 $InstallDirectory = Join-Path $ProjectRoot "src\poptools\native"
 $StagingInstallDirectory = Join-Path $BuildDirectory "install\$Configuration"
 $VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
@@ -101,6 +101,47 @@ function Find-AqtExecutable {
     return ""
 }
 
+function Initialize-MsvcEnvironment {
+    # NMake needs the compiler, linker, Windows SDK and their INCLUDE/LIB paths.
+    # Loading VsDevCmd also works with newer/preview VS versions that an older
+    # CMake does not yet support through a Visual Studio solution generator.
+    $VsWhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    $VsRoot = ""
+    if (Test-Path -LiteralPath $VsWhere -PathType Leaf) {
+        $VsRoot = & $VsWhere -latest -prerelease -products '*' `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+        if ($LASTEXITCODE -ne 0) { throw "Visual Studio discovery failed" }
+    }
+    if (-not $VsRoot) {
+        # Also allow an already initialized developer shell without vswhere.
+        if ((Get-Command cl.exe -ErrorAction SilentlyContinue) -and
+            (Get-Command nmake.exe -ErrorAction SilentlyContinue) -and
+            $env:VSCMD_ARG_TGT_ARCH -eq "x64") { return }
+        throw (
+            "MSVC x64 build tools were not found. Install the Visual Studio " +
+            "Desktop development with C++ workload (MSVC and Windows SDK)."
+        )
+    }
+    $VsDevCmd = Join-Path $VsRoot.Trim() "Common7\Tools\VsDevCmd.bat"
+    if (-not (Test-Path -LiteralPath $VsDevCmd -PathType Leaf)) {
+        throw "Visual Studio developer environment script was not found: $VsDevCmd"
+    }
+    Write-Host "Loading MSVC x64 environment from: $($VsRoot.Trim())"
+    $EnvironmentLines = & $env:ComSpec /d /c `
+        "call `"$VsDevCmd`" -no_logo -arch=amd64 -host_arch=amd64 >nul && set"
+    if ($LASTEXITCODE -ne 0) { throw "Failed to initialize the MSVC x64 build environment" }
+    foreach ($Line in $EnvironmentLines) {
+        if ($Line -match '^([^=]+)=(.*)$') {
+            [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+        }
+    }
+    if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue) -or
+        -not (Get-Command nmake.exe -ErrorAction SilentlyContinue)) {
+        throw "The Visual Studio developer environment did not provide cl.exe and nmake.exe"
+    }
+}
+
 $CMakeCommand = Get-Command cmake -ErrorAction SilentlyContinue
 $CMake = if ($CMakeCommand) { $CMakeCommand.Source } else {
     Join-Path $ProjectRoot ".venv\Scripts\cmake.exe"
@@ -125,6 +166,8 @@ if (-not (Test-Path -LiteralPath $CMake -PathType Leaf)) {
         throw "CMake installation did not produce the expected executable: $CMake"
     }
 }
+
+Initialize-MsvcEnvironment
 
 $QtPrefix = ""
 if (Test-QtPrefix $env:QT_ROOT_DIR) {
@@ -205,13 +248,13 @@ New-Item -ItemType Directory -Path $BuildDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $InstallDirectory -Force | Out-Null
 
 & $CMake -S (Join-Path $ProjectRoot "native") -B $BuildDirectory `
+    -G "NMake Makefiles" `
     "-DCMAKE_BUILD_TYPE=$Configuration" `
     "-DCMAKE_PREFIX_PATH=$QtPrefix"
 if ($LASTEXITCODE -ne 0) { throw "Native terminal configure failed" }
 
-# Keep the outer build serialized on Windows. The native project is small, and
-# this avoids nested MSBuild/CMake process bursts on restricted build hosts.
-& $CMake --build $BuildDirectory --config $Configuration --parallel 1
+# NMake builds serially; it does not support CMake's --parallel option.
+& $CMake --build $BuildDirectory --config $Configuration
 if ($LASTEXITCODE -ne 0) { throw "Native terminal build failed" }
 
 $CTest = Join-Path (Split-Path -Parent $CMake) "ctest.exe"

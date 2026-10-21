@@ -41,6 +41,7 @@ from poptools.infrastructure.tool_registry import ToolRegistry
 from poptools.paths import package_root, resource_path
 from poptools.runners import ExecutionCoordinator
 from poptools.viewmodels.android_controller import AndroidController
+from poptools.viewmodels.scrcpy_display_controller import ScrcpyDisplayController
 from poptools.viewmodels.tool_list_model import ToolListModel
 
 SECTION_TITLES = {
@@ -125,6 +126,9 @@ class AppController(QObject):
         self._tools_model = ToolListModel()
         self._tools_ready = False
         self.android_controller = android_controller
+        self._scrcpy_displays = ScrcpyDisplayController(
+            android_controller, execution_coordinator, self
+        )
         self._python_doctor = python_doctor or PythonDoctor()
         self._python_doctor_command = ""
         self._python_doctor_process: BackgroundProcess | None = None
@@ -382,10 +386,16 @@ class AppController(QObject):
     def attach_window(self, window: QWindow) -> None:
         self.execution_coordinator.attach_window(window)
 
+    @Property(QObject, constant=True)
+    def scrcpyDisplays(self) -> QObject:
+        return self._scrcpy_displays
+
     @Slot("QVariantMap", result=bool)
     def runSelected(self, values: dict[str, Any]) -> bool:
         if self._selected is None:
             return False
+        if self.execution_coordinator.is_scrcpy(self._selected):
+            values = {**values, "displayId": self._scrcpy_displays.selectedId}
         return self.run_tool(self._selected.id, values)
 
     def set_tool_status(self, tool_id: str, status: str) -> None:
@@ -412,6 +422,8 @@ class AppController(QObject):
             return False
 
         run_values = dict(values)
+        if self.execution_coordinator.is_scrcpy(tool):
+            run_values.setdefault("displayId", self._scrcpy_displays.selectedId)
         run_values.pop("__android_device__", None)
         if selected_device:
             for parameter in tool.parameters:

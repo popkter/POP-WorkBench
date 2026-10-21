@@ -17,6 +17,7 @@ Rectangle {
     property string searchQuery: ""
     property bool compact: false
     property bool overlaysVisible: false
+    property bool actionsInTitleBar: false
     property real toolListWidth: 288
 
     signal searchEdited(string query)
@@ -29,7 +30,6 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.workspaceInset
         spacing: 0
 
         RowLayout {
@@ -169,6 +169,7 @@ Rectangle {
                 parameterValues: root.parameterValues
                 androidController: root.androidBackend
                 scrcpySelected: true
+                actionsInTitleBar: root.actionsInTitleBar
                 overlaysVisible: root.overlaysVisible
             }
 
@@ -180,6 +181,7 @@ Rectangle {
                 androidBackend: root.androidBackend
                 jiraFeishuBackend: root.jiraFeishuBackend
                 compact: root.compact
+                actionsInTitleBar: root.actionsInTitleBar
             }
         }
     }

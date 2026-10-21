@@ -419,9 +419,10 @@ class ExecutionManager(QObject):
             return subprocess.list2cmdline([program, "[内联 PowerShell 脚本]"])
         command = subprocess.list2cmdline([program, *arguments])
         secret_values = {
-            str(values.get(parameter.id, ""))
+            str(values.get(parameter.id, parameter.default))
             for parameter in tool.parameters
-            if parameter.kind == ParameterKind.SECRET and values.get(parameter.id) not in (None, "")
+            if parameter.kind == ParameterKind.SECRET
+            and values.get(parameter.id, parameter.default) not in (None, "")
         }
         for secret in sorted(secret_values, key=len, reverse=True):
             command = command.replace(secret, "***")

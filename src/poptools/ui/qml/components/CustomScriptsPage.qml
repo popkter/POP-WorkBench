@@ -40,7 +40,6 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.workspaceInset
         spacing: 0
 
         RowLayout {
@@ -50,7 +49,7 @@ Rectangle {
 
             Rectangle {
                 objectName: "customScriptListPanel"
-                Layout.preferredWidth: Math.max(Theme.scriptListMinimumWidth, Math.min(Theme.scriptListMaximumWidth, (root.width - Theme.workspaceInset * 2) * Theme.scriptListWidthRatio))
+                Layout.preferredWidth: Math.max(Theme.scriptListMinimumWidth, Math.min(Theme.scriptListMaximumWidth, root.width * Theme.scriptListWidthRatio))
                 Layout.minimumWidth: Theme.scriptListMinimumWidth
                 Layout.maximumWidth: Theme.scriptListMaximumWidth
                 Layout.fillHeight: true
@@ -70,13 +69,9 @@ Rectangle {
                 }
             }
 
-            Rectangle {
+            Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                radius: Theme.radiusMedium
-                color: Theme.surfaceContainerLow
-                border.color: Theme.outlineVariant
-                border.width: 1
                 clip: true
 
                 CustomToolDetailPanel {
@@ -87,6 +82,7 @@ Rectangle {
                     parentWindow: root.parentWindow
                     parameterValues: root.parameterValues
                     displayedTool: root.controller.selectedTool
+                    splitConsole: true
                     actionsInTitleBar: true
                     deviceInTitleBar: root.deviceInTitleBar
                     onEditRequested: root.editRequested()

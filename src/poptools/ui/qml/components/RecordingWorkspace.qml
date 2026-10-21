@@ -10,10 +10,15 @@ ColumnLayout {
     required property string toolId
     property string statusMessage: ""
     property bool statusError: false
+    property bool actionsInTitleBar: false
+    readonly property var deviceState: root.androidController
+        ? root.androidController.selectedAndroidDevice
+        : ({ serial: "", available: false, label: "未检测到 Android 设备" })
     spacing: Theme.space20
 
     DeviceSelector {
         id: deviceSelector
+        visible: !root.actionsInTitleBar
         Layout.fillWidth: true
         controller: root.androidController
         toolId: root.toolId
@@ -64,7 +69,7 @@ ColumnLayout {
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: deviceSelector.deviceState.label
+                text: root.deviceState.label
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontSupporting
             }
@@ -135,12 +140,13 @@ ColumnLayout {
         }
     }
     PrimaryButton {
+        visible: !root.actionsInTitleBar
         Layout.alignment: Qt.AlignHCenter
         Layout.preferredWidth: 168
         Layout.preferredHeight: 40
         enabled: !root.controller.exporting
                  && (root.controller.recording
-                     || (deviceSelector.deviceState.available
+                     || (root.deviceState.available
                          && root.controller.recordingOutputDirectory.length > 0))
         text: root.controller.exporting
               ? "正在导出"
@@ -153,7 +159,7 @@ ColumnLayout {
             if (root.controller.recording)
                 root.controller.stopRecording()
             else
-                root.controller.startRecording(deviceSelector.deviceState.serial)
+                root.controller.startRecording(root.deviceState.serial)
         }
     }
     Text {

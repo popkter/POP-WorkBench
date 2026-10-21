@@ -156,11 +156,6 @@ def validate_parameter_value(parameter: ParameterDefinition, value: object) -> o
 
 
 def _validate_template_default(parameter_id: str, kind: ParameterKind, default: str) -> None:
-    if kind == ParameterKind.SECRET and default:
-        raise ValueError(
-            f"密码参数“{parameter_id}”不能设置默认值，"
-            f"请改用 ${{{parameter_id}@secret}} 并在运行前输入"
-        )
     validate_parameter_value(ParameterDefinition(id=parameter_id, label=parameter_id, kind=kind),
                              default)
 
@@ -340,8 +335,6 @@ def update_parameter_default(template: str, parameter_id: str, default: str) -> 
         if declared_parameter.parameter_id != parameter_id:
             continue
         definition = _parse_placeholder(match.group("definition"))
-        if definition.kind == ParameterKind.SECRET:
-            raise ValueError("密码参数不能保存默认值")
         if definition.options:
             raise ValueError("选择框不能通过文本默认值按钮修改")
         definition_name = match.group("definition").split(":", 1)[0].split("=", 1)[0].strip()
@@ -369,8 +362,6 @@ def update_parameter_default(template: str, parameter_id: str, default: str) -> 
                 continue
             if has_definition and not placeholder.explicit_type and placeholder.default is None:
                 continue
-            if placeholder.kind == ParameterKind.SECRET:
-                raise ValueError("密码参数不能保存默认值")
             if placeholder.options:
                 raise ValueError("选择框不能通过文本默认值按钮修改")
             placeholder_name = match.group(1).split(":", 1)[0].split("=", 1)[0].strip()

@@ -81,8 +81,9 @@ struct TerminalSession
         VTermColor background;
         vterm_color_rgb(&foreground, kDefaultForeground.red(), kDefaultForeground.green(),
                         kDefaultForeground.blue());
-        vterm_color_rgb(&background, kDefaultBackground.red(), kDefaultBackground.green(),
-                        kDefaultBackground.blue());
+        const QColor backgroundColor = owner->fillColor();
+        vterm_color_rgb(&background, backgroundColor.red(), backgroundColor.green(),
+                        backgroundColor.blue());
         vterm_screen_set_default_colors(screen, &foreground, &background);
         vterm_screen_reset(screen, 1);
     }
@@ -265,6 +266,18 @@ TerminalItem::TerminalItem(QQuickItem *parent)
     setSmooth(true);
     setOpaquePainting(true);
     setFillColor(kDefaultBackground);
+    connect(this, &QQuickPaintedItem::fillColorChanged, this, [this] {
+        const QColor backgroundColor = fillColor();
+        for (auto *session : m_sessions) {
+            VTermColor foreground;
+            VTermColor background;
+            vterm_state_get_default_colors(session->state, &foreground, &background);
+            vterm_color_rgb(&background, backgroundColor.red(), backgroundColor.green(),
+                            backgroundColor.blue());
+            vterm_screen_set_default_colors(session->screen, &foreground, &background);
+        }
+        update();
+    });
     m_cursorTimer.setInterval(530);
     connect(&m_cursorTimer, &QTimer::timeout, this, [this] {
         m_cursorBlinkOn = !m_cursorBlinkOn;
@@ -535,7 +548,8 @@ int TerminalItem::viewportFirstLine(const TerminalSession *session) const
 
 void TerminalItem::paint(QPainter *painter)
 {
-    painter->fillRect(boundingRect(), kDefaultBackground);
+    const QColor backgroundColor = fillColor();
+    painter->fillRect(boundingRect(), backgroundColor);
     painter->setFont(m_font);
     painter->setPen(kDefaultForeground);
     painter->setRenderHint(QPainter::Antialiasing, false);
@@ -573,14 +587,14 @@ void TerminalItem::paint(QPainter *painter)
             const QRectF cellRect(column * m_cellWidth, displayRow * m_cellHeight,
                                   m_cellWidth * std::max(1, valid ? static_cast<int>(cell.width) : 1),
                                   m_cellHeight);
-            QColor background = kDefaultBackground;
+            QColor background = backgroundColor;
             if (valid) {
                 if (cell.attrs.reverse)
                     background = terminalColor(session->screen, cell.fg, kDefaultForeground);
                 else if (!(cell.bg.type & VTERM_COLOR_DEFAULT_MASK))
-                    background = terminalColor(session->screen, cell.bg, kDefaultBackground);
+                    background = terminalColor(session->screen, cell.bg, backgroundColor);
             }
-            if (background != kDefaultBackground)
+            if (background != backgroundColor)
                 painter->fillRect(cellRect, background);
             if (cellSelected(session, line, column))
                 painter->fillRect(cellRect, kSelectionColor);
@@ -592,7 +606,7 @@ void TerminalItem::paint(QPainter *painter)
 
             QColor foreground = kDefaultForeground;
             if (cell.attrs.reverse)
-                foreground = terminalColor(session->screen, cell.bg, kDefaultBackground);
+                foreground = terminalColor(session->screen, cell.bg, backgroundColor);
             else if (!(cell.fg.type & VTERM_COLOR_DEFAULT_MASK))
                 foreground = terminalColor(session->screen, cell.fg, kDefaultForeground);
             if (cell.attrs.faint)
@@ -632,7 +646,7 @@ void TerminalItem::paint(QPainter *painter)
                                       &cursorCell)
                 && cursorCell.width > 0) {
                 painter->setFont(m_font);
-                painter->setPen(kDefaultBackground);
+                painter->setPen(backgroundColor);
                 painter->drawText(QPointF(cursorRect.left(), cursorRect.top() + m_baseline),
                                   cellText(cursorCell));
             }
@@ -646,7 +660,7 @@ void TerminalItem::paint(QPainter *painter)
         const qreal y = session->cursor.y() * m_cellHeight;
         const QRectF preeditRect(x, y, std::max(m_cellWidth, m_preedit.size() * m_cellWidth),
                                  m_cellHeight);
-        painter->fillRect(preeditRect, kDefaultBackground);
+        painter->fillRect(preeditRect, backgroundColor);
         painter->drawText(QPointF(x, y + m_baseline), m_preedit);
         painter->drawLine(QPointF(x, y + m_cellHeight - 1),
                           QPointF(preeditRect.right(), y + m_cellHeight - 1));

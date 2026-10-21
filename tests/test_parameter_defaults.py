@@ -12,7 +12,7 @@ from poptools.infrastructure.tool_registry import ToolRegistry
 from poptools.paths import AppPaths, package_root
 from poptools.viewmodels.app_controller import AppController
 
-TEXT_KINDS = ["text", "file", "directory", "multiline", "integer", "number"]
+TEXT_KINDS = ["text", "file", "directory", "multiline", "integer", "number", "secret"]
 
 
 @pytest.mark.parametrize("kind", TEXT_KINDS)
@@ -40,13 +40,22 @@ def test_defaults_persist_without_changing_other_parameters(tmp_path, kind, valu
     assert restored.parameters[1].default == "keep"
 
 
-def test_secret_default_cannot_be_saved(tmp_path):
+@pytest.mark.parametrize("command", ['echo "${令牌@secret}"',
+                                     'Var token = ${令牌@secret}\necho "${token}"'])
+def test_secret_default_can_be_saved(tmp_path, command):
     repository = JsonToolRepository(AppPaths(tmp_path / "data"))
     registry = ToolRegistry(tmp_path / "builtin", repository)
     tool = registry.create_custom(title="Secret", description="", kind="powershell",
-                                  command='echo "${令牌@secret}"')
-    with pytest.raises(ValueError, match="密码"):
-        registry.set_parameter_default(tool.id, "令牌", "private-token")
+                                  command=command)
+    from poptools.infrastructure.custom_tool_transfer import encode_custom_tool
+
+    parameter_id = tool.parameters[0].id
+    registry.set_parameter_default(tool.id, parameter_id, "private-token")
+    restored = ToolRegistry(tmp_path / "builtin", repository).get(tool.id)
+    assert restored.parameters[0].default == "private-token"
+    assert "@secret:private-token" in restored.executor.command
+    assert "private-token" not in encode_custom_tool(restored)
+    registry.set_parameter_default(tool.id, parameter_id, "")
     assert registry.get(tool.id).parameters[0].default == ""
 
 

@@ -30,7 +30,9 @@ if [ -n "${secret}" ]; then
     echo "访问令牌：已填写（隐藏内容）"
 fi
 '''
-INVALID_BASH_TEMPLATE = BASH_TEMPLATE.replace("${访问令牌@secret}", "${访问令牌@secret:1009}")
+INVALID_BASH_TEMPLATE = BASH_TEMPLATE.replace(
+    "${重试次数@integer:3}", "${重试次数@integer:invalid}"
+)
 
 
 def test_lowercase_var_declares_exactly_ten_parameters_and_is_removed():
@@ -112,9 +114,9 @@ ApplicationWindow {
         assert editor.property("visible")
         assert label.property("visible")
         assert len(errors) == 1
-        assert "访问令牌" in errors[0] and "默认值" in errors[0]
-        assert "${访问令牌@secret}" in label.property("text")
-        assert "1009" not in label.property("text")
+        assert "重试次数" in errors[0] and "整数" in errors[0]
+        assert "重试次数" in label.property("text")
+        assert "invalid" not in label.property("text")
         assert script_field.property("text") == INVALID_BASH_TEMPLATE
         assert len(backend.registry.all()) == (1 if editing else 0)
         if editing:

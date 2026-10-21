@@ -8,13 +8,14 @@ AppDialog {
     required property var controller
     required property var parentWindow
     property var pendingValues: ({})
-    width: Math.min(Theme.dialogWidth, parentWindow.width - 24)
+    compactLayout: true
+    width: Math.min(Theme.compactDialogWidth, parentWindow.width - 24)
     height: Math.min(body.implicitHeight + topPadding + bottomPadding, parentWindow.height - 24)
     closePolicy: Popup.CloseOnEscape
     function openForRun(values) { pendingValues = Object.assign({}, values); open() }
     contentItem: ColumnLayout {
         id: body
-        spacing: Theme.space16
+        spacing: Theme.space12
         DialogHeading {
             Layout.fillWidth: true
             title: "运行“" + (root.controller.selectedTool.title || "当前脚本") + "”？"

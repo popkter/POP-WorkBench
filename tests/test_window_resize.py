@@ -53,6 +53,10 @@ def native_window(qapp):
         scriptSelected: window.testScriptSelected
         scriptEditable: true
         scriptRunning: window.testScriptRunning
+        presetActionsVisible: window.testPresetActions
+        recordingSelected: window.testRecordingSelected
+        presetToolController: presetTestBackend
+        recordingController: presetTestBackend
         androidBackend: window.testAndroidBackend
         selectedScript: window.testSelectedScript
         terminalController: window.testTerminalController
@@ -66,6 +70,23 @@ def native_window(qapp):
         onRunRequested: window.testAction = "run"
     }
     property bool testScriptActions: false
+    property bool testPresetActions: false
+    property bool testRecordingSelected: false
+    QtObject {
+        id: presetTestBackend
+        objectName: "presetTestBackend"
+        property bool running: false
+        property bool recording: false
+        property bool exporting: false
+        property string recordingOutputDirectory: "C:/recordings"
+        property var selectedAndroidDevice: ({serial: "A", available: true, label: "Phone A"})
+        property var androidDevices: []
+        signal stateChanged()
+        function runSelected(values) { window.testAction = "cast" }
+        function stopExecution() { window.testAction = "stop-cast" }
+        function startRecording(serial) { window.testAction = "record-" + serial }
+        function stopRecording() { window.testAction = "stop-record" }
+    }
     property var testAndroidBackend: null
     property var testSelectedScript: ({})
     property var testTerminalController: null
@@ -197,6 +218,60 @@ def test_title_toolbar_labels_clicks_and_hit_testing(native_window, qtbot):
     assert all(not button.isVisible() for button in buttons)
 
 
+@pytest.mark.parametrize("recording", [False, True])
+@pytest.mark.parametrize("window_width", [960, 1100])
+def test_preset_title_actions_start_stop_and_availability(
+    native_window, qtbot, recording, window_width,
+):
+    window, _ = native_window
+    backend = window.findChild(QObject, "presetTestBackend")
+    window.resize(window_width, 640)
+    window.setProperty("testAndroidBackend", backend)
+    window.setProperty("testRecordingSelected", recording)
+    window.setProperty("testPresetActions", True)
+    with qtbot.waitSignal(window.frameSwapped):
+        window.update()
+    button = terminal_title_item(window, "titleBarStartPreset")
+    picker = terminal_title_item(window, "titleBarPresetDeviceSelector")
+    for item in (button, picker):
+        assert item.isVisible()
+        rect = item.mapRectToItem(window.contentItem(), item.boundingRect())
+        assert 0 <= rect.top() < rect.bottom() <= 40
+        assert rect.right() < window_width - 3 * 47 - 32
+        assert window.property("titleBarActionsRect").contains(rect.center())
+    assert picker.property("compact")
+
+    def click():
+        rect = button.mapRectToItem(window.contentItem(), button.boundingRect())
+        QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
+
+    click()
+    assert window.property("testAction") == ("record-A" if recording else "cast")
+    backend.setProperty("recording" if recording else "running", True)
+    assert button.property("text") == ("结束记录" if recording else "结束投屏")
+    assert not picker.isEnabled()
+    backend.setProperty("selectedAndroidDevice", {"serial": "A", "available": False})
+    backend.stateChanged.emit()
+    assert button.isEnabled()  # A disconnected device must still allow stopping.
+    click()
+    assert window.property("testAction") == ("stop-record" if recording else "stop-cast")
+    backend.setProperty("recording" if recording else "running", False)
+    assert not button.isEnabled()
+    backend.setProperty("selectedAndroidDevice", {"serial": "A", "available": True})
+    backend.stateChanged.emit()
+    assert button.isEnabled()
+    if recording:
+        backend.setProperty("recordingOutputDirectory", "")
+        assert not button.isEnabled()
+        backend.setProperty("recordingOutputDirectory", "C:/recordings")
+        backend.setProperty("exporting", True)
+        assert button.property("text") == "正在导出"
+        assert not button.isEnabled() and not picker.isEnabled()
+    window.setProperty("testPresetActions", False)
+    qtbot.waitUntil(lambda: window.property("titleBarActionsRect").isEmpty())
+    assert not button.isVisible() and not picker.isVisible()
+
+
 @pytest.fixture
 def terminal_title_window(native_window, tmp_path, monkeypatch, qtbot):
     from poptools.infrastructure.config_store import ConfigStore
@@ -308,6 +383,13 @@ def test_title_terminal_tabs_add_switch_rename_and_close(terminal_title_window, 
         QTest.mouseClick(window, button, pos=rect.center().toPoint())
 
     first_id = controller.activeTerminalTabId
+    first_tab = terminal_title_item(window, "terminalTab_" + first_id)
+    first_rect = first_tab.mapRectToItem(window.contentItem(), first_tab.boundingRect())
+    caption_height = window.property("titleBarHeight")
+    assert first_rect.left() == pytest.approx(caption_height)
+    assert 0 < first_rect.top() < first_rect.bottom() < caption_height
+    assert first_rect.center().y() == pytest.approx(caption_height / 2)
+    assert first_tab.property("radius") > 0
     click("terminalTabAddButton")
     assert len(controller.terminalTabs) == 2
     second_id = controller.activeTerminalTabId

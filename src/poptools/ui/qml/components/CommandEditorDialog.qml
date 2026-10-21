@@ -308,11 +308,12 @@ AppDialog {
                         Text { text: "命令名称"; color: Theme.textPrimary; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold }
                         AppTextField {
                             id: titleField
+                            objectName: "commandEditorTitleField"
                             FilePathDropArea { target: titleField }
                             AppTextEditMenu { target: titleField }
                             Layout.fillWidth: true
                             Layout.preferredHeight: Theme.inputHeight
-                            leftPadding: 64
+                            leftPadding: iconButton.x + iconButton.width + Theme.space12
                             rightPadding: 15
                             placeholderText: "例如：打开系统设置"
                             color: Theme.textPrimary
@@ -326,26 +327,29 @@ AppDialog {
 
                             PrimaryButton {
                                 id: iconButton
+                                objectName: "commandEditorIconButton"
                                 anchors.left: parent.left
-                                anchors.leftMargin: 5
+                                anchors.leftMargin: Theme.space8
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: 40
-                                height: 40
+                                width: Math.max(0, Math.min(32, titleField.height - Theme.space12))
+                                height: width
+                                clip: true
                                 compact: true
                                 text: "点击选择命令图标"
                                 iconName: root.selectedIcon
-                                glyphSize: 24
+                                glyphSize: 22
                                 tonal: true
                                 foregroundColor: Theme.primary
                                 border.width: 0
                                 radius: Theme.radiusSmall
-                                z: 2
+                                z: 201
                                 color: hovered || iconPopup.opened
                                        ? Theme.primaryContainer : Theme.surfaceContainerLow
                                 onClicked: iconPopup.open()
 
                                 Popup {
                                     id: iconPopup
+                                    objectName: "commandEditorIconPopup"
                                     x: -5
                                     y: iconButton.height + 8
                                     width: Math.min(300, root.width - 44)
@@ -584,7 +588,7 @@ AppDialog {
                         Text {
                             id: helperText
                             Layout.fillWidth: true
-                            text: "例如 ${次数@integer:3}、${启用@boolean:true}、${模式@choice:开启=1|关闭=0}、${环境@radio:开发=dev|生产=prod}。省略类型默认文本；旧版写法继续兼容。重复参数可用 Var 声明；@secret 隐藏输入且不能保存默认值。"
+                            text: "例如 ${次数@integer:3}、${启用@boolean:true}、${模式@choice:开启=1|关闭=0}、${环境@radio:开发=dev|生产=prod}。省略类型默认文本；旧版写法继续兼容。重复参数可用 Var 声明；@secret 隐藏输入，也支持声明和保存默认值。"
                             color: Theme.textSecondary
                             font.pixelSize: Theme.fontCaption
                             wrapMode: Text.WordWrap

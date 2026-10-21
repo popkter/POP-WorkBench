@@ -32,6 +32,7 @@ from poptools.runners.execution_manager import ExecutionManager
     ("输入文件@file:./input.txt", "file", "./input.txt"),
     ("输出目录@dir:./output", "directory", "./output"),
     ("访问令牌@secret", "secret", ""),
+    ("访问令牌@secret:private", "secret", "private"),
     ("名称:示例", "text", "示例"),
     ("名称=示例", "text", "示例"),
     ("模式:开启=1|关闭=0", "choice", "1"),
@@ -53,10 +54,9 @@ def test_explicit_text_is_not_inferred_as_a_choice(kind):
     template = "${值@" + kind + "}"
     value = "one=1|two=2\nnext {literal}"
     assert render_template(template, {"值": value}) == value
-    if kind != "secret":
-        parameter, = synchronize_parameters(["${值@" + kind + ":one=1|two=2}"])
-        assert parameter.kind.value == kind
-        assert parameter.default == "one=1|two=2"
+    parameter, = synchronize_parameters(["${值@" + kind + ":one=1|two=2}"])
+    assert parameter.kind.value == kind
+    assert parameter.default == "one=1|two=2"
 
 
 def test_boolean_rendering_preserves_legacy_untyped_values():
@@ -93,7 +93,7 @@ def test_saving_typed_defaults_preserves_type_and_references(template):
 
 @pytest.mark.parametrize("definition", [
     "值@unknown", "值@choice", "值@radio:开发", "值@choice:a=1|a=2",
-    "值@integer:0.5", "值@number:NaN", "值@boolean:yes", "值@secret:private",
+    "值@integer:0.5", "值@number:NaN", "值@boolean:yes",
 ])
 def test_invalid_definitions_are_rejected(definition):
     with pytest.raises(ValueError):
@@ -128,11 +128,13 @@ def test_typed_controls_survive_save_reload_and_sharing(tmp_path):
     command = ("${名称@text:示例} ${说明@multiline} ${次数@integer:3} ${比例@number:0.5} "
                "${开关@boolean:false} ${模式@choice:开启=1|关闭=0} "
                "${环境@radio:开发=dev|生产=prod} ${文件@file:./input.txt} "
-               "${目录@dir:./output} ${令牌@secret}")
+               "${目录@dir:./output} ${令牌@secret:private-token}")
     tool = registry.create_custom(title="Test", description="", kind="powershell", command=command)
     restored = ToolRegistry(tmp_path / "builtin", repository).get(tool.id)
     assert restored == tool
-    shared = decode_custom_tool(encode_custom_tool(restored))
+    encoded = encode_custom_tool(restored)
+    assert "private-token" not in encoded
+    shared = decode_custom_tool(encoded)
     parameters = synchronize_parameters([shared.executor.command])
     assert [p.kind for p in parameters] == [p.kind for p in tool.parameters]
     assert all(p.default in ("", False) for p in parameters
@@ -234,7 +236,7 @@ ApplicationWindow {
                         if item.property("placeholderText") == "请输入密码")
         password.setProperty("text", "private-token")
         assert password.property("displayText") != "private-token"
-        assert not any(child.isVisible() for child in password.childItems()
+        assert any(child.isVisible() for child in password.childItems()
                        if child.property("text") == "设为默认值")
         multiline = next(item for item in controls
                          if item.property("placeholderText") == "请输入说明")
@@ -249,3 +251,18 @@ ApplicationWindow {
     finally:
         window.close()
         window.deleteLater()
+
+
+@pytest.mark.parametrize("values", [{}, {"token": "override-token"}, {"token": ""}])
+def test_secret_defaults_are_masked_in_launch_log(values):
+    tool = ToolDefinition(
+        id="custom.secret", title="Secret", section="custom",
+        executor={"kind": "process", "command": "echo"},
+        parameters=[ParameterDefinition(id="token", label="Token", kind=ParameterKind.SECRET,
+                                        default="private-token")],
+    )
+    value = values.get("token", "private-token")
+    message = ExecutionManager._format_launch_for_log(tool, "echo", [value], values)
+    if value:
+        assert value not in message
+        assert "***" in message

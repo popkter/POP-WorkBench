@@ -44,6 +44,9 @@ class ExecutionCoordinator(QObject):
         self._execution_used = False
         self._pending: tuple[ToolDefinition, dict[str, Any], str] | None = None
         self._scrcpy_tool_id = ""
+        self._scrcpy_serial = ""
+        self._scrcpy_display_id = 0
+        self._scrcpy_restart: tuple[str, int] | None = None
 
         self._scrcpy.output.connect(self._on_scrcpy_output)
         self._scrcpy.started.connect(self._on_scrcpy_started)
@@ -59,7 +62,7 @@ class ExecutionCoordinator(QObject):
 
     def running(self, tool_id: str) -> bool:
         if tool_id and tool_id == self._scrcpy_tool_id:
-            return self._scrcpy.running
+            return self._scrcpy.active
         manager = self._executions.get(tool_id)
         return manager.running if manager is not None else False
 
@@ -75,19 +78,51 @@ class ExecutionCoordinator(QObject):
                 self.output.emit(tool.id, "投屏正在运行，请先停止。\n")
                 return False
             self._scrcpy_tool_id = tool.id
-            accepted = self._scrcpy.start(device_serial)
+            try:
+                raw_display = str(values.get("displayId", 0))
+                if not raw_display.isascii() or not raw_display.isdecimal():
+                    raise ValueError
+                display_id = int(raw_display)
+                if display_id > 2147483647:
+                    raise ValueError
+            except (ValueError, TypeError):
+                self._scrcpy_tool_id = ""
+                self.output.emit(tool.id, "displayId 必须是非负整数。\n")
+                return False
+            self._scrcpy_serial = device_serial
+            self._scrcpy_display_id = display_id
+            accepted = self._scrcpy.start(device_serial, display_id)
             if not accepted:
                 self._scrcpy_tool_id = ""
+            else:
+                self.runningChanged.emit(tool.id, True)
             return accepted
         return self._start_ordinary(tool, values)
 
     def stop(self, tool_id: str) -> None:
         if tool_id and tool_id == self._scrcpy_tool_id:
+            self._scrcpy_restart = None
             self._scrcpy.stop()
             return
         manager = self._executions.get(tool_id)
         if manager is not None:
             manager.stop()
+
+    def switch_scrcpy_display(self, serial: str, display_id: int) -> bool:
+        if not isinstance(display_id, int) or not 0 <= display_id <= 2147483647:
+            return False
+        if (not self._scrcpy.active or serial != self._scrcpy_serial
+                or getattr(self, "plugin_mutation_active", lambda: False)()):
+            return False
+        if self._scrcpy_restart is not None:
+            self._scrcpy_restart = (serial, display_id)
+            return True
+        if display_id == self._scrcpy_display_id:
+            return True
+        self._scrcpy_restart = (serial, display_id)
+        self.output.emit(self._scrcpy_tool_id, f"正在切换到屏幕 {display_id}…\n")
+        self._scrcpy.stop()
+        return True
 
     def confirm_replacement(self) -> None:
         pending = self._pending
@@ -194,5 +229,14 @@ class ExecutionCoordinator(QObject):
 
     def _on_scrcpy_finished(self, exit_code: int) -> None:
         tool_id = self._scrcpy_tool_id
+        pending = self._scrcpy_restart
+        self._scrcpy_restart = None
+        if pending is not None:
+            self._scrcpy_serial, self._scrcpy_display_id = pending
+            if self._scrcpy.start(*pending):
+                self.runningChanged.emit(tool_id, True)
+                return
+            exit_code = -1
+            self.output.emit(tool_id, "切换屏幕失败，请检查设备连接和 displayId。\n")
         self._scrcpy_tool_id = ""
         self.finished.emit(tool_id, exit_code)

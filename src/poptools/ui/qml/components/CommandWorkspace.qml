@@ -11,6 +11,7 @@ ColumnLayout {
     required property var parameterValues
     property var androidController: null
     property bool scrcpySelected: false
+    property bool actionsInTitleBar: false
     property bool overlaysVisible: false
     readonly property int parameterCount:
         (root.controller.selectedTool.parameters || []).length
@@ -31,11 +32,21 @@ ColumnLayout {
         id: deviceSelector
         Layout.fillWidth: true
         visible: !!root.controller.selectedTool.uses_android_device
+            && !(root.scrcpySelected && root.actionsInTitleBar)
         enabled: !root.scrcpySelected || !root.controller.running
         controller: root.androidController
         toolId: root.controller.selectedTool.id || ""
         requiredDevice: !!root.controller.selectedTool.requires_android_device
         explicitTarget: !!root.controller.selectedTool.android_explicit_target
+    }
+
+    Loader {
+        id: workspaceDisplayPicker
+        Layout.preferredWidth: 190
+        active: root.scrcpySelected && !root.actionsInTitleBar
+        visible: active
+        readonly property bool popupVisible: item ? item.popupVisible : false
+        sourceComponent: DisplaySelector { backend: root.controller.scrcpyDisplays }
     }
 
     Rectangle {
@@ -96,6 +107,7 @@ ColumnLayout {
 
             const canShow = geometryReady && visible
                          && root.parentWindow.visible && !root.overlaysVisible
+                         && !workspaceDisplayPicker.popupVisible
             root.controller.updateScrcpyGeometry(
                         geometry.x, geometry.y,
                         geometry.width, geometry.height, canShow)
@@ -136,7 +148,7 @@ ColumnLayout {
     }
 
     PrimaryButton {
-        visible: root.scrcpySelected
+        visible: root.scrcpySelected && !root.actionsInTitleBar
         Layout.alignment: Qt.AlignRight
         Layout.preferredWidth: 168
         Layout.preferredHeight: 40
@@ -210,7 +222,7 @@ ColumnLayout {
                                 color: Theme.textPrimary
                                 font.pixelSize: Theme.fontBody
                                 leftPadding: Theme.space16
-                                rightPadding: pathPickerVisible ? 88 : modelData.kind === "secret" ? 16 : 48
+                                rightPadding: pathPickerVisible ? 88 : 48
                                 validator: modelData.kind === "integer" ? integerValidator
                                     : modelData.kind === "number" ? numberValidator : null
                                 RegularExpressionValidator {
@@ -261,7 +273,6 @@ ColumnLayout {
                                 }
 
                                 PrimaryButton {
-                                    visible: modelData.kind !== "secret"
                                     anchors.right: parent.right
                                     anchors.rightMargin: normalTextField.pathPickerVisible ? 48 : Theme.space8
                                     anchors.verticalCenter: parent.verticalCenter

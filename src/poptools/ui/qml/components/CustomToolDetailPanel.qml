@@ -14,7 +14,15 @@ Rectangle {
     required property var parentWindow
     required property var parameterValues
     required property var displayedTool
-    property bool consoleExpanded: true
+    property bool splitConsole: false
+    property bool consoleExpanded: !splitConsole || controller.running
+    property real consoleHeightRatio: 0.4
+    readonly property real separatorHeight: splitConsole ? Theme.space12 : Theme.space8
+    readonly property bool executionRunning: !!controller.running
+    onExecutionRunningChanged: {
+        if (splitConsole && executionRunning)
+            consoleExpanded = true
+    }
     property bool allowManagement: true
     property bool actionsInTitleBar: false
     property bool deviceInTitleBar: false
@@ -36,9 +44,9 @@ Rectangle {
     signal toastRequested(string message, bool error)
 
     radius: Theme.radiusMedium
-    color: Theme.surfaceContainerLow
+    color: splitConsole ? "transparent" : Theme.surfaceContainerLow
     border.color: Theme.outlineVariant
-    border.width: 1
+    border.width: splitConsole ? 0 : 1
     clip: true
 
     component ParameterDefaultButton: PrimaryButton {
@@ -80,6 +88,8 @@ Rectangle {
     }
 
     function runSelectedTool() {
+        if (root.splitConsole && root.displayedTool.id && !root.controller.running)
+            root.consoleExpanded = true
         if (root.externalRun) {
             root.runRequested()
             return
@@ -94,474 +104,526 @@ Rectangle {
         }
     }
 
-    Item {
-        id: header
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        height: headingRow.implicitHeight + Theme.detailPanelPadding * 2
+    Rectangle {
+        id: formPanel
+        objectName: "customParameterPanel"
+        width: parent.width
+        height: Math.max(0, consolePanel.y - root.separatorHeight)
+        radius: Theme.radiusMedium
+        color: root.splitConsole ? Theme.surfaceContainerLow : "transparent"
+        border.width: root.splitConsole ? 1 : 0
+        border.color: Theme.outlineVariant
+        clip: true
 
-        RowLayout {
-            id: headingRow
+        Item {
+            id: header
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: Theme.detailPanelPadding
-            spacing: Theme.space16
+            height: headingRow.implicitHeight + Theme.detailPanelPadding * 2
 
-            Rectangle {
-                Layout.preferredWidth: 46
-                Layout.preferredHeight: 46
-                Layout.alignment: Qt.AlignTop
-                radius: Theme.radiusMedium
-                color: root.kindBackground()
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    icon: root.displayedTool.presentation
-                        ? (root.displayedTool.presentation.icon || "terminal") : "terminal"
-                    iconSize: Theme.iconLarge
-                    color: root.kindColor()
+            RowLayout {
+                id: headingRow
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: Theme.detailPanelPadding
+                spacing: Theme.space16
+
+                Rectangle {
+                    Layout.preferredWidth: 46
+                    Layout.preferredHeight: 46
+                    Layout.alignment: Qt.AlignTop
+                    radius: Theme.radiusMedium
+                    color: root.kindBackground()
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        icon: root.displayedTool.presentation
+                            ? (root.displayedTool.presentation.icon || "terminal") : "terminal"
+                        iconSize: Theme.iconLarge
+                        color: root.kindColor()
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    spacing: Theme.space4
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.displayedTool.title || "请选择脚本"
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontDetailTitle
+                        font.weight: Font.Bold
+                        elide: Text.ElideRight
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.displayedTool.description || "选择脚本以查看参数、运行状态和输出"
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontBody
+                        elide: Text.ElideRight
+                    }
+                }
+
+                Rectangle {
+                    objectName: "customScriptKindBadge"
+                    visible: root.kindLabel().length > 0
+                    implicitWidth: 98
+                    implicitHeight: 22
+                    Layout.alignment: Qt.AlignTop
+                    Layout.topMargin: 6
+                    radius: Theme.radiusTiny
+                    color: root.kindBackground()
+                    Text {
+                        anchors.centerIn: parent
+                        text: root.kindLabel()
+                        color: root.kindColor()
+                        font.pixelSize: Theme.fontSmall
+                    }
                 }
             }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                spacing: Theme.space4
-                Text {
-                    Layout.fillWidth: true
-                    text: root.displayedTool.title || "请选择脚本"
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontDetailTitle
-                    font.weight: Font.Bold
-                    elide: Text.ElideRight
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: root.displayedTool.description || "选择脚本以查看参数、运行状态和输出"
-                    color: Theme.textSecondary
-                    font.pixelSize: Theme.fontBody
-                    elide: Text.ElideRight
-                }
-            }
-
             Rectangle {
-                objectName: "customScriptKindBadge"
-                visible: root.kindLabel().length > 0
-                implicitWidth: 98
-                implicitHeight: 22
-                Layout.alignment: Qt.AlignTop
-                Layout.topMargin: 6
-                radius: Theme.radiusTiny
-                color: root.kindBackground()
-                Text {
-                    anchors.centerIn: parent
-                    text: root.kindLabel()
-                    color: root.kindColor()
-                    font.pixelSize: Theme.fontSmall
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: Theme.detailPanelPadding
+                anchors.rightMargin: Theme.detailPanelPadding
+                height: Theme.borderWidthThin
+                color: Theme.outlineVariant
+            }
+        }
+
+        Flickable {
+            id: parameterArea
+            objectName: "customParameterArea"
+            x: Theme.detailPanelPadding
+            anchors.top: header.bottom
+            anchors.topMargin: Theme.space12
+            width: parent.width - Theme.detailPanelPadding * 2
+            height: Math.max(0, actionArea.y - y - Theme.space8)
+            clip: true
+            contentWidth: width
+            contentHeight: parameterColumn.height
+            boundsBehavior: Flickable.StopAtBounds
+            acceptedButtons: Qt.NoButton
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+            Column {
+                id: parameterColumn
+                width: parameterArea.width
+                spacing: Theme.space8
+
+                Repeater {
+                    model: root.displayedTool.parameters || []
+                    delegate: Column {
+                        id: parameterItem
+                        required property var modelData
+                        width: parameterColumn.width
+                        spacing: 6
+
+                        Rectangle {
+                            id: parameterRow
+                            objectName: "customParameterRow_" + parameterItem.modelData.id
+                            width: parent.width
+                            height: parameterItem.modelData.kind === "multiline" ? 88
+                                : parameterItem.modelData.kind === "radio" && parameterInput.item
+                                ? Math.max(Theme.inputHeight, parameterInput.item.implicitHeight + 2)
+                                : Theme.inputHeight
+                            radius: Theme.radiusSmall
+                            color: Theme.surfaceContainerLow
+                            readonly property bool inputFocused: parameterInput.item
+                                ? parameterInput.item.activeFocus : false
+                            border.color: inputFocused ? Theme.primary : Theme.inputBorder
+                            border.width: inputFocused ? 2 : 1
+
+                            Item {
+                                id: parameterLabelCell
+                                objectName: "customParameterLabelCell_" + parameterItem.modelData.id
+                                x: 1
+                                y: 1
+                                width: Math.max(0, (parameterRow.width - 2) / 4)
+                                height: parameterInput.height
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: if (parameterInput.item)
+                                        parameterInput.item.forceActiveFocus()
+                                }
+                                Text {
+                                    id: parameterLabelText
+                                    objectName: "customParameterLabel_" + parameterItem.modelData.id
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: Theme.space12
+                                    anchors.right: requiredLabel.left
+                                    anchors.rightMargin: requiredLabel.visible ? Theme.space4 : 0
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: parameterItem.modelData.label
+                                    color: Theme.textPrimary
+                                    font.pixelSize: Theme.fontCaption
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                    HoverHandler { id: labelHover }
+                                    HoverTips {
+                                        visible: parameterLabelText.truncated && labelHover.hovered
+                                        text: parameterLabelText.text
+                                    }
+                                }
+                                Text {
+                                    id: requiredLabel
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: Theme.space8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: !!parameterItem.modelData.required
+                                    text: visible ? "必填" : ""
+                                    color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontCaption
+                                }
+                            }
+
+                            Rectangle {
+                                x: parameterInput.x
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                anchors.margins: Theme.space8
+                                width: 1
+                                color: Theme.outlineVariant
+                            }
+
+                            Loader {
+                                id: parameterInput
+                                objectName: "customParameterInput_" + parameterItem.modelData.id
+                                x: parameterLabelCell.x + parameterLabelCell.width
+                                y: 1
+                                width: parameterLabelCell.width * 3
+                                height: parameterRow.height - 2
+                                clip: true
+                                sourceComponent: parameterItem.modelData.kind === "choice"
+                                    ? choiceField : parameterItem.modelData.kind === "radio"
+                                    ? radioField : parameterItem.modelData.kind === "boolean"
+                                    ? booleanField : parameterItem.modelData.kind === "multiline"
+                                    ? multilineField : textField
+
+                                Component {
+                                    id: textField
+                                    AppTextField {
+                                        id: parameterTextField
+                                        Accessible.name: parameterItem.modelData.label
+                                        readonly property bool pathPickerVisible:
+                                            parameterItem.modelData.kind === "file"
+                                            || parameterItem.modelData.kind === "directory"
+                                        text: String(parameterItem.modelData.default ?? "")
+                                        placeholderText: parameterItem.modelData.placeholder || ""
+                                        color: Theme.textPrimary
+                                        font.pixelSize: Theme.fontBody
+                                        leftPadding: 13
+                                        rightPadding: pathPickerVisible ? 81 : 45
+                                        validator: parameterItem.modelData.kind === "integer" ? integerValidator
+                                            : parameterItem.modelData.kind === "number" ? numberValidator : null
+                                        RegularExpressionValidator {
+                                            id: integerValidator
+                                            regularExpression: /[+-]?[0-9]+/
+                                        }
+                                        RegularExpressionValidator {
+                                            id: numberValidator
+                                            regularExpression: /[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/
+                                        }
+                                        echoMode: parameterItem.modelData.kind === "secret"
+                                            ? TextInput.Password : TextInput.Normal
+                                        background: null
+                                        onTextChanged: root.parameterValues[parameterItem.modelData.id] = text
+                                        FilePathDropArea { target: parameterTextField }
+                                        AppTextEditMenu { target: parameterTextField }
+
+                                        ParameterDefaultButton {
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: parameterTextField.pathPickerVisible ? 42 : 6
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            onClicked: root.controller.setParameterDefault(
+                                                parameterItem.modelData.id, parameterTextField.text)
+                                        }
+
+                                        PrimaryButton {
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: 6
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: parameterTextField.pathPickerVisible
+                                            width: 30
+                                            height: 30
+                                            compact: true
+                                            text: parameterItem.modelData.kind === "directory"
+                                                ? "选择文件夹" : "选择文件"
+                                            iconName: "folder_open"
+                                            glyphSize: 19
+                                            tonal: true
+                                            foregroundColor: Theme.primaryText
+                                            border.width: 0
+                                            radius: Theme.radiusControl
+                                            // Above AppTextEditMenu's input-event overlay (z: 200).
+                                            z: 201
+                                            color: hovered
+                                                ? Theme.primaryContainerHover
+                                                : Theme.primaryContainer
+                                            onClicked: {
+                                                const selectedPath = parameterItem.modelData.kind === "directory"
+                                                    ? root.controller.chooseParameterDirectory(parameterTextField.text)
+                                                    : root.controller.chooseParameterFile(parameterTextField.text)
+                                                if (selectedPath.length > 0) {
+                                                    parameterTextField.text = selectedPath
+                                                    parameterTextField.forceActiveFocus()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Component {
+                                    id: multilineField
+                                    TextArea {
+                                        id: parameterTextArea
+                                        Accessible.name: parameterItem.modelData.label
+                                        text: String(parameterItem.modelData.default ?? "")
+                                        placeholderText: parameterItem.modelData.placeholder || ""
+                                        color: Theme.textPrimary
+                                        font.pixelSize: Theme.fontBody
+                                        leftPadding: 13
+                                        rightPadding: 45
+                                        wrapMode: TextEdit.Wrap
+                                        background: null
+                                        onTextChanged: root.parameterValues[parameterItem.modelData.id] = text
+                                        FilePathDropArea { target: parameterTextArea }
+                                        AppTextEditMenu { target: parameterTextArea }
+                                        ParameterDefaultButton {
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: 6
+                                            anchors.top: parent.top
+                                            anchors.topMargin: 5
+                                            onClicked: root.controller.setParameterDefault(
+                                                parameterItem.modelData.id, parameterTextArea.text)
+                                        }
+                                    }
+                                }
+
+                                Component {
+                                    id: choiceField
+                                    AppComboBox {
+                                        id: choiceControl
+                                        Accessible.name: parameterItem.modelData.label
+                                        background: null
+                                        readonly property var choiceOptions: parameterItem.modelData.options || []
+                                        function optionValue(index) {
+                                            if (index < 0 || index >= choiceOptions.length)
+                                                return ""
+                                            const option = choiceOptions[index]
+                                            return typeof option === "object" ? option.value : option
+                                        }
+                                        model: choiceOptions
+                                        currentIndex: {
+                                            const expected = String(parameterItem.modelData.default ?? "")
+                                            for (let index = 0; index < choiceOptions.length; index++) {
+                                                if (String(choiceControl.optionValue(index)) === expected)
+                                                    return index
+                                            }
+                                            return choiceOptions.length > 0 ? 0 : -1
+                                        }
+                                        textRole: choiceOptions.length > 0 && typeof choiceOptions[0] === "object" ? "label" : ""
+                                        leftPadding: 13
+                                        font.pixelSize: Theme.fontBody
+                                        onCurrentIndexChanged: {
+                                            if (currentIndex >= 0)
+                                                root.parameterValues[parameterItem.modelData.id] = optionValue(currentIndex)
+                                        }
+                                    }
+                                }
+
+                                Component {
+                                    id: radioField
+                                    ParameterRadioGroup {
+                                        options: parameterItem.modelData.options || []
+                                        currentValue: String(parameterItem.modelData.default ?? "")
+                                        onValueChanged: function(value) {
+                                            root.parameterValues[parameterItem.modelData.id] = value
+                                        }
+                                    }
+                                }
+
+                                Component {
+                                    id: booleanField
+                                    AppCheckBox {
+                                        text: ""
+                                        Accessible.name: parameterItem.modelData.label
+                                        checked: parameterItem.modelData.default === true
+                                            || String(parameterItem.modelData.default).toLowerCase() === "true"
+                                        onToggled: root.parameterValues[parameterItem.modelData.id] = checked
+                                        Component.onCompleted: root.parameterValues[parameterItem.modelData.id] = checked
+                                    }
+                                }
+                            }
+
+                        }
+
+                        Text {
+                            x: parameterInput.x
+                            width: parameterInput.width
+                            visible: parameterItem.modelData.kind !== "boolean" && text.length > 0
+                            text: parameterItem.modelData.label.indexOf("VIN") >= 0
+                                ? "17 位车辆识别码，写入后将自动读取并验证。"
+                                : ""
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontSmall
+                            elide: Text.ElideRight
+                        }
+
+                    }
+                }
+
+                DeviceSelector {
+                    width: parent.width
+                    visible: !!root.displayedTool.uses_android_device && !root.deviceInTitleBar
+                    controller: root.androidBackend
+                    toolId: root.displayedTool.id || ""
+                    requiredDevice: !!root.displayedTool.requires_android_device
+                    explicitTarget: !!root.displayedTool.android_explicit_target
                 }
             }
         }
-        Rectangle {
+
+        Item {
+            id: actionArea
+            objectName: "customActionArea"
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.leftMargin: Theme.detailPanelPadding
             anchors.rightMargin: Theme.detailPanelPadding
-            height: Theme.borderWidthThin
-            color: Theme.outlineVariant
-        }
-    }
+            anchors.bottomMargin: root.splitConsole ? Theme.detailPanelPadding : 0
+            height: root.actionsInTitleBar ? 0 : actionFlow.implicitHeight
+            visible: !root.actionsInTitleBar
 
-    Flickable {
-        id: parameterArea
-        x: Theme.detailPanelPadding
-        anchors.top: header.bottom
-        anchors.topMargin: Theme.space12
-        width: parent.width - Theme.detailPanelPadding * 2
-        height: Math.max(0, actionArea.y - y - Theme.space8)
-        clip: true
-        contentWidth: width
-        contentHeight: parameterColumn.height
-        boundsBehavior: Flickable.StopAtBounds
-        acceptedButtons: Qt.NoButton
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            Flow {
+                id: actionFlow
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                spacing: Theme.space8
+                layoutDirection: root.allowManagement ? Qt.LeftToRight : Qt.RightToLeft
 
-        Column {
-            id: parameterColumn
-            width: parameterArea.width
-            spacing: Theme.space8
+                readonly property real halfButtonWidth: (width - spacing) / 2
 
-            Repeater {
-                model: root.displayedTool.parameters || []
-                delegate: Column {
-                    id: parameterItem
-                    required property var modelData
-                    width: parameterColumn.width
-                    spacing: 6
+                PrimaryButton {
+                    id: editButton
+                    objectName: "customEditButton"
+                    visible: root.allowManagement
+                    width: root.narrowManagementLayout
+                        ? actionFlow.halfButtonWidth : Theme.detailActionWidth
+                    height: Theme.controlHeightSmall
+                    radius: Theme.radiusSmall
+                    text: "编辑脚本"
+                    iconName: ""
+                    tonal: true
+                    color: hovered ? Theme.surfaceContainer : Theme.surfaceContainerLow
+                    border.color: Theme.outline
+                    foregroundColor: Theme.textPrimary
+                    labelFontSize: Theme.fontSupporting
+                    labelFontWeight: Font.Normal
+                    glyphSize: 18
+                    contentSpacing: 7
+                    enabled: !!root.displayedTool.editable && !root.controller.running
+                    onClicked: root.editRequested()
+                }
 
-                    Rectangle {
-                        id: parameterRow
-                        objectName: "customParameterRow_" + parameterItem.modelData.id
-                        width: parent.width
-                        height: parameterItem.modelData.kind === "multiline" ? 88
-                            : parameterItem.modelData.kind === "radio" && parameterInput.item
-                            ? Math.max(Theme.inputHeight, parameterInput.item.implicitHeight + 2)
-                            : Theme.inputHeight
-                        radius: Theme.radiusSmall
-                        color: Theme.surfaceContainerLow
-                        readonly property bool inputFocused: parameterInput.item
-                            ? parameterInput.item.activeFocus : false
-                        border.color: inputFocused ? Theme.primary : Theme.inputBorder
-                        border.width: inputFocused ? 2 : 1
+                PrimaryButton {
+                    objectName: "customDeleteButton"
+                    visible: root.allowManagement
+                    width: root.narrowManagementLayout
+                        ? actionFlow.halfButtonWidth : Theme.detailActionWidth
+                    height: Theme.controlHeightSmall
+                    radius: Theme.radiusSmall
+                    tonal: true
+                    color: Theme.dangerAction
+                    border.color: Theme.errorColor
+                    text: "删除脚本"
+                    iconName: ""
+                    foregroundColor: Theme.textPrimary
+                    labelFontSize: Theme.fontSupporting
+                    labelFontWeight: Font.Normal
+                    glyphSize: 18
+                    contentSpacing: 7
+                    enabled: !!root.displayedTool.id && !root.controller.running
+                    onClicked: root.deleteRequested()
+                }
 
-                        Item {
-                            id: parameterLabelCell
-                            objectName: "customParameterLabelCell_" + parameterItem.modelData.id
-                            x: 1
-                            y: 1
-                            width: Math.max(0, (parameterRow.width - 2) / 4)
-                            height: parameterInput.height
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: if (parameterInput.item)
-                                    parameterInput.item.forceActiveFocus()
-                            }
-                            Text {
-                                id: parameterLabelText
-                                objectName: "customParameterLabel_" + parameterItem.modelData.id
-                                anchors.left: parent.left
-                                anchors.leftMargin: Theme.space12
-                                anchors.right: requiredLabel.left
-                                anchors.rightMargin: requiredLabel.visible ? Theme.space4 : 0
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: parameterItem.modelData.label
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontCaption
-                                font.weight: Font.DemiBold
-                                elide: Text.ElideRight
-                                HoverHandler { id: labelHover }
-                                HoverTips {
-                                    visible: parameterLabelText.truncated && labelHover.hovered
-                                    text: parameterLabelText.text
-                                }
-                            }
-                            Text {
-                                id: requiredLabel
-                                anchors.right: parent.right
-                                anchors.rightMargin: Theme.space8
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: !!parameterItem.modelData.required
-                                text: visible ? "必填" : ""
-                                color: Theme.textSecondary
-                                font.pixelSize: Theme.fontCaption
-                            }
-                        }
+                Item {
+                    visible: root.allowManagement && !root.narrowManagementLayout
+                    width: Math.max(0, actionFlow.width
+                        - Theme.detailActionWidth * 2 - Theme.detailRunWidth
+                        - actionFlow.spacing * 3)
+                    height: Theme.controlHeightSmall
+                }
 
-                        Rectangle {
-                            x: parameterInput.x
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            anchors.margins: Theme.space8
-                            width: 1
-                            color: Theme.outlineVariant
-                        }
-
-                        Loader {
-                            id: parameterInput
-                            objectName: "customParameterInput_" + parameterItem.modelData.id
-                            x: parameterLabelCell.x + parameterLabelCell.width
-                            y: 1
-                            width: parameterLabelCell.width * 3
-                            height: parameterRow.height - 2
-                            clip: true
-                            sourceComponent: parameterItem.modelData.kind === "choice"
-                                ? choiceField : parameterItem.modelData.kind === "radio"
-                                ? radioField : parameterItem.modelData.kind === "boolean"
-                                ? booleanField : parameterItem.modelData.kind === "multiline"
-                                ? multilineField : textField
-
-                            Component {
-                                id: textField
-                                AppTextField {
-                                    id: parameterTextField
-                                    Accessible.name: parameterItem.modelData.label
-                                    readonly property bool pathPickerVisible:
-                                        parameterItem.modelData.kind === "file"
-                                        || parameterItem.modelData.kind === "directory"
-                                    text: String(parameterItem.modelData.default ?? "")
-                                    placeholderText: parameterItem.modelData.placeholder || ""
-                                    color: Theme.textPrimary
-                                    font.pixelSize: Theme.fontBody
-                                    leftPadding: 13
-                                    rightPadding: pathPickerVisible ? 81
-                                        : parameterItem.modelData.kind === "secret" ? 13 : 45
-                                    validator: parameterItem.modelData.kind === "integer" ? integerValidator
-                                        : parameterItem.modelData.kind === "number" ? numberValidator : null
-                                    RegularExpressionValidator {
-                                        id: integerValidator
-                                        regularExpression: /[+-]?[0-9]+/
-                                    }
-                                    RegularExpressionValidator {
-                                        id: numberValidator
-                                        regularExpression: /[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/
-                                    }
-                                    echoMode: parameterItem.modelData.kind === "secret"
-                                        ? TextInput.Password : TextInput.Normal
-                                    background: null
-                                    onTextChanged: root.parameterValues[parameterItem.modelData.id] = text
-                                    FilePathDropArea { target: parameterTextField }
-                                    AppTextEditMenu { target: parameterTextField }
-
-                                    ParameterDefaultButton {
-                                        visible: parameterItem.modelData.kind !== "secret"
-                                        anchors.right: parent.right
-                                        anchors.rightMargin: parameterTextField.pathPickerVisible ? 42 : 6
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        onClicked: root.controller.setParameterDefault(
-                                            parameterItem.modelData.id, parameterTextField.text)
-                                    }
-
-                                    PrimaryButton {
-                                        anchors.right: parent.right
-                                        anchors.rightMargin: 6
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        visible: parameterTextField.pathPickerVisible
-                                        width: 30
-                                        height: 30
-                                        compact: true
-                                        text: parameterItem.modelData.kind === "directory"
-                                            ? "选择文件夹" : "选择文件"
-                                        iconName: "folder_open"
-                                        glyphSize: 19
-                                        tonal: true
-                                        foregroundColor: Theme.primaryText
-                                        border.width: 0
-                                        radius: Theme.radiusControl
-                                        // Above AppTextEditMenu's input-event overlay (z: 200).
-                                        z: 201
-                                        color: hovered
-                                            ? Theme.primaryContainerHover
-                                            : Theme.primaryContainer
-                                        onClicked: {
-                                            const selectedPath = parameterItem.modelData.kind === "directory"
-                                                ? root.controller.chooseParameterDirectory(parameterTextField.text)
-                                                : root.controller.chooseParameterFile(parameterTextField.text)
-                                            if (selectedPath.length > 0) {
-                                                parameterTextField.text = selectedPath
-                                                parameterTextField.forceActiveFocus()
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Component {
-                                id: multilineField
-                                TextArea {
-                                    id: parameterTextArea
-                                    Accessible.name: parameterItem.modelData.label
-                                    text: String(parameterItem.modelData.default ?? "")
-                                    placeholderText: parameterItem.modelData.placeholder || ""
-                                    color: Theme.textPrimary
-                                    font.pixelSize: Theme.fontBody
-                                    leftPadding: 13
-                                    rightPadding: 45
-                                    wrapMode: TextEdit.Wrap
-                                    background: null
-                                    onTextChanged: root.parameterValues[parameterItem.modelData.id] = text
-                                    FilePathDropArea { target: parameterTextArea }
-                                    AppTextEditMenu { target: parameterTextArea }
-                                    ParameterDefaultButton {
-                                        anchors.right: parent.right
-                                        anchors.rightMargin: 6
-                                        anchors.top: parent.top
-                                        anchors.topMargin: 5
-                                        onClicked: root.controller.setParameterDefault(
-                                            parameterItem.modelData.id, parameterTextArea.text)
-                                    }
-                                }
-                            }
-
-                            Component {
-                                id: choiceField
-                                AppComboBox {
-                                    id: choiceControl
-                                    Accessible.name: parameterItem.modelData.label
-                                    background: null
-                                    readonly property var choiceOptions: parameterItem.modelData.options || []
-                                    function optionValue(index) {
-                                        if (index < 0 || index >= choiceOptions.length)
-                                            return ""
-                                        const option = choiceOptions[index]
-                                        return typeof option === "object" ? option.value : option
-                                    }
-                                    model: choiceOptions
-                                    currentIndex: {
-                                        const expected = String(parameterItem.modelData.default ?? "")
-                                        for (let index = 0; index < choiceOptions.length; index++) {
-                                            if (String(choiceControl.optionValue(index)) === expected)
-                                                return index
-                                        }
-                                        return choiceOptions.length > 0 ? 0 : -1
-                                    }
-                                    textRole: choiceOptions.length > 0 && typeof choiceOptions[0] === "object" ? "label" : ""
-                                    leftPadding: 13
-                                    font.pixelSize: Theme.fontBody
-                                    onCurrentIndexChanged: {
-                                        if (currentIndex >= 0)
-                                            root.parameterValues[parameterItem.modelData.id] = optionValue(currentIndex)
-                                    }
-                                }
-                            }
-
-                            Component {
-                                id: radioField
-                                ParameterRadioGroup {
-                                    options: parameterItem.modelData.options || []
-                                    currentValue: String(parameterItem.modelData.default ?? "")
-                                    onValueChanged: function(value) {
-                                        root.parameterValues[parameterItem.modelData.id] = value
-                                    }
-                                }
-                            }
-
-                            Component {
-                                id: booleanField
-                                AppCheckBox {
-                                    text: ""
-                                    Accessible.name: parameterItem.modelData.label
-                                    checked: parameterItem.modelData.default === true
-                                        || String(parameterItem.modelData.default).toLowerCase() === "true"
-                                    onToggled: root.parameterValues[parameterItem.modelData.id] = checked
-                                    Component.onCompleted: root.parameterValues[parameterItem.modelData.id] = checked
-                                }
-                            }
-                        }
-
-                    }
-
-                    Text {
-                        x: parameterInput.x
-                        width: parameterInput.width
-                        visible: parameterItem.modelData.kind !== "boolean" && text.length > 0
-                        text: parameterItem.modelData.label.indexOf("VIN") >= 0
-                            ? "17 位车辆识别码，写入后将自动读取并验证。"
-                            : ""
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontSmall
-                        elide: Text.ElideRight
-                    }
-
-                    Item { width: 1; height: 8 }
+                PrimaryButton {
+                    id: runButton
+                    objectName: "customRunButton"
+                    width: root.allowManagement
+                        ? (root.narrowManagementLayout
+                            ? actionFlow.width : Theme.detailRunWidth)
+                        : Math.min(Theme.detailRunWidth, actionFlow.width)
+                    height: Theme.controlHeightSmall
+                    radius: Theme.radiusSmall
+                    text: root.controller.running ? "停止运行" : "运行脚本"
+                    iconName: root.controller.running ? "stop" : "play_arrow"
+                    tonal: true
+                    color: hovered ? Theme.primaryHover : Theme.primary
+                    border.width: 0
+                    foregroundColor: "white"
+                    labelFontSize: Theme.fontSupporting
+                    labelFontWeight: Font.Medium
+                    glyphSize: 16
+                    contentSpacing: 6
+                    enabled: !!root.displayedTool.id
+                    onClicked: root.runSelectedTool()
                 }
             }
-
-            DeviceSelector {
-                width: parent.width
-                visible: !!root.displayedTool.uses_android_device && !root.deviceInTitleBar
-                controller: root.androidBackend
-                toolId: root.displayedTool.id || ""
-                requiredDevice: !!root.displayedTool.requires_android_device
-                explicitTarget: !!root.displayedTool.android_explicit_target
-            }
         }
+
     }
 
     Item {
-        id: actionArea
-        objectName: "customActionArea"
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: consolePanel.top
-        anchors.leftMargin: Theme.detailPanelPadding
-        anchors.rightMargin: Theme.detailPanelPadding
-        anchors.bottomMargin: root.actionsInTitleBar ? 0 : Theme.space8
-        height: root.actionsInTitleBar ? 0 : actionFlow.implicitHeight
-        visible: !root.actionsInTitleBar
+        id: consoleSeparator
+        objectName: "customConsoleSeparator"
+        visible: root.splitConsole
+        width: parent.width
+        y: formPanel.height
+        height: root.separatorHeight
 
-        Flow {
-            id: actionFlow
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            spacing: Theme.space8
-            layoutDirection: root.allowManagement ? Qt.LeftToRight : Qt.RightToLeft
-
-            readonly property real halfButtonWidth: (width - spacing) / 2
-
-            PrimaryButton {
-                id: editButton
-                objectName: "customEditButton"
-                visible: root.allowManagement
-                width: root.narrowManagementLayout
-                    ? actionFlow.halfButtonWidth : Theme.detailActionWidth
-                height: Theme.controlHeightSmall
-                radius: Theme.radiusSmall
-                text: "编辑脚本"
-                iconName: ""
-                tonal: true
-                color: hovered ? Theme.surfaceContainer : Theme.surfaceContainerLow
-                border.color: Theme.outline
-                foregroundColor: Theme.textPrimary
-                labelFontSize: Theme.fontSupporting
-                labelFontWeight: Font.Normal
-                glyphSize: 18
-                contentSpacing: 7
-                enabled: !!root.displayedTool.editable && !root.controller.running
-                onClicked: root.editRequested()
+        Rectangle {
+            anchors.centerIn: parent
+            width: 40
+            height: 3
+            radius: 1.5
+            color: separatorMouse.containsMouse || separatorMouse.pressed
+                ? Theme.primary : Theme.outline
+            visible: root.consoleExpanded
+        }
+        MouseArea {
+            id: separatorMouse
+            objectName: "customConsoleResizeHandle"
+            anchors.fill: parent
+            enabled: root.consoleExpanded
+            hoverEnabled: true
+            cursorShape: Qt.SizeVerCursor
+            property real startY: 0
+            property real startHeight: 0
+            onPressed: function(mouse) {
+                startY = mapToItem(root, mouse.x, mouse.y).y
+                startHeight = consolePanel.height
             }
-
-            PrimaryButton {
-                objectName: "customDeleteButton"
-                visible: root.allowManagement
-                width: root.narrowManagementLayout
-                    ? actionFlow.halfButtonWidth : Theme.detailActionWidth
-                height: Theme.controlHeightSmall
-                radius: Theme.radiusSmall
-                tonal: true
-                color: Theme.dangerAction
-                border.color: Theme.errorColor
-                text: "删除脚本"
-                iconName: ""
-                foregroundColor: Theme.textPrimary
-                labelFontSize: Theme.fontSupporting
-                labelFontWeight: Font.Normal
-                glyphSize: 18
-                contentSpacing: 7
-                enabled: !!root.displayedTool.id && !root.controller.running
-                onClicked: root.deleteRequested()
-            }
-
-            Item {
-                visible: root.allowManagement && !root.narrowManagementLayout
-                width: Math.max(0, actionFlow.width
-                    - Theme.detailActionWidth * 2 - Theme.detailRunWidth
-                    - actionFlow.spacing * 3)
-                height: Theme.controlHeightSmall
-            }
-
-            PrimaryButton {
-                id: runButton
-                objectName: "customRunButton"
-                width: root.allowManagement
-                    ? (root.narrowManagementLayout
-                        ? actionFlow.width : Theme.detailRunWidth)
-                    : Math.min(Theme.detailRunWidth, actionFlow.width)
-                height: Theme.controlHeightSmall
-                radius: Theme.radiusSmall
-                text: root.controller.running ? "停止运行" : "运行脚本"
-                iconName: root.controller.running ? "stop" : "play_arrow"
-                tonal: true
-                color: hovered ? Theme.primaryHover : Theme.primary
-                border.width: 0
-                foregroundColor: "white"
-                labelFontSize: Theme.fontSupporting
-                labelFontWeight: Font.Medium
-                glyphSize: 16
-                contentSpacing: 6
-                enabled: !!root.displayedTool.id
-                onClicked: root.runSelectedTool()
+            onPositionChanged: function(mouse) {
+                if (!pressed)
+                    return
+                const delta = startY - mapToItem(root, mouse.x, mouse.y).y
+                const requested = Math.max(consolePanel.minimumSplitHeight,
+                    Math.min(consolePanel.maximumSplitHeight, startHeight + delta))
+                root.consoleHeightRatio = requested / Math.max(1, root.height)
             }
         }
     }
@@ -569,20 +631,27 @@ Rectangle {
     Rectangle {
         id: consolePanel
         objectName: "customConsolePanel"
-        x: Theme.detailPanelPadding
-        width: parent.width - Theme.detailPanelPadding * 2
+        x: root.splitConsole ? 0 : Theme.detailPanelPadding
+        width: parent.width - x * 2
+        readonly property real maximumSplitHeight: Math.max(Theme.consoleHeaderHeight,
+            root.height - header.height - actionArea.height
+            - Theme.detailPanelPadding * 2 - Theme.inputHeight - root.separatorHeight)
+        readonly property real minimumSplitHeight: Math.min(140, maximumSplitHeight)
         readonly property real formReservedHeight: Math.max(root.minimumFormReservedHeight,
             parameterArea.y + Math.min(parameterColumn.height, Theme.detailFormMaximumVisibleHeight)
             + actionArea.height + Theme.space8 * 2 + Theme.detailPanelPadding)
         height: root.consoleExpanded
-            ? Math.min(Theme.consoleMaximumHeight,
+            ? (root.splitConsole
+                ? Math.max(minimumSplitHeight,
+                    Math.min(maximumSplitHeight, root.height * root.consoleHeightRatio))
+                : Math.min(Theme.consoleMaximumHeight,
                        Math.max(Math.min(Theme.consoleMinimumHeight,
                            Math.max(Theme.consoleHeaderHeight, root.height - parameterArea.y
                                - actionArea.height - Theme.detailPanelPadding * 2)),
-                           root.height - formReservedHeight))
+                           root.height - formReservedHeight)))
             : Theme.consoleHeaderHeight
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.detailPanelPadding
+        anchors.bottomMargin: root.splitConsole ? 0 : Theme.detailPanelPadding
         radius: 9
         color: Theme.consoleBackground
         clip: true

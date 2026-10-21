@@ -20,6 +20,18 @@ Item {
     property bool scriptSelected: false
     property bool scriptEditable: false
     property bool scriptRunning: false
+    property bool presetActionsVisible: false
+    property bool presetActionsEnabled: true
+    property bool recordingSelected: false
+    property var presetToolController: null
+    property var recordingController: null
+    readonly property bool presetDevicePopupVisible:
+        presetDevicePicker.popupVisible || presetDisplayPicker.popupVisible
+    readonly property bool presetRunning: recordingSelected
+        ? !!(recordingController && recordingController.recording)
+        : !!(presetToolController && presetToolController.running)
+    readonly property bool recordingExporting:
+        recordingSelected && !!(recordingController && recordingController.exporting)
     signal importRequested()
     signal createRequested()
     signal shareRequested()
@@ -28,7 +40,7 @@ Item {
     signal runRequested()
     readonly property bool dark: Theme.darkMode
     readonly property bool active: hostWindow.active
-    readonly property real contentLeftInset: hostWindow.titleBarHeight + Theme.workspaceInset
+    readonly property real contentLeftInset: hostWindow.titleBarHeight
     // JetBrains Runtime uses three 47-DIP controls, with 10-DIP glyphs.
     readonly property int controlWidth: hostWindow.captionControlWidth
     readonly property bool modern: hostWindow.modernCaptionControls
@@ -41,6 +53,8 @@ Item {
                 terminalTabsLoader.item.interactiveWidth, terminalTabsLoader.height)
             : root.scriptActionsVisible
             ? Qt.rect(scriptActions.x, scriptActions.y, scriptActions.width, scriptActions.height)
+            : root.presetActionsVisible
+            ? Qt.rect(presetActions.x, presetActions.y, presetActions.width, presetActions.height)
             : Qt.rect(0, 0, 0, 0)
     }
 
@@ -78,11 +92,11 @@ Item {
         id: terminalTabsLoader
         objectName: "titleBarTerminalTabs"
         anchors.left: parent.left
-        anchors.leftMargin: root.contentLeftInset
+        anchors.leftMargin: root.hostWindow.titleBarHeight
         anchors.right: controls.left
         // Keep a reliable caption drag target even when tabs overflow.
         anchors.rightMargin: 64
-        anchors.bottom: parent.bottom
+        anchors.verticalCenter: parent.verticalCenter
         height: 32
         active: root.terminalTabsVisible && root.terminalController !== null
         visible: active
@@ -97,7 +111,7 @@ Item {
         id: scriptActions
         objectName: "titleBarScriptActions"
         anchors.left: parent.left
-        anchors.leftMargin: root.contentLeftInset
+        anchors.leftMargin: root.hostWindow.titleBarHeight
         anchors.verticalCenter: parent.verticalCenter
         height: Theme.captionActionHeight
         spacing: Theme.space4
@@ -177,6 +191,66 @@ Item {
             toolId: root.selectedScript.id || ""
             requiredDevice: !!root.selectedScript.requires_android_device
             explicitTarget: !!root.selectedScript.android_explicit_target
+        }
+    }
+
+    RowLayout {
+        id: presetActions
+        objectName: "titleBarPresetActions"
+        anchors.left: parent.left
+        anchors.leftMargin: root.contentLeftInset
+        anchors.verticalCenter: parent.verticalCenter
+        height: Theme.captionActionHeight
+        spacing: Theme.space12
+        visible: root.presetActionsVisible
+        enabled: root.presetActionsEnabled
+
+        ChromeAction {
+            objectName: "titleBarStartPreset"
+            text: root.recordingExporting ? "正在导出"
+                : root.recordingSelected
+                  ? (root.presetRunning ? "结束记录" : "开始记录")
+                  : (root.presetRunning ? "结束投屏" : "开始投屏")
+            iconName: root.recordingExporting ? "hourglass_top"
+                : root.presetRunning ? "stop"
+                : root.recordingSelected ? "fiber_manual_record" : "cast_connected"
+            foregroundColor: root.presetRunning ? Theme.errorColor : Theme.success
+            enabled: !root.recordingExporting && (root.presetRunning
+                || (presetDevicePicker.deviceState.available
+                    && (!root.recordingSelected || !!(root.recordingController
+                        && root.recordingController.recordingOutputDirectory.length > 0))))
+            onClicked: {
+                if (root.recordingSelected) {
+                    if (root.presetRunning)
+                        root.recordingController.stopRecording()
+                    else
+                        root.recordingController.startRecording(presetDevicePicker.deviceState.serial)
+                } else if (root.presetToolController) {
+                    if (root.presetRunning)
+                        root.presetToolController.stopExecution()
+                    else
+                        root.presetToolController.runSelected({})
+                }
+            }
+        }
+        DeviceSelector {
+            id: presetDevicePicker
+            objectName: "titleBarPresetDeviceSelector"
+            Layout.preferredWidth: 210
+            Layout.preferredHeight: Theme.captionActionHeight
+            compact: true
+            controller: root.androidBackend
+            toolId: root.selectedScript.id || ""
+            requiredDevice: true
+            enabled: !root.presetRunning && !root.recordingExporting
+        }
+        DisplaySelector {
+            id: presetDisplayPicker
+            objectName: "titleBarDisplaySelector"
+            Layout.preferredWidth: 190
+            Layout.preferredHeight: Theme.captionActionHeight
+            visible: root.presetActionsVisible && !root.recordingSelected
+            backend: root.presetToolController ? root.presetToolController.scrcpyDisplays : null
         }
     }
 

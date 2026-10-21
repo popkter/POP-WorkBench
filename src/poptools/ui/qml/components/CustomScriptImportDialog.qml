@@ -14,7 +14,8 @@ AppDialog {
     property string errorMessage: ""
     signal scriptReplaced(string title)
 
-    width: Math.min(Theme.dialogWidth, parentWindow.width - 24)
+    compactLayout: true
+    width: Math.min(Theme.compactDialogWidth, parentWindow.width - 24)
     height: Math.min(body.implicitHeight + topPadding + bottomPadding, parentWindow.height - 24)
     anchors.centerIn: Overlay.overlay
     modal: true
@@ -39,7 +40,7 @@ AppDialog {
 
     contentItem: ColumnLayout {
         id: body
-        spacing: Theme.space16
+        spacing: Theme.space12
 
         DialogHeading {
             Layout.fillWidth: true

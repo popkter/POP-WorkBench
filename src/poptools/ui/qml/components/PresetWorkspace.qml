@@ -11,6 +11,7 @@ ColumnLayout {
     required property var androidBackend
     required property var jiraFeishuBackend
     property bool compact: false
+    property bool actionsInTitleBar: false
     readonly property string workspaceCommand: toolController.selectedTool.executor
         ? toolController.selectedTool.executor.command : ""
 
@@ -35,6 +36,7 @@ ColumnLayout {
 
         RecordingWorkspace {
             id: recordingWorkspace
+            actionsInTitleBar: root.actionsInTitleBar
             Layout.fillWidth: true
             Layout.fillHeight: true
             controller: root.utilities

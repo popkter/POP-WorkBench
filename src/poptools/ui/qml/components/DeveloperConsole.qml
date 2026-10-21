@@ -115,6 +115,7 @@ Item {
                         anchors.topMargin: Theme.space8
                         anchors.bottomMargin: 10
                         sessionId: root.controller.activeTerminalTabId
+                        fillColor: Theme.terminalBackground
                         fontSize: Theme.fontBody
                         focus: true
                         Accessible.role: Accessible.EditableText

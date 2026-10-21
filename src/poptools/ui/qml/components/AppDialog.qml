@@ -5,9 +5,11 @@ import "../theme"
 Dialog {
     id: control
 
+    property bool compactLayout: false
+
     modal: true
     dim: true
-    padding: Theme.space24
+    padding: compactLayout ? Theme.space20 : Theme.space24
     anchors.centerIn: Overlay.overlay
 
     Overlay.modal: Rectangle {

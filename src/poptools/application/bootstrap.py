@@ -61,6 +61,9 @@ def plugin_usage_reason(plugin, terminal, execution, app) -> str:
         return "请先结束正在运行的脚本，脚本可能调用插件工具"
     if plugin == "android" and execution._scrcpy.active:
         return "请先结束正在运行或启动中的投屏任务"
+    if (plugin == "android" and getattr(app, "_scrcpy_displays", None)
+            and app._scrcpy_displays.loading):
+        return "请先等待屏幕列表查询完成"
     if plugin == "python":
         if app._python_doctor_process is not None:
             return "请先等待 Python 依赖诊断完成"

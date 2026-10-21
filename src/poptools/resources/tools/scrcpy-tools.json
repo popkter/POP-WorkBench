@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "preset.android.scrcpy",
-  "revision": 1,
+  "revision": 2,
   "origin": "builtin",
   "section": "preset",
   "title": "Android 设备投屏",
@@ -26,7 +26,9 @@
       "android_device"
     ]
   },
-  "parameters": [],
+  "parameters": [
+    {"id": "displayId", "label": "屏幕 displayId", "kind": "integer", "default": "0"}
+  ],
   "presentation": {
     "icon": "cast_connected",
     "order": 901,

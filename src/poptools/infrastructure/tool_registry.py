@@ -172,8 +172,6 @@ class ToolRegistry:
         parameter = next((item for item in current.parameters if item.id == parameter_id), None)
         if parameter is None:
             raise ValueError("参数不存在")
-        if parameter.kind == ParameterKind.SECRET:
-            raise ValueError("密码参数不能保存默认值")
         if parameter.kind in (
             ParameterKind.CHOICE, ParameterKind.RADIO,
             ParameterKind.BOOLEAN, ParameterKind.ANDROID_DEVICE

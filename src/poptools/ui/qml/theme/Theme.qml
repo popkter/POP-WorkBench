@@ -40,13 +40,13 @@ QtObject {
     readonly property color listAlternate: darkMode ? "transparent" : "#FAFBFC"
     readonly property color inputBorder: darkMode ? outline : "#A8CFFF"
     readonly property color terminalToolbar: darkMode ? surface : "#FFFFFF"
-    readonly property color terminalBackground: "#2B313D"
-    readonly property color terminalTabSelected: darkMode ? surfaceContainerHigh : "#E3E7EC"
-    readonly property color terminalTabBorder: darkMode ? outlineVariant : "#E1E5EA"
+    readonly property color terminalBackground: darkMode ? "#171C24" : "#2B313D"
+    readonly property color terminalTabSelected: darkMode ? "#43546A" : terminalBackground
+    readonly property color terminalTabBorder: darkMode ? "#647D9B" : "#E1E5EA"
     readonly property color terminalTabText: darkMode ? textPrimary : "#404750"
     readonly property color terminalTabMuted: darkMode ? textSecondary : "#6B737D"
-    readonly property color terminalTabAction: darkMode ? textSecondary : "#7A838D"
-    readonly property color terminalTabHover: darkMode ? surfaceContainerHigh : "#E8ECF1"
+    readonly property color terminalTabAction: darkMode ? "#C3CDDA" : "#7A838D"
+    readonly property color terminalTabHover: darkMode ? "#39424F" : "#E8ECF1"
     readonly property color terminalTabDivider: darkMode ? outlineVariant : "#D8DDE3"
     readonly property color terminalDropHighlight: "#331B78F2"
     readonly property color navigationSelected: "#3574F0"
@@ -165,6 +165,7 @@ QtObject {
     readonly property int scriptPanelGap: 12
     readonly property int settingsHeaderHeight: 80
     readonly property int dialogWidth: 548
+    readonly property int compactDialogWidth: 420
     readonly property int fontDialogDescription: 18
     readonly property int fontPageDescription: 15
     readonly property color runtimeBadge: darkMode ? primaryContainer : "#EFF4FC"

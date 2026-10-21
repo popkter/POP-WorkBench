@@ -206,10 +206,11 @@ Item {
                     required property var modelData
                     width: root.responsiveTerminalTabWidth
                     height: root.height
-                    topLeftRadius: Theme.radiusSmall
-                    topRightRadius: Theme.radiusSmall
-                    color: modelData.active ? Theme.terminalBackground
-                        : tabHover.hovered ? Theme.navigationHover : "transparent"
+                    radius: Theme.radiusSmall
+                    color: modelData.active ? Theme.terminalTabSelected
+                        : tabHover.hovered ? Theme.terminalTabHover : "transparent"
+                    border.width: Theme.darkMode && modelData.active ? 1 : 0
+                    border.color: Theme.terminalTabBorder
                     objectName: "terminalTab_" + modelData.tabId
                     Accessible.role: Accessible.PageTab
                     Accessible.name: modelData.title || "终端"
@@ -278,7 +279,9 @@ Item {
                             iconName: "close"
                             glyphSize: 15
                             tonal: true
-                            foregroundColor: tab.modelData.active ? Theme.consoleMuted : Theme.chromeForeground
+                            foregroundColor: tab.modelData.active
+                                ? (Theme.darkMode ? Theme.terminalTabAction : Theme.consoleMuted)
+                                : Theme.chromeForeground
                             color: hovered
                                 ? (Theme.terminalTabHover)
                                 : "transparent"

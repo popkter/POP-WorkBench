@@ -97,27 +97,52 @@ ApplicationWindow {
         appController.navigate("custom")
     }
 
+    function openPresetFunctionsPage() {
+        window.developerSelected = false
+        window.settingsSelected = false
+        appController.navigate("preset")
+    }
+
     Shortcut {
         sequence: "Ctrl+T"
         context: Qt.WindowShortcut
         autoRepeat: false
         enabled: !window.applicationOverlayVisible
-        onActivated: {
-            if (window.developerSelected && !window.settingsSelected) {
-                if (developerConsoleController.canCreateTerminalTab)
-                    developerConsoleController.createTerminalTab()
-            } else {
-                window.openTerminalPage()
-            }
-        }
+            && window.developerSelected && !window.settingsSelected
+            && developerConsoleController.canCreateTerminalTab
+        onActivated: developerConsoleController.createTerminalTab()
     }
 
     Shortcut {
-        sequence: "Ctrl+Q"
+        sequence: "Alt+1"
+        context: Qt.WindowShortcut
+        autoRepeat: false
+        enabled: !window.applicationOverlayVisible
+        onActivated: window.openTerminalPage()
+    }
+
+    Shortcut {
+        sequence: "Alt+2"
         context: Qt.WindowShortcut
         autoRepeat: false
         enabled: !window.applicationOverlayVisible
         onActivated: window.openCustomScriptsPage()
+    }
+
+    Shortcut {
+        sequence: "Alt+3"
+        context: Qt.WindowShortcut
+        autoRepeat: false
+        enabled: !window.applicationOverlayVisible
+        onActivated: window.openPresetFunctionsPage()
+    }
+
+    Shortcut {
+        sequence: "Alt+4"
+        context: Qt.WindowShortcut
+        autoRepeat: false
+        enabled: !window.applicationOverlayVisible
+        onActivated: window.openSettingsDialog()
     }
 
     function openSettingsDialog() {
@@ -347,6 +372,14 @@ ApplicationWindow {
         scriptSelected: !!appController.selectedTool.id
         scriptEditable: !!appController.selectedTool.editable
         scriptRunning: appController.running
+        presetActionsVisible: !window.settingsSelected && !window.developerSelected
+            && appController.section === "preset"
+            && (window.scrcpySelected || recordingSelected)
+        presetActionsEnabled: !window.applicationOverlayVisible
+        recordingSelected: !!appController.selectedTool.executor
+            && appController.selectedTool.executor.command === "recording"
+        presetToolController: appController
+        recordingController: presetController
         onImportRequested: window.importCustomScriptFromClipboard()
         onCreateRequested: window.openCommandEditorForCreate()
         onShareRequested: customScriptsPage.shareSelectedTool()
@@ -388,7 +421,7 @@ ApplicationWindow {
                     Layout.minimumWidth: 0
                     visible: true
                     label: "终端"
-                    shortcutText: "Ctrl+T"
+                    shortcutText: "Alt+1"
                     iconName: "terminal"
                     compact: window.compactPrimaryNav
                     dense: window.compactHeight
@@ -399,7 +432,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     label: "自定义"
-                    shortcutText: "Ctrl+Q"
+                    shortcutText: "Alt+2"
                     iconName: "code"
                     compact: window.compactPrimaryNav
                     dense: window.compactHeight
@@ -412,22 +445,20 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     label: "预设"
+                    shortcutText: "Alt+3"
                     iconName: "widgets"
                     compact: window.compactPrimaryNav
                     dense: window.compactHeight
                     selected: !window.developerSelected && !window.settingsSelected
                         && appController.section === "preset"
-                    onClicked: {
-                        window.developerSelected = false
-                        window.settingsSelected = false
-                        appController.navigate("preset")
-                    }
+                    onClicked: window.openPresetFunctionsPage()
                 }
 
                 NavItem {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     label: "设置"
+                    shortcutText: "Alt+4"
                     iconName: "settings"
                     compact: window.compactPrimaryNav
                     dense: window.compactHeight
@@ -491,6 +522,7 @@ ApplicationWindow {
 
                 PresetFunctionsPage {
                     id: presetFunctionsPage
+                    actionsInTitleBar: window.customTitleBar
                     color: "transparent"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -503,7 +535,7 @@ ApplicationWindow {
                     toolListWidth: window.toolListWidth
                     searchQuery: window.toolSearchQuery
                     compact: window.compactContentActions
-                    overlaysVisible: window.applicationOverlayVisible
+                    overlaysVisible: window.applicationOverlayVisible || titleBar.presetDevicePopupVisible
                     onSearchEdited: function(query) {
                         window.toolSearchQuery = query
                     }
