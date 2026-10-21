@@ -184,9 +184,20 @@ Item {
                 height: panel.height
                 enabled: panel.revealRequested
                 radius: Theme.radiusMedium
+                topLeftRadius: tip.y < radius ? 0 : radius
+                bottomLeftRadius: tip.y + tip.height > height - radius ? 0 : radius
                 color: Theme.surfaceContainerLow
                 border.width: 1
                 border.color: Theme.outlineVariant
+
+                // Join the grip to the panel without an internal border or corner gap.
+                Rectangle {
+                    x: -1
+                    y: tip.y + panelSurface.border.width
+                    width: 2
+                    height: tip.height - 2 * panelSurface.border.width
+                    color: panelSurface.color
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
