@@ -46,17 +46,6 @@ Item {
         }
     }
     property rect packClip: Qt.rect(0, 0, 0, 0)
-    readonly property bool sourceFrameClipped: desktopFlight && entering && progress === 0
-        && packClip.width > 0 && packClip.height > 0
-    // Tuck the lower body into the stack during the approach. This is one
-    // card-local rectangle, transformed with the card (no desktop-space mask).
-    readonly property real dockingProgress: returning && desktopFlight && packClip.height > 0
-        ? easeOut(Math.max(0, Math.min(1, (returnProgress - 0.45) / 0.4))) : 0
-    readonly property real dockTop: desktopFlight
-        ? Math.max(0, (packClip.y - flightGeometry.y - flightGeometry.sourceY)
-                   * height / flightGeometry.sourceHeight) : 0
-    readonly property real dockBottom: desktopFlight
-        ? Math.min(height, dockTop + packClip.height * height / flightGeometry.sourceHeight) : height
     readonly property bool mechanicalEnabled: Theme.decadeMode
     property real fadeOpacity: 1
     readonly property bool desktopFlight: flightGeometry !== null
@@ -78,7 +67,7 @@ Item {
         ? Math.min(flightGeometry.sourceWidth / width, flightGeometry.sourceHeight / height) : 1
     readonly property real flightScale: initialScale + (1 - initialScale) * travel
     readonly property real flightTilt: desktopFlight
-        ? (flightGeometry.targetX < flightGeometry.sourceX ? -1 : 1)
+        ? (flightGeometry.preserveSource || flightGeometry.targetX < flightGeometry.sourceX ? -1 : 1)
             * 8 * Math.sin(Math.PI * flightProgress) : 0
     readonly property real radians: flightTilt * Math.PI / 180
     // Keep rotation inside this fixed-size native surface; never resize or swap it.
@@ -95,7 +84,7 @@ Item {
                                Math.sin(Math.PI * activationScan) * .85)
         : returning ? .65 * (1 - returnProgress)
         : focusing ? Math.sin(Math.PI * focusScanProgress) * .85 : 0
-    signal positionRequested(real globalX, real globalY)
+    signal positionRequested(real globalX, real globalY, rect packBounds, rect packOpening)
     signal recycled()
 
     // Settle an open card in place when switching themes. A pending close must
@@ -121,6 +110,28 @@ Item {
     onReturnProgressChanged: syncFlightPosition()
     onWidthChanged: syncFlightPosition()
     onHeightChanged: syncFlightPosition()
+    function packFlightPoint(distance) {
+        const g = flightGeometry
+        const startX = g.sourceX + g.sourceWidth / 2
+        const startY = g.sourceY + g.sourceHeight / 2
+        const endX = g.targetX + width / 2
+        const endY = g.targetY + height / 2
+        // Pull diagonally through the upper-left sleeve corner first. The
+        // tangent is independent of the landing window (which may be below or
+        // to the right). Returning retraces this same curve into the sleeve.
+        const controlX = startX - g.sourceWidth * 1.1
+        const controlY = startY - g.sourceHeight * .7
+        const approachX = endX + (startX - endX) * .12
+        const remaining = 1 - distance
+        return Qt.point(remaining * remaining * remaining * startX
+                        + 3 * remaining * remaining * distance * controlX
+                        + 3 * remaining * distance * distance * approachX
+                        + distance * distance * distance * endX,
+                        remaining * remaining * remaining * startY
+                        + 3 * remaining * remaining * distance * controlY
+                        + 3 * remaining * distance * distance * endY
+                        + distance * distance * distance * endY)
+    }
     function syncFlightPosition() {
         if (!desktopFlight || width <= 0 || height <= 0)
             return
@@ -145,16 +156,19 @@ Item {
         const footprintWidth = rotatedWidth * fitting * bounce
         const footprintHeight = rotatedHeight * fitting * bounce
         if (g.preserveSource) {
-            positionRequested(g.x + fromX + (toX - fromX) * eased - width / 2,
-                              g.y + fromY + (toY - fromY) * eased
-                              - 32 * Math.sin(Math.PI * tick) - height / 2)
+            const point = packFlightPoint(eased)
+            positionRequested(g.x + point.x - width / 2,
+                              g.y + point.y - height / 2,
+                              Qt.rect(g.x + g.sourceX, g.y + g.sourceY,
+                                      g.sourceWidth, g.sourceHeight), packClip)
             return
         }
         const centerX = Math.max(footprintWidth / 2, Math.min(g.width - footprintWidth / 2,
             fromX + (toX - fromX) * eased))
         const centerY = Math.max(footprintHeight / 2, Math.min(g.height - footprintHeight / 2,
             fromY + (toY - fromY) * eased - 32 * Math.sin(Math.PI * tick)))
-        positionRequested(g.x + centerX - width / 2, g.y + centerY - height / 2)
+        positionRequested(g.x + centerX - width / 2, g.y + centerY - height / 2,
+                          Qt.rect(0, 0, 0, 0), Qt.rect(0, 0, 0, 0))
     }
     function prepareFlight(geometry) {
         if (!mechanicalEnabled) {
@@ -311,26 +325,12 @@ Item {
         onFinished: root.recycled()
     }
 
-    // Clip only the stationary handoff frame to the exposed card head. Once
-    // movement begins the card is a complete rectangle, with no desktop-space
-    // mask or cached effect texture that can cut holes into a later flight frame.
-    Item {
-        id: sourceFrameClip
-        objectName: "cardSourceFrameClip"
-        readonly property var g: root.flightGeometry
-        x: root.sourceFrameClipped && g
-            ? root.packClip.x - (g.x + g.sourceX + (g.sourceWidth - root.width) / 2) : 0
-        y: root.sourceFrameClipped && g
-            ? root.packClip.y - (g.y + g.sourceY + (g.sourceHeight - root.height) / 2) : 0
-        width: root.sourceFrameClipped ? root.packClip.width : root.width
-        height: root.sourceFrameClipped ? root.packClip.height : root.height
-        clip: root.sourceFrameClipped
-    }
+    // Always paint a complete card, including the first frame. The native
+    // window applies the stationary pack's occlusion when moving; a cropped
+    // render buffer must never travel across the desktop with the window.
     Item {
         id: card
-        parent: sourceFrameClip
         objectName: "movingScriptCard"
-        x: -sourceFrameClip.x; y: -sourceFrameClip.y
         width: root.width; height: root.height
         opacity: root.fadeOpacity
         visible: !root.faceReleased
@@ -365,16 +365,6 @@ Item {
         ]
 
         Item {
-            id: dockingClip
-            objectName: "cardDockingClip"
-            y: root.dockTop * root.dockingProgress
-            width: card.width
-            height: card.height + (root.dockBottom - card.height) * root.dockingProgress - y
-            clip: root.dockingProgress > 0
-        }
-        Item {
-            parent: dockingClip
-            y: -dockingClip.y
             width: card.width; height: card.height
 
             // Render the real form from frame one, beneath the opaque card back.

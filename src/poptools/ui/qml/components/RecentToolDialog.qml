@@ -19,14 +19,16 @@ Window {
     property bool returnPending: false
     property bool recallQueued: false
     property bool presented: false
+    property bool closing: false
     signal cardPresented(string presentedToolId)
     readonly property bool keepsFloatingLauncherVisible: true
     readonly property bool entryAnimationRunning: cardMotion.entering
     readonly property bool activationAnimationRunning: cardMotion.activating
     readonly property bool focusScanRunning: cardMotion.focusing
     readonly property bool recycleAnimationRunning: cardMotion.recycling
-    onRecycleAnimationRunningChanged: if (ownsController && toolController)
-        toolController.setCardReturnLayer(Theme.decadeMode && recycleAnimationRunning)
+    readonly property bool nativeFlightActive: Theme.decadeMode && cardMotion.desktopFlight
+    onNativeFlightActiveChanged: if (ownsController && toolController)
+        toolController.setCardFlightLayer(nativeFlightActive)
     readonly property rect cardPlacementRect: cardMotion.desktopFlight
         ? Qt.rect(cardMotion.flightGeometry.x + cardMotion.flightGeometry.targetX,
                   cardMotion.flightGeometry.y + cardMotion.flightGeometry.targetY,
@@ -34,13 +36,25 @@ Window {
         : Qt.rect(x, y, width, height)
     signal dismissed(string dismissedToolId)
 
-    onClosing: { cardMotion.finish(); dismissed(toolId) }
+    onClosing: {
+        closing = true
+        // Hide with the docking mask intact. finish() restores the normal
+        // surface/mask and must not expose a closing full-size native window.
+        visible = false
+        formLoader.active = false
+        cardMotion.finish()
+        dismissed(toolId)
+    }
     onFrameSwapped: {
         if (!presented && visible && toolId.length > 0) {
             presented = true
-            cardPresented(toolId)
+            // Never mutate the source ListView/model from a frame callback.
+            Qt.callLater(notifyPresented)
         }
         cardMotion.startPreparedEntry()
+    }
+    function notifyPresented() {
+        if (visible && !closing) cardPresented(toolId)
     }
     onActiveChanged: if (active) Qt.callLater(showFocusFeedback)
     Component.onDestruction: {
@@ -66,7 +80,7 @@ Window {
     width: customScriptMode ? 440 : presetMode ? 720 : 680
     height: Math.min(customScriptMode ? 680 : presetMode ? 560 : 600, Screen.height - 48)
     visible: false
-    flags: Qt.Window | Qt.FramelessWindowHint
+    flags: Qt.Window | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
     color: "transparent"
     onVisibleChanged: if (!visible) cardMotion.finish()
     onVisibilityChanged: if (root.visibility === Window.Minimized) cardMotion.finish()
@@ -77,6 +91,9 @@ Window {
     }
 
     function showWithTool(tid) {
+        closing = false
+        presented = false
+        formLoader.active = true
         toolId = tid
         if (ownsController && toolController)
             toolController.dispose()
@@ -125,7 +142,7 @@ Window {
     function showFocusFeedback() {
         // Let the opening/list-activation handler select its animation first.
         // The scan is visual only: the activating click still reaches the form.
-        if (active && visible && customScriptMode && !returnPending)
+        if (active && visible && customScriptMode && !closing && !returnPending)
             cardMotion.focusScan()
     }
 
@@ -208,8 +225,8 @@ Window {
         cardTitle: root.toolController.selectedTool.title || "运行脚本"
         cardIcon: root.toolController.selectedTool.presentation
             ? root.toolController.selectedTool.presentation.icon || "terminal" : "terminal"
-        onPositionRequested: function(globalX, globalY) {
-            root.toolController.moveCard(globalX, globalY)
+        onPositionRequested: function(globalX, globalY, packBounds, packOpening) {
+            root.toolController.moveCard(globalX, globalY, packBounds, packOpening)
         }
         onRecycled: {
             if (Theme.decadeMode && root.dockReturn && cardFace) {

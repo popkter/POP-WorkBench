@@ -11,10 +11,13 @@ Item {
     property string searchQuery: ""
     property string kindFilter: "all"
     property bool quickLaunch: false
+    property bool showSearchAndFilters: true
+    onShowSearchAndFiltersChanged: if (!showSearchAndFilters) kindFilter = "all"
     property bool continuousRecall: false
     property string keyboardToolId: ""
     readonly property bool deckMode: quickLaunch && Theme.decadeMode
     readonly property bool layoutSettling: collectionView ? collectionView.settling : false
+    readonly property int pendingLaunchCount: collectionView ? collectionView.pendingLaunchCount : 0
     readonly property ScriptCollectionView collectionView: viewLoader.item as ScriptCollectionView
     readonly property bool menuOpen: sortButton.menuOpen
     readonly property int visibleCount: {
@@ -45,6 +48,9 @@ Item {
     }
     function activateTool(id, row) {
         collectionView.activateTool(id, row);
+    }
+    function cancelPendingLaunches() {
+        if (collectionView) collectionView.cancelPendingLaunches();
     }
     function closeMenus() {
         sortButton.closeMenu();
@@ -103,6 +109,7 @@ Item {
         spacing: Theme.space8
         AppTextField {
             id: searchField
+            visible: root.showSearchAndFilters
             objectName: "scriptListSearch"
             FilePathDropArea {
                 target: searchField
@@ -134,6 +141,7 @@ Item {
         }
 
         Flow {
+            visible: root.showSearchAndFilters
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
             spacing: 6

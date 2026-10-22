@@ -427,6 +427,7 @@ class FloatingLauncherController(QObject):
 
     @Slot(str, QRectF)
     def launchToolFrom(self, tool_id: str, source: QRectF) -> None:
+        logger.info("悬浮列表请求脚本卡片：%s；当前卡片数：%d", tool_id, len(self._open_cards))
         self._card_origin = (tool_id, QRectF(source))
         try:
             self.launchTool(tool_id)

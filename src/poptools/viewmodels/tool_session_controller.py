@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Property, QObject, QPoint, QRect, QRectF, Signal, Slot
-from PySide6.QtGui import QWindow
+from PySide6.QtGui import QRegion, QWindow
 from PySide6.QtWidgets import QDialog, QFileDialog
 
 from poptools.infrastructure.window_placement import (
     card_flight_geometry,
+    card_pack_mask,
     place_tool_window,
-    set_card_return_layer,
+    set_card_flight_layer,
 )
 from poptools.viewmodels.app_controller import _file_picker_start_directory
 
@@ -33,7 +34,7 @@ class ToolSessionController(QObject):
         self._tool = backend.registry.get(tool_id)
         self._window: QWindow | None = None
         self._disposed = False
-        self._card_return_layer = False
+        self._card_flight_layer = False
         backend.customToolsChanged.connect(self._refresh_tool)
         backend.toolConsoleChanged.connect(self._on_console)
         backend.toolStatusChanged.connect(self._on_status)
@@ -94,19 +95,24 @@ class ToolSessionController(QObject):
             source = QRectF(center.x() - 20, center.y() - 20, 40, 40)
         return card_flight_geometry(source, target, available, preserve_source)
 
-    @Slot(float, float)
-    def moveCard(self, x: float, y: float) -> None:
-        """Submit both animation coordinates in one native window move."""
+    @Slot(float, float, QRectF, QRectF)
+    def moveCard(self, x: float, y: float, pack: QRectF, opening: QRectF) -> None:
+        """Move a full render surface; keep occlusion anchored to the pack."""
         if self._window is not None:
             position = QPoint(round(x), round(y))
+            mask = card_pack_mask(QRect(position, self._window.size()), pack, opening)
             if self._window.position() != position:
                 self._window.setPosition(position)
+            if self._window.mask() != mask:
+                self._window.setMask(mask)
 
     @Slot(bool)
-    def setCardReturnLayer(self, returning: bool) -> None:
-        if self._window is not None and self._card_return_layer != returning:
-            set_card_return_layer(self._window, returning)
-            self._card_return_layer = returning
+    def setCardFlightLayer(self, flying: bool) -> None:
+        if self._window is not None and self._card_flight_layer != flying:
+            set_card_flight_layer(self._window, flying)
+            self._card_flight_layer = flying
+            if not flying:
+                self._window.setMask(QRegion())
 
     @Slot("QVariantMap", result=bool)
     def runSelected(self, values: dict[str, Any]) -> bool:

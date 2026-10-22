@@ -1,7 +1,48 @@
 import pytest
-from PySide6.QtCore import QRect, QRectF, QSize
+from PySide6.QtCore import QPoint, QRect, QRectF, QSize
 
-from poptools.infrastructure.window_placement import card_flight_geometry, staggered_position
+from poptools.infrastructure.window_placement import (
+    card_flight_geometry,
+    card_pack_mask,
+    staggered_position,
+)
+
+
+@pytest.mark.parametrize("offset", [QPoint(0, 0), QPoint(-1920, -400)])
+def test_pack_occlusion_never_cuts_the_body_outside_the_pack(offset):
+    pack = QRectF(1000, 200, 300, 464).translated(offset)
+    opening = QRectF(1000, 200, 300, 60).translated(offset)
+    # A card halfway out/in has a full-height exposed side, not a flying header.
+    surface = QRect(800, 150, 440, 680).translated(offset)
+    mask = card_pack_mask(surface, pack, opening)
+    assert mask.contains(QPoint(50, 400))  # Card body left of the pack.
+    assert not mask.contains(QPoint(300, 400))  # Body actually inside the pack.
+    assert mask.contains(QPoint(300, 70))  # Exposed head in the pack.
+    assert mask.contains(QPoint(300, 20))  # Above the lip, including above the old head.
+    # Once clear of the pack, no native clipping at all, in either direction.
+    assert card_pack_mask(QRect(200, 150, 440, 680).translated(offset), pack, opening).isEmpty()
+    # Final handoff exactly preserves the exposed head and excludes shadow margins.
+    packed = QRect(930, 92, 440, 680).translated(offset)
+    assert card_pack_mask(packed, pack, opening).boundingRect() == QRect(70, 108, 300, 60)
+
+
+def test_card_clears_the_upper_lip_without_clearing_the_left_edge():
+    pack = QRectF(1000, 800, 300, 464)
+    opening = QRectF(1000, 800, 300, 60)
+    # A fully extracted card above the sleeve is complete, even while its right
+    # half overlaps the pack horizontally. The old vertical strip clipped it.
+    assert card_pack_mask(QRect(800, 100, 440, 680), pack, opening).isEmpty()
+
+
+def test_cards_without_pack_origin_have_no_native_mask():
+    assert card_pack_mask(QRect(0, 0, 440, 680), QRectF(), QRectF()).isEmpty()
+
+
+def test_fully_occluded_surface_does_not_remove_its_native_mask():
+    surface = QRect(100, 400, 200, 300)
+    mask = card_pack_mask(surface, QRectF(0, 0, 500, 900), QRectF(0, 0, 500, 60))
+    assert not mask.isEmpty()
+    assert not mask.intersects(QRect(QPoint(), surface.size()))
 
 
 @pytest.mark.parametrize("available,size", [

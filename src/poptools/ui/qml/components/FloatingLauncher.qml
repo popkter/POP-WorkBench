@@ -71,6 +71,14 @@ Item {
         attached = true;
         panel.updateReveal();
     }
+    Connections {
+        target: Theme
+        function onFloatingPanelHeightChanged() {
+            if (root.attached)
+                root.controller.attachDrawerWindow(panel, Theme.floatingTipWidth,
+                    Theme.floatingTipHeight, Theme.floatingPanelWidth, Theme.floatingPanelHeight)
+        }
+    }
 
     ApplicationWindow {
         id: panel
@@ -283,11 +291,46 @@ Item {
                         Layout.leftMargin: Theme.space16
                         Layout.rightMargin: Theme.space8
                         Text {
+                            visible: !Theme.decadeMode
                             Layout.fillWidth: true
                             text: "自定义脚本"
                             color: Theme.textPrimary
                             font.pixelSize: Theme.fontComponentTitle
                             font.weight: Font.DemiBold
+                        }
+                        AppTextField {
+                            id: titleSearch
+                            objectName: "floatingTitleSearch"
+                            visible: Theme.decadeMode
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            Layout.preferredHeight: Theme.controlHeightSmall
+                            leftPadding: 30
+                            rightPadding: Theme.space8
+                            placeholderText: "搜索脚本..."
+                            text: root.searchQuery
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSupporting
+                            onTextChanged: {
+                                if (root.searchQuery !== text) {
+                                    root.searchQuery = text;
+                                    root.controller.setToolSearchQuery(text);
+                                }
+                            }
+                            background: Rectangle {
+                                radius: Theme.radiusSmall
+                                color: Theme.surfaceContainer
+                                border.width: titleSearch.activeFocus ? 1 : 0
+                                border.color: Theme.primary
+                                MaterialIcon {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: Theme.space8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    icon: "search"
+                                    iconSize: 18
+                                    color: Theme.textSecondary
+                                }
+                            }
                         }
                         PrimaryButton {
                             objectName: "floatingPinButton"
@@ -318,11 +361,12 @@ Item {
                             iconName: "layers_clear"
                             tonal: true
                             border.width: 0
-                            enabled: root.controller.openCardCount > 0
+                            enabled: root.controller.openCardCount > 0 || scripts.pendingLaunchCount > 0
                             color: hovered ? Theme.surfaceContainer : "transparent"
                             Accessible.role: Accessible.Button
                             Accessible.name: text
                             function recall() {
+                                scripts.cancelPendingLaunches()
                                 root.controller.recallAllCards()
                             }
                             Accessible.onPressAction: recall()
@@ -351,6 +395,7 @@ Item {
                         controller: root.controller
                         listModel: root.controller.toolsModel
                         quickLaunch: true
+                        showSearchAndFilters: !Theme.decadeMode
                         searchQuery: root.searchQuery
                         onSearchEdited: function(query) {
                             root.searchQuery = query;

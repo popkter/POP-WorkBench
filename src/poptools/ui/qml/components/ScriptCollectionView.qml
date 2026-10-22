@@ -13,6 +13,7 @@ ListView {
     property string countSuffix: " 个脚本"
     property string actionText: ""
     property bool settling: false
+    property int pendingLaunchCount: 0
     property string emptyText: listModel.totalCount === 0 ? "暂无自定义脚本" : "没有匹配的脚本"
     readonly property int visibleCount: {
         const count = listModel.count;
@@ -28,6 +29,7 @@ ListView {
     model: listModel
     clip: true
     spacing: 0
+    cacheBuffer: 0
     boundsBehavior: Flickable.StopAtBounds
 
     // Stable interface for the host. A presentation handles activation through
@@ -39,6 +41,8 @@ ListView {
         return Qt.rect(0, 0, 0, 0);
     }
     function dockCardFace(id, face) {
+    }
+    function cancelPendingLaunches() {
     }
 
     function findRow(id) {

@@ -13,11 +13,16 @@ Item {
     }
 
     function faceFor(id) {
-        if (!faces[id])
-            faces[id] = faceComponent.createObject(root, {
+        let face = peek(id);
+        if (!face) {
+            // Dynamic QML creation can run bindings/GC. Finish creation before
+            // resolving the JS dictionary that receives the QObject wrapper.
+            face = faceComponent.createObject(root, {
                 objectName: "deckCard_" + id
             });
-        return faces[id];
+            if (face) faces[id] = face;
+        }
+        return face;
     }
     function isBorrowed(id) {
         return borrowed[id] === true;
@@ -33,7 +38,9 @@ Item {
     }
     function borrow(id) {
         lend(id);
-        return faceFor(id);
+        const face = faceFor(id);
+        if (!face) unlend(id);
+        return face;
     }
     function accept(id, face) {
         faces[id] = face;

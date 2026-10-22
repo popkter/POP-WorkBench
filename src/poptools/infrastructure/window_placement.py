@@ -6,13 +6,13 @@ from collections.abc import Sequence
 from ctypes import wintypes
 
 from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt
-from PySide6.QtGui import QCursor, QGuiApplication, QWindow
+from PySide6.QtGui import QCursor, QGuiApplication, QRegion, QWindow
 
 
-def set_card_return_layer(window: QWindow, returning: bool) -> None:
-    """Keep a returning card above the topmost pack without replacing its HWND."""
+def set_card_flight_layer(window: QWindow, flying: bool) -> None:
+    """Keep a flying card above the topmost pack without replacing its HWND."""
     if sys.platform != "win32":
-        if returning:
+        if flying:
             window.raise_()
         return
     user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -20,10 +20,38 @@ def set_card_return_layer(window: QWindow, returning: bool) -> None:
     position.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
                          ctypes.c_int, ctypes.c_int, wintypes.UINT]
     position.restype = wintypes.BOOL
-    topmost = returning or bool(window.flags() & Qt.WindowStaysOnTopHint)
+    topmost = flying or bool(window.flags() & Qt.WindowStaysOnTopHint)
     # SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE: do not steal the pack's focus,
     # resize the native surface, or recreate it via a Qt window-flags change.
     position(int(window.winId()), -1 if topmost else -2, 0, 0, 0, 0, 0x0013)
+
+
+def card_pack_mask(surface: QRect, pack: QRectF, opening: QRectF) -> QRegion:
+    """Occlude only the part of a full card still behind the stationary pack.
+
+    An empty result means no native mask. The following cards cover the body
+    below the exposed head, but nothing above or left of that stationary corner.
+    """
+    if pack.isEmpty() or opening.isEmpty():
+        return QRegion()
+    offset = surface.topLeft()
+    local_surface = QRect(QPoint(), surface.size())
+    # At handoff cover shadow margins as well, preserving the exact exposed head.
+    packed_position = QPoint(round(pack.center().x() - surface.width() / 2),
+                             round(pack.center().y() - surface.height() / 2))
+    if offset == packed_position:
+        visible = QRegion(opening.toAlignedRect().translated(-offset).intersected(local_surface))
+        return visible if not visible.isEmpty() else QRegion(-1, -1, 1, 1)
+    # A sleeve corner, not an infinite vertical strip: a card pulled upwards
+    # must emerge above the lip as well as to its left. Extend below the surface
+    # so a card still inside the pack cannot leak beneath its short viewport.
+    cover = QRectF(pack.x(), opening.bottom(), pack.width(),
+                   max(0.0, surface.y() + surface.height() - opening.bottom())).toAlignedRect()
+    if not cover.intersects(surface):
+        return QRegion()
+    visible = QRegion(local_surface).subtracted(QRegion(cover.translated(-offset)))
+    # QWindow interprets an empty region as "remove mask", not "hide all".
+    return visible if not visible.isEmpty() else QRegion(-1, -1, 1, 1)
 
 
 def staggered_position(available: QRect, size: QSize, occupied: Sequence[QRect]) -> QPoint:

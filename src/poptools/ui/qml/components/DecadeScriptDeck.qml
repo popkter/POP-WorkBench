@@ -7,19 +7,52 @@ ScriptCollectionView {
     id: root
     required property ScriptCardStore cardStore
     property bool continuousRecall: false
+    property var pendingLaunches: []
+    pendingLaunchCount: pendingLaunches.length
     readonly property var returningIds: controller.returningCardIds
     readonly property int deckReflowDuration: 160
     settling: deckLayoutSettlement.running
     headingText: "DECADE / 脚本卡包"
     countSuffix: " 张卡牌"
     actionText: "点击抽卡"
-    cacheBuffer: width * 2
+    // Keep offscreen delegates out of the incubation queue. Rapid row removals
+    // otherwise race Qt DelegateModel cancellation; face ownership is in the store.
     topMargin: 10
     bottomMargin: 12
     emptyText: controller.openCardCount > 0 && controller.openCardCount === listModel.totalCount ? "卡牌已抽出，关闭卡牌后归还" : listModel.totalCount === 0 ? "暂无自定义脚本" : "没有匹配的脚本"
     Timer {
         id: deckLayoutSettlement
         interval: root.deckReflowDuration + 20
+    }
+    Timer {
+        id: launchDispatch
+        interval: 0
+        onTriggered: root.dispatchLaunches()
+    }
+    Component.onDestruction: cancelPendingLaunches()
+    function cancelPendingLaunches() {
+        launchDispatch.stop();
+        for (let request of pendingLaunches)
+            cardStore.unlend(request.id);
+        pendingLaunches = [];
+    }
+    function dispatchLaunches() {
+        const requests = pendingLaunches;
+        pendingLaunches = [];
+        for (let request of requests) {
+            const face = cardStore.peek(request.id);
+            if (!face) {
+                cardStore.unlend(request.id);
+                continue;
+            }
+            const host = face.parent;
+            try {
+                toolActivatedAt(request.id, request.origin);
+            } finally {
+                if (face.parent === host)
+                    cardStore.unlend(request.id);
+            }
+        }
     }
     Connections {
         target: root.listModel
@@ -58,7 +91,6 @@ ScriptCollectionView {
         const face = cardStore.peek(id);
         if (!face)
             return;
-        const host = face.parent;
         const origin = outlineRect(face);
         const viewport = root.mapToGlobal(0, 0);
         const rowTop = row.mapToGlobal(0, 0).y;
@@ -67,12 +99,16 @@ ScriptCollectionView {
         const right = Math.min(origin.x + origin.width, viewport.x + root.width);
         const bottom = Math.min(origin.y + origin.height, viewport.y + root.height, rowTop + row.height);
         face.packVisibleRect = Qt.rect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
-        // Transfer directly from the delegate. Never lift the whole face above
-        // the other cards before its desktop flight starts.
+        // Reserve synchronously, but create windows outside the MouseArea event.
+        // Showing a native window can pump events and retire this very delegate.
         cardStore.lend(id);
-        root.toolActivatedAt(id, origin);
-        if (face.parent === host)
-            cardStore.unlend(id);
+        pendingLaunches = pendingLaunches.concat([
+            {
+                id: id,
+                origin: origin
+            }
+        ]);
+        launchDispatch.start();
     }
     function returnCardRect(toolId) {
         root.forceLayout();
@@ -80,11 +116,16 @@ ScriptCollectionView {
         if (index >= 0 && !continuousRecall) {
             root.positionViewAtIndex(index, ListView.Beginning);
             root.forceLayout();
+            if (index === 0)
+                root.contentY = root.originY - root.topMargin;
         }
         const row = index >= 0 ? root.itemAtIndex(index) as DeckRow : null;
         // All overlapping returns share one stable pack entrance. List insertions
         // cannot move another in-flight card's destination.
-        const point = !continuousRecall && row && row.height > 0 ? row.mapToGlobal(0, 0) : root.mapToGlobal(0, 0);
+        // An empty list restores its top margin when the first row is inserted.
+        // Include that margin in the landing point to avoid a final 10px jump.
+        const point = !continuousRecall && row && row.height > 0 ? row.mapToGlobal(0, 0)
+            : root.mapToGlobal(0, !continuousRecall && root.count === 0 ? root.topMargin : 0);
         const width = root.width - root.scrollGutter - 16;
         const scale = width / 432;
         const origin = Qt.rect(point.x + 8 - 4 * scale, point.y - 4 * scale, width + 8 * scale, 680 * scale);
@@ -107,6 +148,8 @@ ScriptCollectionView {
         if (index >= 0) {
             root.positionViewAtIndex(index, ListView.Beginning);
             root.forceLayout();
+            if (!continuousRecall && index === 0)
+                root.contentY = root.originY - root.topMargin;
         }
         const row = index >= 0 ? root.itemAtIndex(index) as DeckRow : null;
         if (continuousRecall && row && row.height > 0) {

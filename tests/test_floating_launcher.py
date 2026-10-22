@@ -1058,7 +1058,9 @@ def test_decade_pack_tracks_open_cards_across_refresh_filter_and_theme(launcher,
     assert controller.openCardCount == 0 and not controller.returningCardIds
 
 
-def test_decade_pack_launches_directly_without_raising_the_face(launcher, qtbot, monkeypatch):
+def test_decade_pack_dispatches_after_mouse_event_without_raising_the_face(
+    launcher, qtbot, monkeypatch,
+):
     controller, backend, settings, _ = launcher
     monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
     tools = [create_tool(backend, f"Concurrent {i}") for i in range(3)]
@@ -1096,11 +1098,22 @@ Item {
             origin = face.mapToGlobal(QPointF())
             size = face.size()
             launch(tool)
-            assert requested[-1] == tool.id  # Immediate, no lift timer or animation queue.
+            launch(tool)  # Coalesce repeated clicks before the safe dispatch.
+            assert requested == []  # No native window creation inside MouseArea dispatch.
             assert face.parentItem() is host  # No full-card overlay in the pack.
             assert face.mapToGlobal(QPointF()) == origin and face.size() == size
             assert face.property("packVisibleRect").height() <= host.parentItem().height() + 3
+        assert scripts.property("pendingLaunchCount") == 3
+        qtbot.waitUntil(lambda: len(requested) == 3)
         assert requested == [tool.id for tool in tools]
+        assert scripts.property("pendingLaunchCount") == 0
+        launch(tools[0])
+        recall = root.findChild(QObject, "floatingRecallAllButton")
+        assert recall.isEnabled()
+        QMetaObject.invokeMethod(recall, "clicked")
+        assert scripts.property("pendingLaunchCount") == 0
+        qtbot.wait(40)
+        assert len(requested) == 3  # Recall cancels work that has not opened yet.
         # Cards align exactly; elevation comes from their shadow and stacking order.
         faces = [root.findChild(QObject, "deckCard_" + tool.id) for tool in tools]
         assert len({face.mapToGlobal(QPointF()).x() for face in faces}) == 1
@@ -1113,9 +1126,11 @@ Item {
 @pytest.mark.parametrize("source_x,source_y,clip_offset", [
     (1000, 200, 0), (-1200, -350, 25), (850, 620, 60),
 ])
-def test_card_flight_keeps_full_departure_and_tucks_return_into_pack(
+def test_card_render_buffer_stays_complete_during_departure_and_return(
     qapp, qtbot, source_x, source_y, clip_offset,
 ):
+    from poptools.infrastructure.window_placement import card_pack_mask
+
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     engine = QQmlEngine()
     component = QQmlComponent(engine)
@@ -1152,6 +1167,8 @@ Window {
     assert window, component.errors()
     motion = window.findChild(QObject, "mechanicalCardMotion")
     face = window.findChild(QObject, "departureTestFace")
+    positions = []
+    motion.positionRequested.connect(lambda x, y, pack, opening: positions.append(QPointF(x, y)))
     face.setProperty("packVisibleRect", QRectF(source_x, source_y + clip_offset, 300, 60))
     geometry = {"x": 0, "y": 0, "width": 1500, "height": 1000,
                 "sourceX": source_x, "sourceY": source_y, "sourceWidth": 300,
@@ -1159,26 +1176,37 @@ Window {
                 "targetWidth": 440, "targetHeight": 680, "preserveSource": True}
     try:
         QMetaObject.invokeMethod(motion, "prepareFlight", Q_ARG("QVariant", geometry))
+        packed_surface = QRect(round(source_x + (300 - 440) / 2),
+                               round(source_y + (geometry["sourceHeight"] - 680) / 2), 440, 680)
+        window.setMask(card_pack_mask(
+            packed_surface, QRectF(source_x, source_y, 300, geometry["sourceHeight"]),
+            face.property("packVisibleRect"),
+        ))
         window.show()
         assert QTest.qWaitForWindowExposed(window)
         qtbot.wait(60)
         first = window.grabWindow()
-        assert motion.property("sourceFrameClipped")
-        # At rest the 60-pixel card head is visible; the covered body stays transparent.
+        # The native pack mask hides the body on screen, but the backing surface
+        # must already contain it before the very first window movement.
         ratio = first.devicePixelRatio()
-        head_top = (680 - geometry["sourceHeight"]) / 2 + clip_offset
-        assert first.pixelColor(round(220 * ratio), round((head_top + 20) * ratio)).alpha() > 200
-        assert first.pixelColor(round(220 * ratio), round(300 * ratio)).alpha() < 10
-        # Include the form shadow: no residual outline beneath the stationary head.
-        for y in range(round((head_top + 65) * ratio), first.height(), 8):
-            for x in range(0, first.width(), 8):
-                assert first.pixelColor(x, y).alpha() < 10
+        assert first.pixelColor(round(220 * ratio), round(300 * ratio)).alpha() > 200
         assert first.save("build/direct-departure-first.png")
+        window.setMask(QRegion())
+        dock_position = QPointF(positions[-1])
         for tick in (.005, .025, .05, .075, .10, .15, .25, .5, 1):
             motion.setProperty("progress", tick * motion.property("travelDuration")
                                / motion.property("flightDuration"))
             qtbot.wait(20)
-            assert not motion.property("sourceFrameClipped")
+            if tick == .005:
+                # Even when landing is to the right/below, first pull up-left
+                # from the original row. No teleport to a full-card overlay.
+                assert positions[-1].x() < dock_position.x()
+                assert positions[-1].y() < dock_position.y()
+                surface = QRect(positions[-1].toPoint(), window.size())
+                mask = card_pack_mask(surface, QRectF(source_x, source_y, 300,
+                                     geometry["sourceHeight"]), face.property("packVisibleRect"))
+                assert not mask.isEmpty()
+                assert not mask.contains(QPoint(220, 340))  # Body still in sleeve.
             departing = window.grabWindow()
             # Every interior region stays opaque, including the right-hand body
             # that the former union mask cut into an L shape at early flight ticks.
@@ -1189,32 +1217,25 @@ Window {
                     assert departing.pixelColor(round(point.x() * ratio),
                                                 round(point.y() * ratio)).alpha() > 200, tick
             assert departing.save(f"build/direct-departure-moving-{tick}.png")
-        # The return uses a single card-local clip: the head stays opaque across
-        # its whole width while the lower body is tucked away before landing.
+        # Returning must not shorten the card while it is still in open space.
+        # Test the whole surface even at late ticks; occlusion is spatial/native.
         QMetaObject.invokeMethod(motion, "recycle", Q_ARG("QVariant", geometry))
         animation = window.findChild(QObject, "mechanicalCardRecycleAnimation")
         animation.setProperty("paused", True)
         motion.setProperty("returnScan", 0)
-        clip = window.findChild(QObject, "cardDockingClip")
-        previous_height = 680
         for tick in (0, .45, .6, .75, .85, 1):
             motion.setProperty("returnProgress", tick)
             qtbot.wait(20)
+            if tick == 1:
+                assert positions[-1] == dock_position
             returning = window.grabWindow()
-            assert clip.height() <= previous_height
-            previous_height = clip.height()
             for fx in (.12, .5, .88):
-                point = clip.mapToItem(window.contentItem(), QPointF(clip.width() * fx,
-                                                                    clip.height() / 2))
-                assert returning.pixelColor(round(point.x() * ratio),
-                                             round(point.y() * ratio)).alpha() > 200, tick
-            if tick >= .6:
-                point = clip.mapToItem(window.contentItem(), QPointF(clip.width() / 2,
-                                                                    clip.height() + 20))
-                assert returning.pixelColor(round(point.x() * ratio),
-                                             round(point.y() * ratio)).alpha() < 10, tick
-            assert returning.save(f"build/card-return-clipped-{tick}.png")
-        assert clip.height() == pytest.approx(60 * 440 / 300)
+                for fy in (.12, .5, .88):
+                    point = face.mapToItem(window.contentItem(), QPointF(face.width() * fx,
+                                                                        face.height() * fy))
+                    assert returning.pixelColor(round(point.x() * ratio),
+                                                 round(point.y() * ratio)).alpha() > 200, tick
+            assert returning.save(f"build/card-return-full-{tick}.png")
     finally:
         window.close()
         window.deleteLater()
@@ -1387,22 +1408,50 @@ Item {
         search = root.findChild(QObject, "scriptListSearch")
         search.setProperty("text", "Theme")
         scripts.setProperty("kindFilter", "python")
+        expected_filter = "python"
         for mode in ("light", "dark", "decade", "light", "decade"):
             settings.saveThemeMode(mode)
             root.setProperty("mode", mode)
             qtbot.wait(30)
+            expected_height = 600 if mode == "decade" else 480
+            available_height = panel.screen().availableGeometry().height()
+            assert panel.height() == min(expected_height, available_height)
             view = scripts.findChild(QObject, "sharedScriptList")
             expected_heading = "DECADE / 脚本卡包" if mode == "decade" else "脚本名称"
             assert view.property("headingText") == expected_heading
-            assert scripts.property("kindFilter") == "python"
+            if mode == "decade":
+                expected_filter = "all"
+            assert scripts.property("kindFilter") == expected_filter
+            assert search.isVisible() == (mode != "decade")
+            assert root.findChild(QObject, "floatingTitleSearch").isVisible() == (mode == "decade")
             assert search.property("text") == "Theme"
             assert scripts.property("visibleCount") == (2 if mode == "decade" else 3)
             for tool_id, original in faces.items():
                 assert root.findChild(QObject, "deckCard_" + tool_id) is original
             assert faces[tools[0].id].window() is borrowed_window
+        title_search = root.findChild(QObject, "floatingTitleSearch")
+        title_search.setProperty("text", "Theme card 1")
+        qtbot.waitUntil(lambda: controller.toolsModel.count == 1)
+        assert scripts.property("searchQuery") == "Theme card 1"
+        title_search.setProperty("text", "")
+        qtbot.waitUntil(lambda: controller.toolsModel.count == 2)
         QMetaObject.invokeMethod(root, "dock", Q_ARG("QVariant", tools[0].id))
         assert faces[tools[0].id].window() is panel
         assert controller.openCardCount == 0 and controller.toolsModel.count == 3
+        requested = []
+        backend.recentToolDialogRequested.connect(requested.append)
+        QMetaObject.invokeMethod(scripts, "activateTool", Q_ARG("QVariant", tools[0].id),
+                                 Q_ARG("QVariant", None))
+        assert scripts.property("pendingLaunchCount") == 1
+        settings.saveThemeMode("light")
+        root.setProperty("mode", "light")
+        qtbot.wait(30)
+        assert requested == []  # Retiring the deck cancels its deferred requests.
+        settings.saveThemeMode("decade")
+        root.setProperty("mode", "decade")
+        qtbot.wait(30)
+        assert root.findChild(QObject, "deckCard_" + tools[0].id) is faces[tools[0].id]
+        assert faces[tools[0].id].window() is panel
         assert not warnings, warnings
     finally:
         controller.shutdown()
@@ -1468,7 +1517,9 @@ Item {
 
 
 @pytest.mark.parametrize("interrupt", ["none", "activate", "close", "recycle", "reopen"])
-def test_card_flies_from_row_to_window_and_can_be_reactivated(launcher, qapp, qtbot, interrupt):
+def test_card_flies_from_row_to_window_and_can_be_reactivated(
+    launcher, qapp, qtbot, monkeypatch, interrupt,
+):
     _, backend, _, _ = launcher
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     tool = create_tool(backend, "Card flight", command="print('${message:Hello}')")
@@ -1491,6 +1542,7 @@ RecentToolDialog {
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/CardFlightHarness.qml")))
     window = component.create()
     assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
+    assert window.flags() & Qt.NoDropShadowWindowHint
     available = qapp.primaryScreen().availableGeometry()
     source = QRectF(available.right() - 300, available.center().y(), 280, 40)
     try:
@@ -1536,12 +1588,24 @@ RecentToolDialog {
             assert window.winId() == native_id and window.isVisible()
             assert window.grabWindow().save(str(output_dir / f"flight-{index}.png"))
         if interrupt == "close":
+            from poptools.viewmodels import tool_session_controller as session_module
+
+            restores = []
+            restore_layer = session_module.set_card_flight_layer
+
+            def observe_layer_restore(target, flying):
+                if not flying:
+                    restores.append(target.isVisible())
+                restore_layer(target, flying)
+
+            monkeypatch.setattr(session_module, "set_card_flight_layer", observe_layer_restore)
             dismissed = []
             window.dismissed.connect(dismissed.append)
             assert QMetaObject.invokeMethod(window, "dismissCard")
             assert dismissed == [tool.id]
             assert not window.isVisible()
             assert not window.property("entryAnimationRunning")
+            assert restores == [False]  # Never unmask a closing visible surface.
             assert not warnings, warnings
             return
         if interrupt in ("recycle", "reopen"):
