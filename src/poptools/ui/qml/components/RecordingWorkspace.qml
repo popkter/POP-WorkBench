@@ -48,7 +48,7 @@ ColumnLayout {
         Layout.preferredHeight: 190
         radius: Theme.radiusLarge
         color: Theme.surfaceContainerLow
-        border.color: Theme.outlineVariant
+        border.width: 0
 
         ColumnLayout {
             anchors.centerIn: parent

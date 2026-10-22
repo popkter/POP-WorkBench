@@ -20,7 +20,12 @@ from poptools.domain.parameter_templates import render_template, validate_parame
 from poptools.infrastructure.background_process import BackgroundProcess
 from poptools.infrastructure.config_store import ConfigStore
 from poptools.infrastructure.python_environment import PythonEnvironment
-from poptools.paths import AppPaths, bundled_adb_path, package_root, resource_path
+from poptools.paths import (
+    AppPaths,
+    bundled_adb_path,
+    package_root,
+    resolve_tool_source,
+)
 
 ANSI_ESCAPE_PATTERN = re.compile(
     r"\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\))"
@@ -190,8 +195,8 @@ class ExecutionManager(QObject):
                 arguments = ["-c", rendered_command, *arguments]
         elif executor.kind == ExecutorKind.POWERSHELL:
             if sys.platform == "win32":
-                from poptools.infrastructure.runtime_environment import RuntimeEnvironment
-                shell = RuntimeEnvironment(self.paths).executable("powershell")
+                from poptools.infrastructure.runtime_environment import runtime_for
+                shell = runtime_for(self.paths).executable("powershell")
                 program = str(shell) if shell.is_file() else None
                 if not program:
                     self.output.emit("PowerShell 不可用，请在设置中安装插件或指定本地环境。\n")
@@ -256,9 +261,9 @@ class ExecutionManager(QObject):
             environment.insert(key, self._render(value, values))
         self._configure_managed_python_environment(environment)
         if sys.platform == "win32":
-            from poptools.infrastructure.runtime_environment import RuntimeEnvironment
+            from poptools.infrastructure.runtime_environment import runtime_for
 
-            shell = RuntimeEnvironment(self.paths).executable("powershell")
+            shell = runtime_for(self.paths).executable("powershell")
             if shell.is_file():
                 environment.insert("PATH", f"{shell.parent}{os.pathsep}{environment.value('PATH')}")
         selected_device = str(values.get("__android_device__", "")).strip()
@@ -304,11 +309,7 @@ class ExecutionManager(QObject):
         return shutil.which(command)
 
     def _resolve_source(self, source: str) -> Path:
-        path = Path(source)
-        if path.is_absolute():
-            return path
-        candidate = Path(resource_path(source))
-        return candidate if candidate.exists() else package_root() / source
+        return resolve_tool_source(source)
 
     def _find_bash(self) -> str | None:
         candidates = (

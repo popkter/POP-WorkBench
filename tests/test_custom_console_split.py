@@ -55,6 +55,7 @@ ApplicationWindow {
         console = window.findChild(QObject, "customConsolePanel")
         separator = window.findChild(QObject, "customConsoleResizeHandle")
         toggle = window.findChild(QObject, "customConsoleToggle")
+        console_run = window.findChild(QObject, "customConsoleRunButton")
         backend = window.findChild(QObject, "backend")
 
         def separate():
@@ -66,9 +67,15 @@ ApplicationWindow {
         assert not panel.property("consoleExpanded")
         assert console.height() == 42
         collapsed_form_height = form.height()
-        assert QMetaObject.invokeMethod(panel, "runSelectedTool")
-        qtbot.waitUntil(lambda: panel.property("consoleExpanded") and console.height() > 140)
+        assert console_run.isVisible() and console_run.isEnabled()
+        assert console_run.property("text") == "运行脚本"
+        assert QMetaObject.invokeMethod(console_run, "clicked")
+        qtbot.waitUntil(lambda: 0.15 < panel.property("consoleReveal") < 0.85)
+        assert separate()
+        assert not separator.property("enabled")
+        qtbot.waitUntil(lambda: panel.property("consoleReveal") == 1)
         assert backend.property("running")
+        assert console_run.property("text") == "停止运行"
         assert form.height() < collapsed_form_height
         assert separate()
         expanded_height = console.height()
@@ -83,14 +90,28 @@ ApplicationWindow {
         qtbot.waitUntil(lambda: console.height() > expanded_height + 30)
         assert separate()
         resized_height = console.height()
-        backend.setProperty("running", False)
+        assert QMetaObject.invokeMethod(console_run, "clicked")
+        assert not backend.property("running")
         assert panel.property("consoleExpanded")
 
         assert QMetaObject.invokeMethod(toggle, "clicked")
+        qtbot.waitUntil(lambda: 0.15 < panel.property("consoleReveal") < 0.85)
+        assert separate()
         qtbot.waitUntil(lambda: console.height() == 42)
         assert form.height() == collapsed_form_height
         assert QMetaObject.invokeMethod(toggle, "clicked")
-        qtbot.waitUntil(lambda: abs(console.height() - resized_height) < 0.5)
+        qtbot.waitUntil(lambda: panel.property("consoleReveal") == 1)
+        assert console.height() == pytest.approx(resized_height)
+
+        # Reversing a partially completed close continues from the displayed size.
+        assert QMetaObject.invokeMethod(toggle, "clicked")
+        qtbot.waitUntil(lambda: 0.3 < panel.property("consoleReveal") < 0.7)
+        reversing_height = console.height()
+        assert QMetaObject.invokeMethod(toggle, "clicked")
+        assert console.height() == pytest.approx(reversing_height)
+        assert separate()
+        qtbot.waitUntil(lambda: panel.property("consoleReveal") == 1)
+        assert console.height() == pytest.approx(resized_height)
 
         window.setHeight(360)
         qtbot.waitUntil(separate)

@@ -1,13 +1,26 @@
 from types import SimpleNamespace as State
 
 from poptools.application.bootstrap import plugin_usage_reason
+from poptools.runners.execution_coordinator import ExecutionCoordinator
+from poptools.viewmodels.app_controller import AppController
+from poptools.viewmodels.developer_console_controller import DeveloperConsoleController
 from poptools.viewmodels.plugin_controller import PluginController
+from poptools.viewmodels.python_dependency_controller import PythonDependencyController
 
 
 def test_plugin_occupation_is_scoped_to_runtime():
-    terminal = State(_tabs=[State(title="PowerShell 1", session=object())])
+    terminal = State(_tabs=[State(title="PowerShell 1", session=object())], _closing_tabs={})
     execution = State(_executions={}, _scrcpy=State(active=False))
     app = State(_python_doctor_process=None, _python_package_install=None)
+    terminal.active_session_titles = lambda: (
+        DeveloperConsoleController.active_session_titles(terminal)
+    )
+    execution.plugin_usage_reason = lambda plugin: ExecutionCoordinator.plugin_usage_reason(
+        execution, plugin,
+    )
+    app._scrcpy_displays = State(loading=False)
+    app.python_usage_reason = lambda: PythonDependencyController.usage_reason(app)
+    app.plugin_usage_reason = lambda plugin: AppController.plugin_usage_reason(app, plugin)
 
     def reason(plugin):
         return plugin_usage_reason(plugin, terminal, execution, app)

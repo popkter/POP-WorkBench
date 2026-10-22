@@ -45,6 +45,11 @@ ApplicationWindow {
         property: "darkMode"
         value: settingsController.darkTheme
     }
+    Binding {
+        target: Theme
+        property: "decadeMode"
+        value: settingsController.themeMode === "decade"
+    }
 
     property var parameterValues: ({})
     property string toolSearchQuery: ""
@@ -302,6 +307,11 @@ ApplicationWindow {
                     dialog.close()
             })
         }
+        function onPythonDependencyInstallStatus(message) {
+            window.preparePythonDoctorDialog(function (dialog) {
+                dialog.installStatus = message
+            })
+        }
     }
 
     Connections {
@@ -478,14 +488,16 @@ ApplicationWindow {
         }
 
         Rectangle {
+            id: workspaceSurface
             objectName: "workspaceSurface"
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: Theme.workspaceBackground
+            color: workspacePages.currentIndex === 2 ? Theme.workspaceBackground : "transparent"
             radius: Theme.radiusSmall
             clip: true
 
             StackLayout {
+                id: workspacePages
                 anchors.fill: parent
                 currentIndex: window.settingsSelected ? 3
                     : window.developerSelected ? 2
@@ -566,6 +578,13 @@ ApplicationWindow {
                     onTerminalEnableRequested: window.requestTerminalEnable()
                     onUserHelpRequested: window.openUserGuideDialog()
                 }
+            }
+
+            RoundedViewportCorners {
+                anchors.fill: parent
+                z: 1
+                cornerRadius: workspaceSurface.radius
+                outsideColor: Theme.chromeBackground
             }
         }
 
@@ -710,11 +729,13 @@ ApplicationWindow {
 
     property var recentToolWindows: ({})
     property string lastRequestedToolWindow: ""
+    CardRecallQueue { id: cardRecallQueue }
 
     function closeRecentToolWindows() {
+        cardRecallQueue.clear()
         var opened = recentToolWindows
         for (var toolId in opened)
-            opened[toolId].close()
+            opened[toolId].dismissCard()
     }
 
     Component.onDestruction: closeRecentToolWindows()
@@ -728,8 +749,12 @@ ApplicationWindow {
     }
 
     Loader {
+        id: floatingLauncherLoader
         active: typeof floatingController !== "undefined"
-        sourceComponent: FloatingLauncher { controller: floatingController }
+        sourceComponent: FloatingLauncher {
+            controller: floatingController
+            continuousRecall: Theme.decadeMode && cardRecallQueue.running
+        }
     }
 
     Connections {
@@ -737,6 +762,9 @@ ApplicationWindow {
         function onSettingsRequested() {
             window.openSettingsDialog()
             trayController.show_window()
+        }
+        function onRecallAllCardsRequested() {
+            cardRecallQueue.recall(Object.values(window.recentToolWindows))
         }
     }
 
@@ -751,30 +779,58 @@ ApplicationWindow {
         target: appController
         function onRecentToolDialogRequested(toolId) {
             window.lastRequestedToolWindow = toolId
+            var origin = typeof floatingController !== "undefined"
+                ? floatingController.cardLaunchOrigin(toolId) : Qt.rect(0, 0, 0, 0)
             var existing = Object.prototype.hasOwnProperty.call(window.recentToolWindows, toolId)
                 ? window.recentToolWindows[toolId] : null
             if (existing) {
-                existing.showNormal()
-                existing.raise()
-                existing.requestActivate()
+                if (origin.width > 0 && origin.height > 0)
+                    existing.launchOrigin = origin
+                existing.activateCard()
                 Qt.callLater(function() {
                     if (window.lastRequestedToolWindow === toolId
-                            && window.recentToolWindows[toolId] === existing && existing.visible)
+                            && window.recentToolWindows[toolId] === existing && existing.visible
+                            && !existing.entryAnimationRunning)
                         existing.requestActivate()
                 })
                 return
             }
-            var win = recentToolWindowComponent.createObject(null)
+            var win = recentToolWindowComponent.createObject(null, {launchOrigin: origin})
             if (!win)
                 return
+            if (floatingLauncherLoader.item)
+                win.cardFace = floatingLauncherLoader.item.takeCardFace(toolId)
+            win.dockReturn = function(id, face, callback) {
+                if (floatingLauncherLoader.item)
+                    floatingLauncherLoader.item.dockCardFace(id, face, callback)
+                else
+                    callback()
+            }
+            win.prepareReturn = function(id, callback) {
+                return floatingLauncherLoader.item
+                    ? floatingLauncherLoader.item.prepareCardReturn(id, callback) : false
+            }
+            win.cardPresented.connect(function(id) {
+                if (win.customScriptMode && typeof floatingController !== "undefined")
+                    floatingController.setCardOpen(id, true)
+            })
             var opened = Object.assign({}, window.recentToolWindows)
             opened[toolId] = win
             window.recentToolWindows = opened
             win.dismissed.connect(function(closedToolId) {
+                if (win.cardFace && floatingLauncherLoader.item) {
+                    // Native close/theme changes also give the borrowed item back.
+                    const face = win.cardFace
+                    win.cardFace = null
+                    floatingLauncherLoader.item.dockCardFace(closedToolId, face, function() {})
+                }
+                if (typeof floatingController !== "undefined")
+                    floatingController.setCardOpen(closedToolId, false)
                 var remaining = Object.assign({}, window.recentToolWindows)
                 if (remaining[closedToolId] === win)
                     delete remaining[closedToolId]
                 window.recentToolWindows = remaining
+                cardRecallQueue.completed(win)
                 win.destroy()
             })
             win.showWithTool(toolId)

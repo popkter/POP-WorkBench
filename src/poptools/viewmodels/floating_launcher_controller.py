@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import cast
 
-from PySide6.QtCore import Property, QEvent, QObject, QRect, Qt, QTimer, Signal, Slot
+from PySide6.QtCore import Property, QEvent, QObject, QRect, QRectF, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QCursor, QRegion, QScreen, QWindow
 from PySide6.QtWidgets import QApplication
 
 from poptools.domain.models import ToolSection
+from poptools.infrastructure.foreground_window import foreground_window
 from poptools.viewmodels.app_controller import AppController
 from poptools.viewmodels.settings_controller import SettingsController
 from poptools.viewmodels.tool_list_model import ToolListModel
@@ -34,6 +36,8 @@ class FloatingLauncherController(QObject):
     settingsRequested = Signal()
     toolSortModeChanged = Signal()
     drawerGeometryChanged = Signal()
+    cardsChanged = Signal()
+    recallAllCardsRequested = Signal()
 
     def __init__(
         self, app: QApplication, app_controller: AppController, settings: SettingsController,
@@ -56,11 +60,15 @@ class FloatingLauncherController(QObject):
         self._panel_size = (360, 480)
         self._visible = False
         self._expanded = False
+        self._pinned = False
         self._dragging = False
         self._drag_pointer_offset = 0
         self._menu_open = False
         self._quitting = False
         self._shortcut_tools: dict[str, bool] = {}
+        self._card_origin: tuple[str, QRectF] | None = None
+        self._open_cards: set[str] = set()
+        self._returning_cards: set[str] = set()
         self._capacity_requested = False
         self._collapse_timer = QTimer(self)
         self._collapse_timer.setSingleShot(True)
@@ -69,6 +77,12 @@ class FloatingLauncherController(QObject):
         self._reconcile_timer = QTimer(self)
         self._reconcile_timer.setSingleShot(True)
         self._reconcile_timer.timeout.connect(self.reconcile)
+        # Startup activation can remain cached in Qt without any FocusOut or
+        # applicationStateChanged signal. Recheck native ownership at low cost;
+        # ordinary Qt focus events still reconcile immediately.
+        self._foreground_timer = QTimer(self)
+        self._foreground_timer.setInterval(250)
+        self._foreground_timer.timeout.connect(self.reconcile)
         app.installEventFilter(self)
         app.applicationStateChanged.connect(self._schedule_reconcile)
         app.focusWindowChanged.connect(self._schedule_reconcile)
@@ -78,18 +92,58 @@ class FloatingLauncherController(QObject):
         for screen in app.screens():
             self._screen_added(screen)
         settings.floatingLauncherEnabledChanged.connect(self.reconcile)
-        app_controller.customToolsChanged.connect(self.refreshTools)
+        settings.themeChanged.connect(self._update_card_filter)
+        self._tools_refresh_timer = QTimer(self)
+        self._tools_refresh_timer.setSingleShot(True)
+        self._tools_refresh_timer.timeout.connect(self.refreshTools)
+        app_controller.customToolsChanged.connect(self._schedule_tools_refresh)
         app_controller.toolSortModeChanged.connect(self.toolSortModeChanged)
         coordinator = app_controller.execution_coordinator
         coordinator.started.connect(self._on_started)
         coordinator.finished.connect(self._on_finished)
-        coordinator.runningChanged.connect(self.refreshTools)
+        coordinator.runningChanged.connect(self._schedule_tools_refresh)
         coordinator.capacityRequested.connect(self._on_capacity)
         self.refreshTools()
 
     @Property(QObject, constant=True)
     def toolsModel(self) -> ToolListModel:
         return self._model
+
+    @Property("QStringList", notify=cardsChanged)
+    def returningCardIds(self) -> list[str]:
+        return sorted(self._returning_cards)
+
+    @Property(int, notify=cardsChanged)
+    def openCardCount(self) -> int:
+        return len(self._open_cards)
+
+    @Slot()
+    def _update_card_filter(self) -> None:
+        excluded = (self._open_cards
+                    if self._settings.themeMode == "decade" else set())
+        self._model.set_excluded_ids(excluded)
+
+    @Slot(str, bool)
+    def setCardOpen(self, tool_id: str, opened: bool) -> None:
+        if opened:
+            self._open_cards.add(tool_id)
+        else:
+            self._open_cards.discard(tool_id)
+            self._returning_cards.discard(tool_id)
+        self._update_card_filter()
+        self.cardsChanged.emit()
+
+    @Slot(str, result=bool)
+    def beginCardReturn(self, tool_id: str) -> bool:
+        if (self._settings.themeMode != "decade" or not self._visible
+                or tool_id not in self._open_cards):
+            return False
+        self._returning_cards.add(tool_id)
+        self._collapse_timer.stop()
+        self.cardsChanged.emit()
+        self._expanded = True
+        self.stateChanged.emit()
+        return True
 
     @Property(bool, notify=stateChanged)
     def visible(self) -> bool:
@@ -98,6 +152,20 @@ class FloatingLauncherController(QObject):
     @Property(bool, notify=stateChanged)
     def expanded(self) -> bool:
         return self._expanded
+
+    @Property(bool, notify=stateChanged)
+    def pinned(self) -> bool:
+        return self._pinned
+
+    @Slot()
+    def togglePinned(self) -> None:
+        self._pinned = not self._pinned
+        self.stateChanged.emit()
+        self.reconcile()
+
+    @Slot()
+    def recallAllCards(self) -> None:
+        self.recallAllCardsRequested.emit()
 
     @Property(bool, notify=stateChanged)
     def dragging(self) -> bool:
@@ -124,7 +192,13 @@ class FloatingLauncherController(QObject):
         self._model.set_filter(query)
 
     @Slot()
+    def _schedule_tools_refresh(self, *_args: object) -> None:
+        if not self._quitting and not self._tools_refresh_timer.isActive():
+            self._tools_refresh_timer.start(0)
+
+    @Slot()
     def refreshTools(self) -> None:
+        self._tools_refresh_timer.stop()
         tools = self._backend.sorted_custom_tools(
             self._backend.registry.for_section(ToolSection.CUSTOM)
         )
@@ -200,6 +274,19 @@ class FloatingLauncherController(QObject):
         return False
 
     def _ordinary_window_active(self) -> bool:
+        native = foreground_window() if self._app.platformName() == "windows" else None
+        if native is not None:
+            if native.process_id != os.getpid():
+                return False
+            windows = {int(window.winId()): window for window in self._app.topLevelWindows()
+                       if window.isVisible()}
+            # Prefer the exact window before its owner: a script card may have
+            # the main window as its owner and must still keep the launcher up.
+            window = windows.get(native.handle)
+            if window is None:
+                window = windows.get(native.root_owner)
+            # Unwrapped native dialogs of this process count as ordinary windows.
+            return window is None or not self._is_launcher_window(window)
         if self._app.applicationState() != Qt.ApplicationState.ApplicationActive:
             return False
         modal = self._app.activeModalWidget()
@@ -218,11 +305,18 @@ class FloatingLauncherController(QObject):
 
     @Slot()
     def reconcile(self) -> None:
-        visible = (
+        enabled = (
             not self._quitting and self._main_window is not None
-            and bool(self._settings.floatingLauncherEnabled) and not self._ordinary_window_active()
+            and bool(self._settings.floatingLauncherEnabled)
         )
+        if enabled and not self._pinned and self._app.platformName() == "windows":
+            if not self._foreground_timer.isActive():
+                self._foreground_timer.start()
+        else:
+            self._foreground_timer.stop()
+        visible = enabled and (self._pinned or not self._ordinary_window_active())
         if visible == self._visible:
+            self.pointerChanged()
             return
         self._visible = visible
         if not visible:
@@ -265,14 +359,24 @@ class FloatingLauncherController(QObject):
 
     @Slot()
     def pointerChanged(self) -> None:
-        if not self._expanded or self._dragging or self._menu_open or self._pointer_inside():
+        if (not self._expanded or self._pinned or self._dragging or self._menu_open
+                or self._script_window_active() or self._pointer_inside()):
             self._collapse_timer.stop()
         elif not self._collapse_timer.isActive():
             self._collapse_timer.start()
 
     def _collapse_if_outside(self) -> None:
+        if self._pinned or self._script_window_active():
+            return
+        if self._returning_cards and self._settings.themeMode == "decade":
+            return
         if not self._dragging and not self._menu_open and not self._pointer_inside():
             self.collapse()
+
+    def _script_window_active(self) -> bool:
+        window = self._app.focusWindow()
+        return bool(window is not None and window.isVisible() and window.isActive()
+                    and window.property("keepsFloatingLauncherVisible"))
 
     @Slot()
     def beginDrag(self) -> None:
@@ -321,14 +425,36 @@ class FloatingLauncherController(QObject):
         self.collapse()
         self.settingsRequested.emit()
 
+    @Slot(str, QRectF)
+    def launchToolFrom(self, tool_id: str, source: QRectF) -> None:
+        self._card_origin = (tool_id, QRectF(source))
+        try:
+            self.launchTool(tool_id)
+        finally:
+            self._card_origin = None
+
+    @Slot(str, result=QRectF)
+    def cardLaunchOrigin(self, tool_id: str) -> QRectF:
+        if self._card_origin and self._card_origin[0] == tool_id:
+            return QRectF(self._card_origin[1])
+        return QRectF()
+
     @Slot(str)
     def launchTool(self, tool_id: str) -> None:
         tool = self._backend.registry.get(tool_id)
-        if (tool is None or tool.section != ToolSection.CUSTOM
-                or self._backend.execution_coordinator.running(tool_id)
-                or tool_id in self._shortcut_tools):
+        if tool is None or tool.section != ToolSection.CUSTOM:
             return
-        self.collapse()
+        self._collapse_timer.stop()
+        if self._settings.themeMode == "decade":
+            # Every pack card opens its live form, including parameterless scripts.
+            # Running remains an explicit action on that form.
+            self._backend.recentToolDialogRequested.emit(tool_id)
+            return
+        if self._backend.execution_coordinator.running(tool_id):
+            self._backend.recentToolDialogRequested.emit(tool_id)
+            return
+        if tool_id in self._shortcut_tools:
+            return
         self._shortcut_tools[tool_id] = False
         self._capacity_requested = False
         accepted = self._backend.open_custom_tool_shortcut(tool_id)
@@ -416,6 +542,8 @@ class FloatingLauncherController(QObject):
         self._visible = False
         self.collapse()
         self._reconcile_timer.stop()
+        self._foreground_timer.stop()
+        self._tools_refresh_timer.stop()
         self._app.removeEventFilter(self)
         self.stateChanged.emit()
         for window in (self._notch, self._panel):

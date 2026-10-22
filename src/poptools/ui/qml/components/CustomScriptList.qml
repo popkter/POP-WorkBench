@@ -1,9 +1,9 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
+// Shared search, filters and sorting. Only this boundary selects a presentation.
 Item {
     id: root
     required property var controller
@@ -11,7 +11,11 @@ Item {
     property string searchQuery: ""
     property string kindFilter: "all"
     property bool quickLaunch: false
+    property bool continuousRecall: false
     property string keyboardToolId: ""
+    readonly property bool deckMode: quickLaunch && Theme.decadeMode
+    readonly property bool layoutSettling: collectionView ? collectionView.settling : false
+    readonly property ScriptCollectionView collectionView: viewLoader.item as ScriptCollectionView
     readonly property bool menuOpen: sortButton.menuOpen
     readonly property int visibleCount: {
         const count = listModel.count;
@@ -19,28 +23,84 @@ Item {
     }
     signal searchEdited(string query)
     signal toolActivated(string toolId)
-    onKindFilterChanged: keyboardToolId = ""
-    onSearchQueryChanged: keyboardToolId = ""
-    Connections {
-        target: root.listModel
-        function onModelReset() { root.keyboardToolId = "" }
+    signal toolActivatedAt(string toolId, rect sourceRect)
+
+    // Keep face ownership outside the replaceable view, including while a card
+    // is in a native execution window or the user switches themes.
+    ScriptCardStore {
+        id: sharedCards
+    }
+    function takeCardFace(id) {
+        return sharedCards.borrow(id);
+    }
+    function returnCardRect(id) {
+        return collectionView.returnCardRect(id);
+    }
+    function dockCardFace(id, face) {
+        if (!face)
+            return;
+        sharedCards.accept(id, face);
+        controller.setCardOpen(id, false);
+        collectionView.dockCardFace(id, face);
+    }
+    function activateTool(id, row) {
+        collectionView.activateTool(id, row);
     }
     function closeMenus() {
         sortButton.closeMenu();
     }
-    function navigateTo(toolId) {
-        keyboardToolId = toolId;
+    function navigateTo(id) {
+        keyboardToolId = id;
         if (quickLaunch)
-            listModel.select(toolId);
+            listModel.select(id);
         else
-            toolActivated(toolId);
+            toolActivated(id);
     }
-
+    onKindFilterChanged: keyboardToolId = ""
+    onSearchQueryChanged: keyboardToolId = ""
+    Connections {
+        target: root.listModel
+        function onModelReset() {
+            root.keyboardToolId = "";
+        }
+    }
+    Component {
+        id: standardView
+        StandardScriptList {
+            controller: root.controller
+            listModel: root.listModel
+            kindFilter: root.kindFilter
+            keyboardToolId: root.keyboardToolId
+            quickLaunch: root.quickLaunch
+        }
+    }
+    Component {
+        id: decadeView
+        DecadeScriptDeck {
+            controller: root.controller
+            listModel: root.listModel
+            kindFilter: root.kindFilter
+            keyboardToolId: root.keyboardToolId
+            cardStore: sharedCards
+            continuousRecall: root.continuousRecall
+        }
+    }
+    Connections {
+        target: root.collectionView
+        function onToolActivated(id) {
+            root.toolActivated(id);
+        }
+        function onToolActivatedAt(id, rect) {
+            root.toolActivatedAt(id, rect);
+        }
+        function onNavigationRequested(id) {
+            root.navigateTo(id);
+        }
+    }
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Theme.space16
         spacing: Theme.space8
-
         AppTextField {
             id: searchField
             objectName: "scriptListSearch"
@@ -127,7 +187,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 Layout.leftMargin: 0
-                text: "脚本名称"
+                text: root.collectionView ? root.collectionView.headingText : ""
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontCaption
             }
@@ -141,123 +201,22 @@ Item {
             }
         }
 
-        ListView {
-            id: scriptList
-            objectName: "sharedScriptList"
-            readonly property bool needsVerticalScroll: contentHeight > height + 0.5
-            function selectAdjacent(direction) {
-                const toolId = root.listModel.adjacentToolId(direction, root.kindFilter);
-                if (toolId.length > 0)
-                    root.navigateTo(toolId);
-            }
-            Keys.onUpPressed: selectAdjacent(-1)
-            Keys.onDownPressed: selectAdjacent(1)
-            Keys.onReturnPressed: root.toolActivated(root.keyboardToolId)
-            Keys.onEnterPressed: root.toolActivated(root.keyboardToolId)
+        Loader {
+            id: viewLoader
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
-            Layout.leftMargin: 0
-            Layout.rightMargin: 0
-            spacing: 0
-            model: root.listModel
-            boundsBehavior: Flickable.StopAtBounds
-            Text {
-                anchors.centerIn: parent
-                visible: root.visibleCount === 0
-                text: root.listModel.totalCount === 0 ? "暂无自定义脚本" : "没有匹配的脚本"
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontSupporting
-            }
-
-            ScrollBar.vertical: ScrollBar {
-                id: scriptListScrollBar
-                policy: scriptList.needsVerticalScroll ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
-            }
-
-            delegate: Rectangle {
-                id: scriptRow
-                required property string toolId
-                required property string title
-                required property string description
-                required property string iconName
-                required property string executorKind
-                required property bool selected
-                required property bool running
-                required property int index
-                objectName: "scriptRow_" + toolId
-                onSelectedChanged: if (selected)
-                    scriptList.positionViewAtIndex(index, ListView.Contain)
-                width: scriptList.width - (scriptList.needsVerticalScroll ? scriptListScrollBar.width + Theme.space8 : 0)
-
-                opacity: root.quickLaunch && running ? 0.6 : 1
-                height: (root.kindFilter === "all" || root.kindFilter === executorKind) ? Theme.scriptRowHeight : 0
-                visible: height > 0
-                radius: Theme.radiusControl
-                color: selected ? (Theme.listSelected) : (rowMouse.containsMouse ? Theme.surfaceContainer : (index % 2 === 0 ? (Theme.listAlternate) : "transparent"))
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: Theme.space12
-                    anchors.rightMargin: Theme.space8
-                    spacing: 10
-                    Rectangle {
-                        Layout.preferredWidth: 26
-                        Layout.preferredHeight: 26
-                        radius: 5
-                        color: scriptRow.executorKind === "python" ? Theme.tertiaryContainer : scriptRow.executorKind === "powershell" ? Theme.runtimeBadge : Theme.successContainer
-                        MaterialIcon {
-                            anchors.centerIn: parent
-                            icon: scriptRow.iconName || (scriptRow.executorKind === "batch" ? "smartphone" : "terminal")
-                            iconSize: 16
-                            color: scriptRow.executorKind === "python" ? Theme.tertiary : scriptRow.executorKind === "powershell" ? Theme.runtimeBadgeText : Theme.success
-                        }
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        text: scriptRow.title
-                        color: scriptRow.selected ? Theme.primary : Theme.textPrimary
-                        font.pixelSize: Theme.fontSupporting
-                        font.weight: scriptRow.selected ? Font.Bold : Font.Normal
-                        elide: Text.ElideRight
-                    }
-                    MaterialIcon {
-                        icon: scriptRow.running ? "hourglass_top" : root.quickLaunch ? "play_arrow" : "chevron_right"
-                        iconSize: 14
-                        color: scriptRow.running ? Theme.primary : Theme.textSecondary
-                        Layout.preferredWidth: 14
-                    }
-                }
-                HoverTips {
-                    parent: rowMouse
-                    visible: rowMouse.containsMouse
-                    text: scriptRow.title + (scriptRow.running ? "（运行中）" : "")
-                }
-                MouseArea {
-                    id: rowMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: root.quickLaunch && scriptRow.running ? Qt.ForbiddenCursor : Qt.PointingHandCursor
-                    onClicked: {
-                        if (root.quickLaunch && scriptRow.running)
-                            return;
-                        root.toolActivated(scriptRow.toolId);
-                        scriptList.forceActiveFocus();
-                    }
-                }
-            }
+            sourceComponent: root.deckMode ? decadeView : standardView
         }
-
         RowLayout {
             Layout.fillWidth: true
             Text {
                 Layout.fillWidth: true
-                text: root.visibleCount + " 个脚本"
+                text: root.visibleCount + (root.collectionView ? root.collectionView.countSuffix : "")
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontCaption
             }
             Text {
-                text: root.quickLaunch ? "点击运行" : "紧凑 · ↑↓ 切换"
+                text: root.collectionView ? root.collectionView.actionText : ""
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontCaption
             }

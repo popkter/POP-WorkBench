@@ -27,6 +27,7 @@ class ToolListModel(QAbstractListModel):
         self._selected_id = ""
         self._running_ids: set[str] = set()
         self._filter_query = ""
+        self._excluded_ids: set[str] = set()
 
     def roleNames(self) -> dict[int, bytes]:
         return {
@@ -52,9 +53,28 @@ class ToolListModel(QAbstractListModel):
         return len(self._tools)
 
     @Slot(str, result=int)
+    def indexOfTool(self, tool_id: str) -> int:
+        return next((i for i, tool in enumerate(self._display_tools) if tool.id == tool_id), -1)
+
+    @Slot(str, result=int)
     def countForKind(self, kind: str) -> int:
         return sum(kind == "all" or tool.executor.kind.value == kind
                    for tool in self._display_tools)
+
+    @Slot(str, result=str)
+    def lastToolId(self, kind: str) -> str:
+        return next((tool.id for tool in reversed(self._display_tools)
+                     if kind == "all" or tool.executor.kind.value == kind), "")
+
+    @Slot(str, result=int)
+    def insertionIndex(self, tool_id: str) -> int:
+        visible = {tool.id for tool in self._display_tools}
+        index = 0
+        for tool in self._tools:
+            if tool.id == tool_id:
+                return index
+            index += tool.id in visible
+        return index
 
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:
         if not index.isValid() or not 0 <= index.row() < len(self._display_tools):
@@ -78,13 +98,52 @@ class ToolListModel(QAbstractListModel):
         selected_id: str = "",
         running_ids: set[str] | None = None,
     ) -> None:
-        self.beginResetModel()
+        previous = self._display_tools
+        previous_selected = self._selected_id
+        previous_running = self._running_ids
+        previous_total = len(self._tools)
         self._tools = list(tools)
-        self._display_tools = self._filtered_tools()
+        updated = self._filtered_tools()
+        old_ids = [tool.id for tool in previous]
+        new_ids = [tool.id for tool in updated]
+        structural = set(old_ids) != set(new_ids)
+        reordered = old_ids != new_ids
+        old_kinds = {tool.id: tool.executor.kind for tool in previous}
+        kinds_changed = any(old_kinds.get(tool.id) != tool.executor.kind for tool in updated)
+        persistent = []
+        if structural:
+            self.beginResetModel()
+        elif reordered:
+            self.layoutAboutToBeChanged.emit()
+            persistent = self.persistentIndexList()
+        self._display_tools = updated
         self._selected_id = selected_id
         self._running_ids = set(running_ids or ())
-        self.endResetModel()
-        self.countChanged.emit()
+        if structural:
+            self.endResetModel()
+        else:
+            if reordered:
+                rows = {tool_id: row for row, tool_id in enumerate(new_ids)}
+                self.changePersistentIndexList(
+                    persistent, [self.index(rows[old_ids[index.row()]], 0)
+                                 for index in persistent],
+                )
+                self.layoutChanged.emit()
+            old_tools = {tool.id: tool for tool in previous}
+            for row, tool in enumerate(updated):
+                roles = []
+                if tool != old_tools[tool.id]:
+                    roles = list(self.roleNames())
+                else:
+                    if (tool.id == selected_id) != (tool.id == previous_selected):
+                        roles.append(self.SelectedRole)
+                    if (tool.id in self._running_ids) != (tool.id in previous_running):
+                        roles.append(self.RunningRole)
+                if roles:
+                    index = self.index(row, 0)
+                    self.dataChanged.emit(index, index, roles)
+        if structural or reordered or kinds_changed or previous_total != len(tools):
+            self.countChanged.emit()
 
     def set_filter(self, query: str) -> None:
         normalized = query.strip().casefold()
@@ -94,6 +153,25 @@ class ToolListModel(QAbstractListModel):
         self._filter_query = normalized
         self._display_tools = self._filtered_tools()
         self.endResetModel()
+        self.countChanged.emit()
+
+    def set_excluded_ids(self, tool_ids: set[str]) -> None:
+        if tool_ids == self._excluded_ids:
+            return
+        self._excluded_ids = set(tool_ids)
+        updated = self._filtered_tools()
+        wanted = {tool.id for tool in updated}
+        for row in range(len(self._display_tools) - 1, -1, -1):
+            if self._display_tools[row].id not in wanted:
+                self.beginRemoveRows(_EMPTY_INDEX, row, row)
+                self._display_tools.pop(row)
+                self.endRemoveRows()
+        present = {tool.id for tool in self._display_tools}
+        for row, tool in enumerate(updated):
+            if tool.id not in present:
+                self.beginInsertRows(_EMPTY_INDEX, row, row)
+                self._display_tools.insert(row, tool)
+                self.endInsertRows()
         self.countChanged.emit()
 
     def select(self, tool_id: str) -> None:
@@ -127,7 +205,7 @@ class ToolListModel(QAbstractListModel):
         return [
             tool
             for tool in self._tools
-            if (
+            if tool.id not in self._excluded_ids and (
                 not self._filter_query
                 or self._filter_query in tool.title.casefold()
                 or self._filter_query in tool.description.casefold()

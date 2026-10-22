@@ -41,5 +41,14 @@ int main(int argc, char **argv)
         session.resize(48, 160);
         session.resize(24, 80);
     }
+    session.scrollback.clear();
+    for (int row = 0; row < kScrollbackLimit + 500; ++row) {
+        narrow[0].chars[0] = static_cast<uint32_t>(row + 1);
+        TerminalSession::pushLineCallback(80, narrow.data(), &session);
+    }
+    if (session.scrollback.size() != kScrollbackLimit
+        || session.scrollback.front()[0].chars[0] != 501
+        || session.scrollback.back()[0].chars[0] != kScrollbackLimit + 500)
+        return 3;
     return 0;
 }

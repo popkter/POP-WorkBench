@@ -10,7 +10,9 @@ import sys
 import tarfile
 import uuid
 import zipfile
+from copy import deepcopy
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from platformdirs import user_data_path
@@ -26,8 +28,17 @@ def configure_plugin_paths(paths: AppPaths) -> None:
 
 def plugin_record(paths: AppPaths, plugin: str) -> dict:
     record_file = paths.plugins_dir / plugin / "installed.json"
-    if not record_file.exists():
+    try:
+        metadata = record_file.stat()
+    except FileNotFoundError:
         return {}
+    return deepcopy(_read_plugin_record(
+        record_file, (metadata.st_mtime_ns, metadata.st_size, metadata.st_ino),
+    ))
+
+
+@lru_cache(maxsize=128)
+def _read_plugin_record(record_file: Path, signature: tuple[int, int, int]) -> dict:
     record = json.loads(record_file.read_text(encoding="utf-8"))
     directory = record.get("directory", "")
     if directory and (Path(directory).name != directory or directory in {".", ".."}):
@@ -64,6 +75,14 @@ def resource_path(*parts: str) -> Path:
     return package_root().joinpath("resources", *parts)
 
 
+def resolve_tool_source(source: str) -> Path:
+    path = Path(source)
+    if path.is_absolute():
+        return path
+    candidate = resource_path(source)
+    return candidate if candidate.exists() else package_root() / source
+
+
 def installed_runtime_path(*parts: str) -> Path:
     if getattr(sys, "frozen", False) and sys.platform == "win32":
         return Path(sys.executable).resolve().parent.joinpath("runtime", *parts)
@@ -72,9 +91,9 @@ def installed_runtime_path(*parts: str) -> Path:
 
 def bundled_android_tools_dir() -> Path:
     if sys.platform == "win32" and _managed_paths is not None:
-        from poptools.infrastructure.runtime_environment import RuntimeEnvironment
+        from poptools.infrastructure.runtime_environment import runtime_for
 
-        runtime = RuntimeEnvironment(_managed_paths)
+        runtime = runtime_for(_managed_paths)
         if runtime.source("android")[0] == "custom":
             return runtime.scrcpy_executable().parent
         return managed_plugin_directory(_managed_paths, "android") / "runtime"
@@ -89,17 +108,17 @@ def bundled_android_tools_dir() -> Path:
 
 def bundled_adb_path() -> Path:
     if sys.platform == "win32" and _managed_paths is not None:
-        from poptools.infrastructure.runtime_environment import RuntimeEnvironment
+        from poptools.infrastructure.runtime_environment import runtime_for
 
-        return RuntimeEnvironment(_managed_paths).executable("android")
+        return runtime_for(_managed_paths).executable("android")
     return bundled_android_tools_dir() / _android_tool_name("adb")
 
 
 def bundled_scrcpy_path() -> Path:
     if sys.platform == "win32" and _managed_paths is not None:
-        from poptools.infrastructure.runtime_environment import RuntimeEnvironment
+        from poptools.infrastructure.runtime_environment import runtime_for
 
-        return RuntimeEnvironment(_managed_paths).scrcpy_executable()
+        return runtime_for(_managed_paths).scrcpy_executable()
     return bundled_android_tools_dir() / _android_tool_name("scrcpy")
 
 

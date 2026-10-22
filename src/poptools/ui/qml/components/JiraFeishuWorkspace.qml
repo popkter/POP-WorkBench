@@ -127,7 +127,7 @@ ColumnLayout {
         Layout.preferredHeight: 68
         radius: Theme.radiusLarge
         color: Theme.surfaceContainerLow
-        border.color: Theme.outlineVariant
+        border.width: 0
 
         RowLayout {
             anchors.fill: parent
@@ -226,7 +226,7 @@ ColumnLayout {
             Layout.preferredHeight: 42
             radius: Theme.radiusMedium
             color: Theme.surfaceContainerLow
-            border.color: Theme.outlineVariant
+            border.width: 0
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.space16
@@ -308,7 +308,7 @@ ColumnLayout {
                 Layout.minimumHeight: 0
                 radius: Theme.radiusLarge
                 color: Theme.surfaceContainerLow
-                border.color: Theme.outlineVariant
+                border.width: 0
 
                 StackLayout {
                     anchors.fill: parent
@@ -703,7 +703,7 @@ ColumnLayout {
                     Text { text: "多个时刻使用逗号分隔；每个时刻当天只触发一次。"; color: Theme.textSecondary; font.pixelSize: Theme.fontSupporting }
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 76; radius: Theme.radiusMedium; color: Theme.surface
-                        border.color: Theme.outlineVariant
+                        border.width: 0
                         RowLayout { anchors.fill: parent; anchors.margins: Theme.space16; spacing: Theme.space12
                             MaterialIcon { icon: controller.scheduleRunning ? "schedule" : "schedule_send"; iconSize: 26; color: controller.scheduleRunning ? Theme.success : Theme.textSecondary }
                             ColumnLayout { Layout.fillWidth: true; spacing: Theme.space4
@@ -823,7 +823,7 @@ ColumnLayout {
             anchors.bottom: parent.bottom
             radius: Theme.radiusLarge
             color: Theme.consoleBackground
-            border.color: Theme.outlineVariant
+            border.width: 0
             clip: true
             visible: height > 0
             opacity: root.outputReveal

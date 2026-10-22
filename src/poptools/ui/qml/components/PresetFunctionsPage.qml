@@ -22,7 +22,7 @@ Rectangle {
 
     signal searchEdited(string query)
 
-    color: Theme.darkMode ? Theme.surface : "#FBFCFE"
+    color: "transparent"
 
     readonly property string selectedPresetCommand:
         root.controller.selectedTool && root.controller.selectedTool.executor
@@ -45,8 +45,7 @@ Rectangle {
                 Layout.fillHeight: true
                 radius: Theme.radiusMedium
                 color: Theme.surfaceContainerLow
-                border.color: Theme.outlineVariant
-                border.width: Theme.borderWidthThin
+                border.width: 0
                 clip: true
 
                 ColumnLayout {

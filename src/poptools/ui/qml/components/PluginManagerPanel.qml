@@ -45,10 +45,7 @@ ColumnLayout {
                     Text {
                         Layout.preferredWidth: implicitWidth
                         Layout.maximumWidth: Math.max(0, pluginContent.width
-                            - (installedBadge.visible ? installedBadge.implicitWidth + Theme.space8 : 0)
-                            - (latestLabel.visible ? Math.min(latestLabel.implicitWidth,
-                                140, pluginContent.width * 0.3) + Theme.space8 : 0)
-                            - Theme.space8)
+                            - (installedBadge.visible ? installedBadge.implicitWidth + Theme.space16 : Theme.space8))
                         Layout.minimumWidth: 0
                         text: modelData.name + (modelData.version ? "  " + modelData.version : "")
                         color: Theme.textPrimary
@@ -71,17 +68,6 @@ ColumnLayout {
                             font.pixelSize: Theme.fontCaption
                         }
                     }
-                    Text {
-                        id: latestLabel
-                        visible: !!modelData.latest
-                        Layout.preferredWidth: implicitWidth
-                        Layout.maximumWidth: Math.min(140, pluginContent.width * 0.3)
-                        Layout.minimumWidth: 0
-                        text: modelData.latest ? "最新 " + modelData.latest : ""
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontCaption
-                        elide: Text.ElideRight
-                    }
                     Item { Layout.fillWidth: true }
                 }
                 Text {
@@ -95,6 +81,8 @@ ColumnLayout {
                     Layout.fillWidth: true
                     visible: text.length > 0
                     text: (modelData.status === "已安装" ? "" : modelData.status)
+                        + (modelData.latest
+                           ? (modelData.status === "已安装" ? "最新 " : " · 最新 ") + modelData.latest : "")
                     color: Theme.textSecondary
                     font.pixelSize: Theme.fontCaption
                     wrapMode: Text.Wrap

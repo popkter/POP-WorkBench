@@ -3,66 +3,67 @@ import QtQuick
 
 QtObject {
     property bool darkMode: false
+    property bool decadeMode: false
 
-    // The application ships one visual language with light and dark palettes.
-    readonly property color primary: darkMode ? "#4090FF" : "#1677FF"
+    // Decade shares layout tokens, with a carbon-black and magenta palette.
+    readonly property color primary: decadeMode ? "#F12786" : darkMode ? "#4090FF" : "#1677FF"
     readonly property color primaryForeground: "#FFFFFF"
-    readonly property color primaryHover: darkMode ? "#66A5FF" : "#0868EA"
-    readonly property color primaryContainer: darkMode ? "#16365F" : "#E8F2FF"
-    readonly property color primaryContainerHover: darkMode ? "#1E477B" : "#D8E9FF"
-    readonly property color primaryText: darkMode ? "#79B2FF" : "#0E6FEA"
-    readonly property color secondary: darkMode ? "#AAB6C8" : "#536174"
+    readonly property color primaryHover: decadeMode ? "#FF5BA6" : darkMode ? "#66A5FF" : "#0868EA"
+    readonly property color primaryContainer: decadeMode ? "#42182E" : darkMode ? "#16365F" : "#E8F2FF"
+    readonly property color primaryContainerHover: decadeMode ? "#5B203E" : darkMode ? "#1E477B" : "#D8E9FF"
+    readonly property color primaryText: decadeMode ? "#FF88BE" : darkMode ? "#79B2FF" : "#0E6FEA"
+    readonly property color secondary: decadeMode ? "#C7C5CC" : darkMode ? "#AAB6C8" : "#536174"
     readonly property color secondaryForeground: "#FFFFFF"
-    readonly property color secondaryHover: darkMode ? "#C3CDDB" : "#405064"
-    readonly property color secondaryContainer: darkMode ? "#2A3442" : "#F1F4F8"
-    readonly property color secondaryContainerHover: darkMode ? "#344152" : "#E7EBF1"
-    readonly property color secondaryText: darkMode ? "#D7DEE8" : "#334155"
+    readonly property color secondaryHover: decadeMode ? "#E7E4EB" : darkMode ? "#C3CDDB" : "#405064"
+    readonly property color secondaryContainer: decadeMode ? "#29272F" : darkMode ? "#2A3442" : "#F1F4F8"
+    readonly property color secondaryContainerHover: decadeMode ? "#35313D" : darkMode ? "#344152" : "#E7EBF1"
+    readonly property color secondaryText: decadeMode ? "#E5E1E9" : darkMode ? "#D7DEE8" : "#334155"
     readonly property color tertiary: darkMode ? "#C29BFF" : "#8556D8"
     readonly property color tertiaryForeground: "#FFFFFF"
     readonly property color tertiaryHover: darkMode ? "#D1B4FF" : "#7145BE"
     readonly property color tertiaryContainer: darkMode ? "#3B2858" : "#F1E9FF"
     readonly property color tertiaryContainerHover: darkMode ? "#4A326E" : "#E7DAFF"
     readonly property color tertiaryText: darkMode ? "#E3D2FF" : "#6F42C1"
-    readonly property color surface: darkMode ? "#11161E" : "#F8FAFC"
-    readonly property color chromeBackground: darkMode ? "#2B2D30" : "#F7F8FA"
-    readonly property color chromeForeground: darkMode ? "#DFE1E5" : "#27282E"
+    readonly property color surface: decadeMode ? "#101014" : darkMode ? "#11161E" : "#F8FAFC"
+    readonly property color chromeBackground: decadeMode ? "#19191F" : darkMode ? "#2B2D30" : "#F7F8FA"
+    readonly property color chromeForeground: decadeMode ? "#F4F0F5" : darkMode ? "#DFE1E5" : "#27282E"
     readonly property int captionControlWidth: 47
     readonly property int captionGlyphSize: 10
     readonly property int captionActionHeight: 28
     readonly property color sidebar: chromeBackground
     readonly property color workspaceBackground: darkMode ? surface : "#FBFCFE"
-    readonly property color navigationHover: darkMode ? "#393B40" : "#E9EAEC"
+    readonly property color navigationHover: decadeMode ? "#302631" : darkMode ? "#393B40" : "#E9EAEC"
     readonly property color navigationBorder: darkMode ? outlineVariant : "#E0E5EB"
-    readonly property color navigationActiveBorder: darkMode ? primary : "#88BFFF"
-    readonly property color navigationIcon: darkMode ? "#CED0D6" : "#6C707E"
+    readonly property color navigationActiveBorder: decadeMode ? "#F12786" : darkMode ? primary : "#88BFFF"
+    readonly property color navigationIcon: decadeMode ? "#BDB6C2" : darkMode ? "#CED0D6" : "#6C707E"
     readonly property color navigationActiveIcon: "#FFFFFF"
     readonly property color listSelected: darkMode ? primaryContainer : "#E5F0FF"
     readonly property color listAlternate: darkMode ? "transparent" : "#FAFBFC"
     readonly property color inputBorder: darkMode ? outline : "#A8CFFF"
     readonly property color terminalToolbar: darkMode ? surface : "#FFFFFF"
-    readonly property color terminalBackground: darkMode ? "#171C24" : "#2B313D"
-    readonly property color terminalTabSelected: darkMode ? "#43546A" : terminalBackground
-    readonly property color terminalTabBorder: darkMode ? "#647D9B" : "#E1E5EA"
+    readonly property color terminalBackground: decadeMode ? "#121216" : darkMode ? "#171C24" : "#2B313D"
+    readonly property color terminalTabSelected: decadeMode ? "#42182E" : darkMode ? "#43546A" : terminalBackground
+    readonly property color terminalTabBorder: decadeMode ? "#82516D" : darkMode ? "#647D9B" : "#E1E5EA"
     readonly property color terminalTabText: darkMode ? textPrimary : "#404750"
     readonly property color terminalTabMuted: darkMode ? textSecondary : "#6B737D"
     readonly property color terminalTabAction: darkMode ? "#C3CDDA" : "#7A838D"
-    readonly property color terminalTabHover: darkMode ? "#39424F" : "#E8ECF1"
+    readonly property color terminalTabHover: decadeMode ? "#302631" : darkMode ? "#39424F" : "#E8ECF1"
     readonly property color terminalTabDivider: darkMode ? outlineVariant : "#D8DDE3"
-    readonly property color terminalDropHighlight: "#331B78F2"
-    readonly property color navigationSelected: "#3574F0"
-    readonly property color surfaceContainerLow: darkMode ? "#171E28" : "#FFFFFF"
-    readonly property color surfaceContainer: darkMode ? "#1D2530" : "#F5F7FA"
-    readonly property color surfaceContainerHigh: darkMode ? "#26313F" : "#EDF1F5"
-    readonly property color outline: darkMode ? "#435064" : "#D9DEE7"
-    readonly property color outlineVariant: darkMode ? "#303B4B" : "#E0E4EA"
-    readonly property color popupSurface: darkMode ? "#1B232E" : "#FFFFFF"
-    readonly property color popupHover: darkMode ? "#26313F" : "#F4F6F9"
-    readonly property color popupSelected: darkMode ? "#173A66" : "#E8F2FF"
+    readonly property color terminalDropHighlight: decadeMode ? "#33F12786" : "#331B78F2"
+    readonly property color navigationSelected: decadeMode ? "#C81768" : "#3574F0"
+    readonly property color surfaceContainerLow: decadeMode ? "#17171D" : darkMode ? "#171E28" : "#FFFFFF"
+    readonly property color surfaceContainer: decadeMode ? "#202027" : darkMode ? "#1D2530" : "#F5F7FA"
+    readonly property color surfaceContainerHigh: decadeMode ? "#2B2933" : darkMode ? "#26313F" : "#EDF1F5"
+    readonly property color outline: decadeMode ? "#51414D" : darkMode ? "#435064" : "#D9DEE7"
+    readonly property color outlineVariant: decadeMode ? "#352C37" : darkMode ? "#303B4B" : "#E0E4EA"
+    readonly property color popupSurface: decadeMode ? "#1D1B23" : darkMode ? "#1B232E" : "#FFFFFF"
+    readonly property color popupHover: decadeMode ? "#302631" : darkMode ? "#26313F" : "#F4F6F9"
+    readonly property color popupSelected: decadeMode ? "#42182E" : darkMode ? "#173A66" : "#E8F2FF"
     readonly property color popupShadow: darkMode ? "#99000000" : "#290F172A"
     readonly property color dialogShadow: darkMode ? "#B3000000" : "#380F172A"
     readonly property color scrim: darkMode ? "#8F070B12" : "#470F172A"
-    readonly property color textPrimary: darkMode ? "#F3F6FA" : "#0B0F17"
-    readonly property color textSecondary: darkMode ? "#93A0B3" : "#7B8496"
+    readonly property color textPrimary: decadeMode ? "#F8F2F7" : darkMode ? "#F3F6FA" : "#0B0F17"
+    readonly property color textSecondary: decadeMode ? "#B6A9B7" : darkMode ? "#93A0B3" : "#7B8496"
     readonly property color success: darkMode ? "#5FD49A" : "#29AF6F"
     readonly property color successForeground: darkMode ? "#071D13" : "#FFFFFF"
     readonly property color successContainer: darkMode ? "#123D2A" : "#E8F8EF"
@@ -71,11 +72,11 @@ QtObject {
     readonly property color errorColor: darkMode ? "#FF8D87" : "#E5484D"
     readonly property color errorContainer: darkMode ? "#4C2225" : "#FFF0F0"
     readonly property color middlePanel: surfaceContainerLow
-    readonly property color consoleBackground: "#10151D"
+    readonly property color consoleBackground: decadeMode ? "#101014" : "#10151D"
     readonly property color consoleText: "#E5E7EB"
-    readonly property color consoleMuted: "#728298"
-    readonly property color consoleHeaderBackground: "#202731"
-    readonly property color consoleTag: "#66AFFF"
+    readonly property color consoleMuted: decadeMode ? "#AA9BAC" : "#728298"
+    readonly property color consoleHeaderBackground: decadeMode ? "#232028" : "#202731"
+    readonly property color consoleTag: decadeMode ? "#FF88BE" : "#66AFFF"
     readonly property color consoleWarning: "#FFCE66"
     readonly property color consoleError: "#FF8585"
     readonly property color consoleDivider: outlineVariant
@@ -130,7 +131,7 @@ QtObject {
     property int borderWidthThick: 3
     readonly property color buttonDefault: primary
     readonly property color buttonHover: primaryHover
-    readonly property color buttonPressed: darkMode ? "#2578E8" : "#005AC7"
+    readonly property color buttonPressed: decadeMode ? "#C81768" : darkMode ? "#2578E8" : "#005AC7"
     readonly property color buttonDisabled: surfaceContainerHigh
     readonly property color inputDefault: surfaceContainerLow
     readonly property color inputHover: surfaceContainer
@@ -208,8 +209,8 @@ QtObject {
     readonly property int motionFast: 120
     readonly property int motionStandard: 180
     readonly property int motionSpinner: 750
-    readonly property int floatingTipWidth: 24
-    readonly property int floatingTipHeight: 64
+    readonly property int floatingTipWidth: 40
+    readonly property int floatingTipHeight: 40
     readonly property int floatingPanelWidth: 360
     readonly property int floatingPanelHeight: 480
     readonly property real floatingIdleOpacity: 0.55

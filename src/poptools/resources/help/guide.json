@@ -21,7 +21,7 @@
       },
       {
         "title": "终端与 Python 环境",
-        "body": "多标签独立 Shell 会话，共用应用的 ADB 与 Python 环境。Python Doctor 检查脚本依赖，确认后安装到专属环境。",
+        "body": "多标签独立 Shell 会话，共用应用的 ADB 与 Python 环境。Python Doctor 异步检查脚本依赖，确认后安装到专属环境，安装支持取消和超时处理。",
         "icon": "terminal"
       },
       {

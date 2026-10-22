@@ -71,6 +71,13 @@ class BackgroundProcess(QObject):
         if self.running and self._process is not None:
             self._process.kill()
 
+    def shutdown(self) -> None:
+        """Reap a child before the application event loop exits."""
+        process = self._process
+        if process is not None:
+            process.kill()
+            process.waitForFinished(1000)
+
     def _read_stdout(self) -> None:
         if self._process is None:
             return

@@ -7,6 +7,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <deque>
 #include <QWheelEvent>
 #include <QtQml/qqml.h>
 
@@ -185,7 +186,7 @@ struct TerminalSession
         auto *session = static_cast<TerminalSession *>(user);
         session->scrollback.emplace_back(cells, cells + columns);
         if (session->scrollback.size() > kScrollbackLimit)
-            session->scrollback.erase(session->scrollback.begin());
+            session->scrollback.pop_front();
         if (session->scrollOffset > 0)
             session->scrollOffset = std::min(session->scrollOffset + 1,
                                              static_cast<int>(session->scrollback.size()));
@@ -241,7 +242,7 @@ struct TerminalSession
     VTerm *vt = nullptr;
     VTermScreen *screen = nullptr;
     VTermState *state = nullptr;
-    std::vector<CellLine> scrollback;
+    std::deque<CellLine> scrollback;
     QPoint cursor;
     bool cursorVisible = true;
     int cursorShape = VTERM_PROP_CURSORSHAPE_BAR_LEFT;

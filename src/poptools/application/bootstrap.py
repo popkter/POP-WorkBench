@@ -53,23 +53,10 @@ class ApplicationComponents:
 
 def plugin_usage_reason(plugin, terminal, execution, app) -> str:
     if plugin == "powershell":
-        tabs = [tab.title for tab in terminal._tabs if tab.session is not None]
+        tabs = terminal.active_session_titles()
         if tabs:
             return "请先停止终端会话：" + "、".join(tabs)
-    # Scripts can invoke any plugin through PATH, including after their initial launch.
-    if any(worker.active for worker in execution._executions.values()):
-        return "请先结束正在运行的脚本，脚本可能调用插件工具"
-    if plugin == "android" and execution._scrcpy.active:
-        return "请先结束正在运行或启动中的投屏任务"
-    if (plugin == "android" and getattr(app, "_scrcpy_displays", None)
-            and app._scrcpy_displays.loading):
-        return "请先等待屏幕列表查询完成"
-    if plugin == "python":
-        if app._python_doctor_process is not None:
-            return "请先等待 Python 依赖诊断完成"
-        if app._python_package_install is not None:
-            return "请先等待 Python 依赖安装完成"
-    return ""
+    return execution.plugin_usage_reason(plugin) or app.plugin_usage_reason(plugin)
 
 
 def build_components(
@@ -103,17 +90,13 @@ def build_components(
     preset_controller = PresetController(paths)
     jira_feishu_controller = JiraFeishuController(paths.data_dir)
     developer_console_controller = DeveloperConsoleController(
-        python_environment, working_directory=terminal_working_directory
+        python_environment, working_directory=terminal_working_directory,
+        plugin_manager=settings_controller.pluginManager,
     )
     update_controller = UpdateController(config_store)
     if sys.platform == "win32":
-        from poptools.infrastructure.managed_powershell import ManagedPowerShell
         manager = settings_controller.pluginManager
-        developer_console_controller._plugin = ManagedPowerShell(manager.service)
-        developer_console_controller._plugin_manager = manager
-        manager.changed.connect(developer_console_controller.pluginStateChanged)
         manager.changed.connect(android_controller.refreshPluginAvailability)
-        manager.completed.connect(developer_console_controller.onManagedPluginCompleted)
         execution_coordinator.plugin_mutation_active = lambda: manager.mutating
         android_controller.plugin_discovery_allowed = lambda: (
             not manager.mutating and not manager.androidPaused
@@ -126,7 +109,7 @@ def build_components(
               if plugin == "android" and preset_controller.recording else "")
         manager.configuration_busy_check = lambda plugin: (
             "请先停止终端会话后切换运行环境"
-            if any(tab.session is not None for tab in developer_console_controller._tabs)
+            if developer_console_controller.active_session_titles()
             else manager.busy_check(plugin)
         )
         from PySide6.QtCore import QCoreApplication

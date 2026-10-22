@@ -97,7 +97,7 @@ AppDialog {
                 Text {
                     Layout.fillWidth: true
                     visible: root.packageNames.length > 0
-                    text: "确认后开始安装，安装完成前此窗口不会关闭。"
+                    text: "确认后开始安装，可随时取消。"
                     color: Theme.textSecondary
                     font.pixelSize: Theme.fontCaption
                     wrapMode: Text.Wrap
@@ -120,8 +120,12 @@ AppDialog {
             Item { Layout.fillWidth: true }
             DialogActionButton {
                 text: "取消"
-                enabled: !root.installing
-                onClicked: root.close()
+                onClicked: {
+                    if (root.installing)
+                        root.controller.cancelPythonDependencyInstall()
+                    else
+                        root.close()
+                }
             }
             DialogActionButton {
                 visible: root.packageNames.length > 0

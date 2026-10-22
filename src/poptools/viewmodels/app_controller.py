@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import shlex
 from pathlib import Path
 from typing import Any
 
 from pypinyin import lazy_pinyin
 from PySide6.QtCore import (
     Property,
+    QCoreApplication,
     QObject,
     QRect,
     QTimer,
@@ -17,7 +17,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QGuiApplication, QWindow
 from PySide6.QtWidgets import QFileDialog
 
-from poptools.domain.adb_detection import AdbAnalysis, analyze_adb
+from poptools.domain.adb_detection import AdbAnalysis
 from poptools.domain.models import (
     AndroidDeviceMode,
     ExecutorDefinition,
@@ -26,7 +26,6 @@ from poptools.domain.models import (
     ToolDefinition,
     ToolSection,
 )
-from poptools.infrastructure.background_process import BackgroundProcess
 from poptools.infrastructure.config_store import ConfigStore
 from poptools.infrastructure.custom_tool_transfer import (
     decode_custom_tool,
@@ -34,25 +33,20 @@ from poptools.infrastructure.custom_tool_transfer import (
 )
 from poptools.infrastructure.python_doctor import (
     PythonDoctor,
-    PythonDoctorResult,
-    pip_package_names,
 )
+from poptools.infrastructure.tool_analysis import ToolAnalysisService
 from poptools.infrastructure.tool_registry import ToolRegistry
-from poptools.paths import package_root, resource_path
 from poptools.runners import ExecutionCoordinator
 from poptools.viewmodels.android_controller import AndroidController
+from poptools.viewmodels.python_dependency_controller import PythonDependencyController
 from poptools.viewmodels.scrcpy_display_controller import ScrcpyDisplayController
+from poptools.viewmodels.tool_console_store import ToolConsoleStore
 from poptools.viewmodels.tool_list_model import ToolListModel
 
 SECTION_TITLES = {
     ToolSection.PRESET: "预设",
     ToolSection.CUSTOM: "客制",
 }
-
-CONSOLE_REFRESH_INTERVAL_MS = 50
-CONSOLE_MAX_CHARS = 200_000
-CONSOLE_RETAINED_CHARS = 150_000
-
 
 def _local_path_from_url(url: str) -> str:
     dropped_url = QUrl(url)
@@ -86,6 +80,7 @@ class AppController(QObject):
     pythonDoctorWarning = Signal(str)
     pythonDoctorInstallSuggestion = Signal(str)
     pythonDependencyInstallFinished = Signal(bool, str)
+    pythonDependencyInstallStatus = Signal(str)
     executionCapacityRequested = Signal(str, str)
     toolSortModeChanged = Signal()
     recentToolDialogRequested = Signal(str)
@@ -105,6 +100,7 @@ class AppController(QObject):
         super().__init__()
         self.selectedToolChanged.connect(self.selectedToolDataChanged)
         self.registry = registry
+        self._tool_analysis = ToolAnalysisService()
         self.execution_coordinator = execution_coordinator
         self.execution = execution_coordinator.execution
         self.config_store = config_store
@@ -114,13 +110,10 @@ class AppController(QObject):
             ToolSection.CUSTOM.value: "",
             ToolSection.PRESET.value: "",
         }
-        self._console_texts = {"": "14:20:15  泡泡工具箱 已就绪\n"}
+        self.console_store = ToolConsoleStore(self)
+        self.console_store.changed.connect(self._on_console_changed)
+        self._console_refresh_timer = self.console_store.timer
         self._tool_statuses: dict[str, str] = {}
-        self._pending_console_chunks: dict[str, list[str]] = {}
-        self._console_refresh_timer = QTimer(self)
-        self._console_refresh_timer.setSingleShot(True)
-        self._console_refresh_timer.setInterval(CONSOLE_REFRESH_INTERVAL_MS)
-        self._console_refresh_timer.timeout.connect(self._flush_console)
         self._status_text = "就绪"
         self._tool_sort_mode = config_store.tool_sort_mode()
         self._tools_model = ToolListModel()
@@ -129,10 +122,19 @@ class AppController(QObject):
         self._scrcpy_displays = ScrcpyDisplayController(
             android_controller, execution_coordinator, self
         )
-        self._python_doctor = python_doctor or PythonDoctor()
-        self._python_doctor_command = ""
-        self._python_doctor_process: BackgroundProcess | None = None
-        self._python_package_install: BackgroundProcess | None = None
+        self.dependencies = PythonDependencyController(
+            self.execution.python_environment, python_doctor or PythonDoctor(), self,
+        )
+        self.dependencies.plugin_mutation_active = lambda: getattr(
+            self, "plugin_mutation_active", lambda: False
+        )()
+        self.dependencies.consoleMessage.connect(self._append_console)
+        self.dependencies.pythonDoctorWarning.connect(self.pythonDoctorWarning)
+        self.dependencies.pythonDoctorInstallSuggestion.connect(self.pythonDoctorInstallSuggestion)
+        self.dependencies.pythonDependencyInstallFinished.connect(self.pythonDependencyInstallFinished)
+        self.dependencies.installStatusChanged.connect(self.pythonDependencyInstallStatus)
+        if QCoreApplication.instance():
+            QCoreApplication.instance().aboutToQuit.connect(self.dependencies.shutdown)
         self._pending_import_tool: ToolDefinition | None = None
         self.execution_coordinator.output.connect(self._queue_console)
         self.execution_coordinator.started.connect(self._on_execution_started)
@@ -201,7 +203,7 @@ class AppController(QObject):
 
     @Property(str, notify=consoleTextChanged)
     def consoleText(self) -> str:
-        return self._console_texts.get("", "")
+        return self.console_store.text()
 
     @Property(bool, notify=runningChanged)
     def running(self) -> bool:
@@ -328,7 +330,6 @@ class AppController(QObject):
             self._section_selections[tool.section.value] = tool.id
         self._tools_model.select(tool_id)
         self.selectedToolChanged.emit()
-        self.consoleTextChanged.emit()
         self.runningChanged.emit()
         self._status_text = "运行中" if self.running else "就绪"
         self.statusTextChanged.emit()
@@ -342,7 +343,6 @@ class AppController(QObject):
         self._selected = None
         self._tools_model.select("")
         self.selectedToolChanged.emit()
-        self.consoleTextChanged.emit()
         self.runningChanged.emit()
         self._status_text = "就绪"
         self.statusTextChanged.emit()
@@ -455,11 +455,7 @@ class AppController(QObject):
 
     @Slot()
     def clearConsole(self) -> None:
-        self._pending_console_chunks.pop("", None)
-        if not self._pending_console_chunks:
-            self._console_refresh_timer.stop()
-        self._console_texts[""] = ""
-        self.consoleTextChanged.emit()
+        self.console_store.clear()
 
     @Slot(str)
     def appendConsoleMessage(self, text: str) -> None:
@@ -519,15 +515,7 @@ class AppController(QObject):
             or self.running
         ):
             return False
-        try:
-            selected_id = self._selected.id
-            # Do not rebuild the parameter form: other fields may contain unsaved input.
-            self._selected = self.registry.set_parameter_default(selected_id, parameter_id, default)
-            self._append_console(f"已更新参数“{parameter_id}”的默认值。\n")
-            return True
-        except (KeyError, OSError, ValueError) as exc:
-            self._append_console(f"默认值保存失败：{exc}\n")
-            return False
+        return self.update_tool_parameter_default(self._selected.id, parameter_id, default)
 
     @Slot(str, result=str)
     def localPathFromUrl(self, url: str) -> str:
@@ -667,183 +655,25 @@ class AppController(QObject):
         return self._run_python_doctor(self._selected.executor.command)
 
     def _run_python_doctor(self, command: str) -> bool:
-        if getattr(self, "plugin_mutation_active", lambda: False)():
-            self.pythonDoctorWarning.emit("插件正在变更，请等待操作完成后再检查依赖。")
-            return False
-        if self._python_doctor_process is not None:
-            self._append_console("Python Doctor：正在检查依赖，请稍候。\n")
-            return False
-        self._python_doctor_command = command
-        plan = self._python_doctor.prepare(command)
-        if plan.immediate_result is not None:
-            self._report_python_doctor_result(plan.immediate_result)
-            return True
-        executable = self.execution.python_environment.executable()
-        if not executable:
-            self._report_python_doctor_result(
-                PythonDoctorResult(
-                    checked_modules=plan.checked_modules,
-                    environment_error="Python 插件不可用，请在设置的插件管理中安装或修复",
-                )
-            )
-            return True
-        if not plan.modules_to_check:
-            self._report_python_doctor_result(
-                PythonDoctorResult(checked_modules=plan.checked_modules),
-                executable,
-            )
-            return True
-
-        process = BackgroundProcess(self)
-        self._python_doctor_process = process
-        stdout = bytearray()
-        stderr = bytearray()
-        errors: list[str] = []
-        timed_out = [False]
-        timeout = QTimer(process)
-        timeout.setSingleShot(True)
-
-        def stop_on_timeout() -> None:
-            timed_out[0] = True
-            process.kill()
-
-        def finish(exit_code: int) -> None:
-            self._python_doctor_process = None
-            timeout.stop()
-            if timed_out[0]:
-                result = PythonDoctorResult(
-                    checked_modules=plan.checked_modules,
-                    environment_error="依赖检查超时",
-                )
-            else:
-                error_text = stderr.decode("utf-8", "replace")
-                if errors:
-                    error_text = "\n".join([error_text, *errors]).strip()
-                result = self._python_doctor.complete_probe(
-                    plan,
-                    exit_code,
-                    stdout.decode("utf-8", "replace"),
-                    error_text,
-                )
-            self._report_python_doctor_result(result, executable)
-            process.deleteLater()
-
-        process.stdoutReady.connect(stdout.extend)
-        process.stderrReady.connect(stderr.extend)
-        process.errorOccurred.connect(errors.append)
-        process.finished.connect(finish)
-        timeout.timeout.connect(stop_on_timeout)
-        self._append_console("Python Doctor：正在异步检查依赖…\n")
-        started = process.start(
-            executable,
-            ["-c", self._python_doctor.probe_source(), *plan.modules_to_check],
-        )
-        timeout.start(20_000)
-        return started
-
-    def _report_python_doctor_result(
-        self,
-        result: PythonDoctorResult,
-        executable: str | None = None,
-    ) -> None:
-        executable = executable or self.execution.python_environment.executable()
-        if result.environment_error:
-            message = f"Python Doctor 无法检查所选环境：{result.environment_error}"
-            self._append_console(f"{message}\n")
-            self.pythonDoctorWarning.emit(
-                f"Python 环境无法完成检查。\n\n{result.environment_error}\n\n"
-                "请确认应用专属 Python 环境已准备完成。"
-            )
-        elif result.missing_modules:
-            modules = "、".join(result.missing_modules)
-            package_names = " ".join(pip_package_names(result.missing_modules))
-            install_command = f'"{executable}" -m pip install {package_names}'
-            message = f"Python Doctor 发现缺失依赖：{modules}"
-            self._append_console(f"{message}\n> {install_command}\n")
-            self.pythonDoctorWarning.emit(
-                f"当前 Python 环境缺少以下依赖模块：{modules}\n\n"
-                "是否确认使用应用内 Python 环境安装？"
-            )
-            self.pythonDoctorInstallSuggestion.emit(package_names)
-        elif result.syntax_error:
-            message = f"Python Doctor 无法完成检查，脚本存在语法错误：{result.syntax_error}"
-            self._append_console(f"{message}\n")
-            self.pythonDoctorWarning.emit(
-                f"脚本已创建，但 Python Doctor 无法完成依赖检查。\n\n{result.syntax_error}"
-            )
-        else:
-            self._append_console("Python Doctor：未发现缺失依赖。\n")
+        return self.dependencies.check(command)
 
     @Slot(str, result=bool)
     def installPythonDependencies(self, package_text: str) -> bool:
-        """Install packages into the interpreter currently used by user scripts."""
-        if getattr(self, "plugin_mutation_active", lambda: False)():
-            self.pythonDependencyInstallFinished.emit(False, "插件正在变更，请稍后重试。")
-            return False
-        if self._python_package_install is not None:
-            return False
-        executable = self.execution.python_environment.executable()
-        if not executable:
-            message = "Python 插件不可用，请先在设置的插件管理中安装。"
-            self._append_console(f"Python 依赖安装失败：{message}\n")
-            self.pythonDependencyInstallFinished.emit(False, message)
-            return False
-        try:
-            packages = shlex.split(package_text.strip(), posix=False)
-        except ValueError as exc:
-            message = f"包名格式无效：{exc}"
-            self._append_console(f"Python 依赖安装失败：{message}\n")
-            self.pythonDependencyInstallFinished.emit(False, message)
-            return False
-        packages = [package.strip().strip('"') for package in packages if package.strip()]
-        if not packages or any(package.startswith("-") for package in packages):
-            message = "请填写有效的 pip 包名，不要填写命令选项。"
-            self._append_console(f"Python 依赖安装失败：{message}\n")
-            self.pythonDependencyInstallFinished.emit(False, message)
-            return False
+        return self.dependencies.installPythonDependencies(package_text)
 
-        pip_ready, pip_error = self.execution.python_environment.ensure_pip()
-        if not pip_ready:
-            message = f"应用内 pip 不可用：{pip_error}"
-            self._append_console(f"Python 依赖安装失败：{message}\n")
-            self.pythonDependencyInstallFinished.emit(False, message)
-            return False
+    @Slot()
+    def cancelPythonDependencyInstall(self) -> None:
+        self.dependencies.cancelInstall()
 
-        process = BackgroundProcess(self)
-        errors: list[str] = []
-        self._python_package_install = process
+    def python_usage_reason(self) -> str:
+        return self.dependencies.usage_reason()
 
-        def append_output(payload: bytes) -> None:
-            text = payload.decode("utf-8", "replace")
-            if text:
-                self._append_console(text)
-
-        def finish(exit_code: int) -> None:
-            self._python_package_install = None
-            process.deleteLater()
-            if exit_code == 0:
-                message = "依赖安装完成，正在重新检查 Python 脚本依赖…"
-                self._append_console(f"{message}\n")
-                self.pythonDependencyInstallFinished.emit(True, message)
-                if self._python_doctor_command:
-                    self._run_python_doctor(self._python_doctor_command)
-            else:
-                detail = "\n".join(errors).strip() or f"退出码 {exit_code}"
-                message = f"安装失败：{detail}"
-                self._append_console(f"Python 依赖安装失败：{message}\n")
-                self.pythonDependencyInstallFinished.emit(False, message)
-
-        process.stdoutReady.connect(append_output)
-        process.stderrReady.connect(append_output)
-        process.errorOccurred.connect(errors.append)
-        process.finished.connect(finish)
-        self._append_console(f"> {executable} -m pip install {' '.join(packages)}\n")
-        started = process.start(executable, ["-m", "pip", "install", *packages])
-        if not started:
-            self._python_package_install = None
-            process.deleteLater()
-            return False
-        return True
+    def plugin_usage_reason(self, plugin: str) -> str:
+        if plugin == "python":
+            return self.python_usage_reason()
+        if plugin == "android" and self._scrcpy_displays.loading:
+            return "请先等待屏幕列表查询完成"
+        return ""
 
     @Slot(result=bool)
     def deleteSelected(self) -> bool:
@@ -879,7 +709,6 @@ class AppController(QObject):
         self.customToolsChanged.emit()
         if notify_selected:
             self.selectedToolChanged.emit()
-        self.consoleTextChanged.emit()
         self.runningChanged.emit()
         self._status_text = "运行中" if self.running else "就绪"
         self.statusTextChanged.emit()
@@ -916,16 +745,8 @@ class AppController(QObject):
         """Compare Chinese and Latin names through one case-insensitive pinyin key."""
         return "".join(lazy_pinyin(title)).casefold()
 
-    @staticmethod
-    def _analyze_tool(tool: ToolDefinition) -> AdbAnalysis:
-        def resolve(source: str) -> Path:
-            path = Path(source)
-            if path.is_absolute():
-                return path
-            candidate = Path(resource_path(source))
-            return candidate if candidate.exists() else package_root() / source
-
-        return analyze_adb(tool, resolve)
+    def _analyze_tool(self, tool: ToolDefinition) -> AdbAnalysis:
+        return self._tool_analysis.analyze(tool)
 
     def _refresh_adb_analysis(self) -> None:
         analysis = self._analyze_tool(self._selected) if self._selected else None
@@ -964,8 +785,7 @@ class AppController(QObject):
     def _record_tool_usage(self, tool: ToolDefinition) -> None:
         if tool.section != ToolSection.CUSTOM:
             return
-        self.config_store.record_tool_recent(tool.id)
-        self.config_store.increment_tool_usage(tool.id)
+        self.config_store.record_tool_use(tool.id)
         self.customToolsChanged.emit()
         if self._tool_sort_mode == "usage":
             selected_id = self._selected.id if self._selected is not None else ""
@@ -1003,40 +823,37 @@ class AppController(QObject):
             self._commit_console(tool_id, text)
 
     def clear_tool_console(self, tool_id: str) -> None:
-        self._pending_console_chunks.pop(tool_id, None)
-        self._console_texts[tool_id] = ""
-        self.toolConsoleChanged.emit(tool_id)
+        self.console_store.clear(tool_id)
 
     def _queue_console(self, tool_id: str, text: str) -> None:
-        """Coalesce high-volume process output before notifying the QML text view."""
-        if not text:
-            return
-        for key in ("", tool_id) if tool_id else ("",):
-            self._pending_console_chunks.setdefault(key, []).append(text)
-        if not self._console_refresh_timer.isActive():
-            self._console_refresh_timer.start()
+        self.console_store.queue(tool_id, text)
 
     def _flush_console(self) -> None:
-        if not self._pending_console_chunks:
-            return
-        pending = self._pending_console_chunks
-        self._pending_console_chunks = {}
-        for key, chunks in pending.items():
-            self._store_console(key, "".join(chunks))
-            if key:
-                self.toolConsoleChanged.emit(key)
-        self.consoleTextChanged.emit()
+        self.console_store.flush()
 
     def _commit_console(self, key: str, text: str) -> None:
-        self._store_console(key, text)
+        self.console_store.append(key, text)
+
+    def _on_console_changed(self, key: str) -> None:
         if key:
             self.toolConsoleChanged.emit(key)
         else:
             self.consoleTextChanged.emit()
 
-    def _store_console(self, key: str, text: str) -> None:
-        value = self._console_texts.get(key, "")
-        value += text
-        if len(value) > CONSOLE_MAX_CHARS:
-            value = value[-CONSOLE_RETAINED_CHARS:]
-        self._console_texts[key] = value
+    def tool_status(self, tool_id: str) -> str:
+        return self._tool_statuses.get(
+            tool_id, "运行中" if self.execution_coordinator.running(tool_id) else "就绪",
+        )
+
+    def update_tool_parameter_default(self, tool_id: str, parameter_id: str, default: str) -> bool:
+        if self.execution_coordinator.running(tool_id):
+            return False
+        try:
+            tool = self.registry.set_parameter_default(tool_id, parameter_id, default)
+            if self._selected is not None and self._selected.id == tool_id:
+                self._selected = tool
+            self.append_tool_console(tool_id, f"已更新参数“{parameter_id}”的默认值。\n")
+            return True
+        except (KeyError, OSError, ValueError) as exc:
+            self.append_tool_console(tool_id, f"默认值保存失败：{exc}\n")
+            return False

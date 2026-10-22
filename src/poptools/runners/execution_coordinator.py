@@ -69,6 +69,13 @@ class ExecutionCoordinator(QObject):
     def set_ordinary_limit(self, limit: int) -> None:
         self._ordinary_limit = max(1, min(limit, 5))
 
+    def plugin_usage_reason(self, plugin: str) -> str:
+        if any(worker.active for worker in self._executions.values()):
+            return "请先结束正在运行的脚本，脚本可能调用插件工具"
+        if plugin == "android" and self._scrcpy.active:
+            return "请先结束正在运行或启动中的投屏任务"
+        return ""
+
     def start(self, tool: ToolDefinition, values: dict[str, Any], device_serial: str = "") -> bool:
         if getattr(self, "plugin_mutation_active", lambda: False)():
             self.output.emit(tool.id, "插件正在变更，请等待操作完成后再运行。\n")

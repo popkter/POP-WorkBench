@@ -91,6 +91,11 @@ def test_controller_save_does_not_reset_form():
         _selected=SimpleNamespace(id="tool"), running=False,
         registry=SimpleNamespace(set_parameter_default=lambda *args: updated),
         _append_console=lambda message: None,
+        append_tool_console=lambda *args: None,
+        execution_coordinator=SimpleNamespace(running=lambda _: False),
+    )
+    controller.update_tool_parameter_default = lambda *args: (
+        AppController.update_tool_parameter_default(controller, *args)
     )
     # No refresh method: saving must not notify a tool selection change.
     assert AppController.setParameterDefault(controller, "path", "new")

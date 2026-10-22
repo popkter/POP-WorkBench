@@ -4,14 +4,12 @@ import codecs
 import os
 import re
 import sys
-import urllib.error
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from PySide6.QtCore import (
     Property,
     QObject,
-    QThread,
     QTimer,
     QUrl,
     Signal,
@@ -19,37 +17,11 @@ from PySide6.QtCore import (
 )
 
 from poptools.infrastructure.conpty import ConPtySession
-from poptools.infrastructure.powershell_plugin import PowerShellPlugin
+from poptools.infrastructure.managed_powershell import ManagedPowerShell
+from poptools.infrastructure.plugin_service import PluginService
 from poptools.infrastructure.python_environment import PythonEnvironment
 from poptools.paths import bundled_adb_path, resource_path
-
-
-class PowerShellPluginInstallThread(QThread):
-    progressChanged = Signal(int)
-    completed = Signal(bool, str)
-
-    def __init__(self, plugin: PowerShellPlugin, parent: QObject | None = None) -> None:
-        super().__init__(parent)
-        self.plugin = plugin
-
-    def run(self) -> None:
-        try:
-            executable = self.plugin.install(self._report_progress)
-        except urllib.error.URLError as exc:
-            self.completed.emit(False, f"PowerShell 7 插件下载失败：{exc.reason}")
-            return
-        except Exception as exc:
-            self.completed.emit(False, str(exc))
-            return
-        self.completed.emit(
-            True,
-            f"PowerShell {self.plugin.package.version} 安装完成：{executable}",
-        )
-
-    def _report_progress(self, progress: int) -> None:
-        if self.isInterruptionRequested():
-            raise RuntimeError("PowerShell 7 插件安装已取消")
-        self.progressChanged.emit(progress)
+from poptools.viewmodels.plugin_controller import PluginController
 
 
 @dataclass
@@ -109,8 +81,9 @@ class DeveloperConsoleController(QObject):
         self,
         python_environment: PythonEnvironment,
         working_directory: Path | None = None,
-        powershell_plugin: PowerShellPlugin | None = None,
+        powershell_plugin: ManagedPowerShell | None = None,
         parent: QObject | None = None,
+        *, plugin_manager: PluginController | None = None,
     ) -> None:
         super().__init__(parent)
         self.python_environment = python_environment
@@ -125,14 +98,18 @@ class DeveloperConsoleController(QObject):
         self._terminal_syntax_colors = self.TERMINAL_SYNTAX_COLOR_DEFAULTS.copy()
         self._power_shell_history_list_view_enabled = False
         self._shutdown_pending = False
+        self._plugin_manager = plugin_manager
+        self._owns_plugin_manager = False
         self._plugin = powershell_plugin
         if self._plugin is None and sys.platform == "win32":
-            self._plugin = PowerShellPlugin(python_environment.paths)
-        self._plugin_install_thread: PowerShellPluginInstallThread | None = None
-        self._plugin_install_progress = 0
-        self._plugin_install_status = ""
-        self._plugin_manager = None
+            if self._plugin_manager is None:
+                self._plugin_manager = PluginController(PluginService(python_environment.paths), self)
+                self._owns_plugin_manager = True
+            self._plugin = ManagedPowerShell(self._plugin_manager.service, self._plugin_manager.runtime)
         self._managed_terminal_install_requested = False
+        if self._plugin_manager is not None:
+            self._plugin_manager.changed.connect(self.pluginStateChanged)
+            self._plugin_manager.completed.connect(self.onManagedPluginCompleted)
         self._create_tab(activate=True)
 
     @Property(str, notify=outputChanged)
@@ -180,22 +157,15 @@ class DeveloperConsoleController(QObject):
 
     @Property(bool, notify=pluginStateChanged)
     def pluginInstalling(self) -> bool:
-        if self._plugin_manager:
-            return "powershell" in self._plugin_manager._jobs
-        return self._plugin_install_thread is not None
+        return self._plugin_manager.operation_state("powershell")[0] if self._plugin_manager else False
 
     @Property(int, notify=pluginStateChanged)
     def pluginInstallProgress(self) -> int:
-        if self._plugin_manager:
-            return self._plugin_manager._progress.get("powershell", 0)
-        return self._plugin_install_progress
+        return self._plugin_manager.operation_state("powershell")[1] if self._plugin_manager else 0
 
     @Property(str, notify=pluginStateChanged)
     def pluginInstallStatus(self) -> str:
-        if self._plugin_manager:
-            return (self._plugin_manager._errors.get("powershell")
-                    or self._plugin_manager._actions.get("powershell", ""))
-        return self._plugin_install_status
+        return self._plugin_manager.operation_state("powershell")[2] if self._plugin_manager else ""
 
     @Property(str, notify=pluginStateChanged)
     def pluginVersion(self) -> str:
@@ -255,31 +225,15 @@ class DeveloperConsoleController(QObject):
             self.pluginInstallFinished.emit(True, "PowerShell 7 插件已安装。")
             self.terminalAccessGranted.emit()
             return True
-        if self._plugin_install_thread is not None:
-            return False
-        self._plugin_install_progress = 0
-        self._plugin_install_status = "正在下载 PowerShell 7 插件…"
-        thread = PowerShellPluginInstallThread(self._plugin, self)
-        self._plugin_install_thread = thread
-        thread.progressChanged.connect(self._on_plugin_install_progress)
-        thread.completed.connect(self._on_plugin_install_completed)
-        thread.finished.connect(thread.deleteLater)
-        self.pluginStateChanged.emit()
-        thread.start()
-        return True
+        self.pluginInstallFinished.emit(False, "插件管理器不可用")
+        return False
 
     @Slot(result=bool)
     def cancelPowerShellPluginInstall(self) -> bool:
         if self._plugin_manager:
             self._plugin_manager.cancel("powershell")
             return True
-        thread = self._plugin_install_thread
-        if thread is None:
-            return False
-        self._plugin_install_status = "正在取消 PowerShell 7 插件安装…"
-        thread.requestInterruption()
-        self.pluginStateChanged.emit()
-        return True
+        return False
 
     def onManagedPluginCompleted(self, plugin, success, message):
         if plugin == "powershell" and self._managed_terminal_install_requested:
@@ -424,23 +378,6 @@ class DeveloperConsoleController(QObject):
             self.powerShellHistoryListViewEnabledChanged.emit()
         return wrote
 
-    @Slot(int)
-    def _on_plugin_install_progress(self, progress: int) -> None:
-        self._plugin_install_progress = progress
-        self._plugin_install_status = f"正在安装 PowerShell 7… {progress}%"
-        self.pluginStateChanged.emit()
-
-    @Slot(bool, str)
-    def _on_plugin_install_completed(self, success: bool, message: str) -> None:
-        self._plugin_install_thread = None
-        self._plugin_install_status = message
-        if success:
-            self._plugin_install_progress = 100
-        self.pluginStateChanged.emit()
-        self.pluginInstallFinished.emit(success, message)
-        if success:
-            self.terminalAccessGranted.emit()
-
     @Slot(str, result=bool)
     def writeInput(self, data: str) -> bool:
         tab = self._active_tab()
@@ -574,10 +511,12 @@ class DeveloperConsoleController(QObject):
             if tab.session is session:
                 session.dispose()
                 tab.session = None
-        thread = self._plugin_install_thread
-        if thread is not None and thread.isRunning():
-            thread.requestInterruption()
-            thread.wait()
+        if self._owns_plugin_manager and self._plugin_manager:
+            self._plugin_manager.shutdown()
+
+    def active_session_titles(self) -> list[str]:
+        return [tab.title for tab in (*self._tabs, *self._closing_tabs.values())
+                if tab.session is not None]
 
     @Slot(result=bool)
     def createTerminalTab(self) -> bool:

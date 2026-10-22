@@ -6,16 +6,25 @@ import json
 import os
 import re
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 from poptools.infrastructure.config_store import ConfigStore
 from poptools.paths import AppPaths
 
 
+@lru_cache(maxsize=16)
+def runtime_for(paths: AppPaths) -> RuntimeEnvironment:
+    """Reuse adapters; ConfigStore invalidates snapshots on external file changes."""
+    return RuntimeEnvironment(paths)
+
+
 class RuntimeEnvironment:
-    def __init__(self, paths: AppPaths):
+    def __init__(self, paths: AppPaths, config: ConfigStore | None = None, service=None):
         self.paths = paths
-        self.config = ConfigStore(paths)
+        self.config = config or ConfigStore(paths)
+        from poptools.infrastructure.plugin_service import PluginService
+        self.service = service or PluginService(paths)
 
     def source(self, plugin: str) -> tuple[str, str, str]:
         return self.config.runtime_environment(plugin)
@@ -24,19 +33,14 @@ class RuntimeEnvironment:
         provider, executable, _ = self.source(plugin)
         if provider == "custom":
             return Path(executable) if executable else self.paths.plugins_dir / "missing"
-        from poptools.infrastructure.plugin_service import PluginService
-
-        service = PluginService(self.paths)
-        path = service.executable(plugin)
+        path = self.service.executable(plugin)
         return path.with_name("adb.exe") if plugin == "android" else path
 
     def scrcpy_executable(self) -> Path:
         provider, _, scrcpy = self.source("android")
         if provider == "custom":
             return Path(scrcpy) if scrcpy else self.paths.plugins_dir / "missing/scrcpy.exe"
-        from poptools.infrastructure.plugin_service import PluginService
-
-        return PluginService(self.paths).executable("android")
+        return self.service.executable("android")
 
     def _local_file(self, value: str) -> Path:
         path = Path(value.strip().strip('"')).expanduser()

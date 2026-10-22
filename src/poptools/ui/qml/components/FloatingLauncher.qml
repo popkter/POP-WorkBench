@@ -10,6 +10,60 @@ Item {
     required property var controller
     property string searchQuery: ""
     property bool attached: false
+    property bool continuousRecall: false
+    property var pendingReturns: []
+    property var pendingDocks: []
+    function takeCardFace(toolId) { return scripts.takeCardFace(toolId) }
+    function dockCardFace(toolId, face, callback) {
+        scripts.dockCardFace(toolId, face)
+        if (!Theme.decadeMode || !panel.visible) {
+            callback()
+            return
+        }
+        // Close the old surface only after the pack has presented the same item.
+        pendingDocks.push(callback)
+        dockDeadline.restart()
+        panel.update()
+    }
+    function finishCardDocks() {
+        dockDeadline.stop()
+        const callbacks = pendingDocks
+        pendingDocks = []
+        for (let callback of callbacks) callback()
+    }
+    Timer {
+        id: dockDeadline
+        interval: 250
+        // A hidden or suspended panel may stop producing frames altogether.
+        onTriggered: root.finishCardDocks()
+    }
+
+    function prepareCardReturn(toolId, callback) {
+        if (!controller.beginCardReturn(toolId))
+            return false
+        pendingReturns.push({toolId: toolId, callback: callback, attempts: 0})
+        returnPreparation.start()
+        return true
+    }
+    Timer {
+        id: returnPreparation
+        interval: 16; repeat: true
+        onTriggered: {
+            const pending = root.pendingReturns
+            root.pendingReturns = []
+            for (let request of pending) {
+                request.attempts++
+                if ((panel.revealProgress === 1 && panel.visible
+                        && (root.continuousRecall || !scripts.layoutSettling))
+                        || request.attempts > 30)
+                    request.callback(scripts.returnCardRect(request.toolId))
+                else
+                    root.pendingReturns.push(request)
+            }
+            if (root.pendingReturns.length === 0)
+                stop()
+        }
+    }
 
     Component.onCompleted: {
         controller.attachDrawerWindow(panel, Theme.floatingTipWidth, Theme.floatingTipHeight,
@@ -28,6 +82,7 @@ Item {
         readonly property bool revealRequested: root.controller.visible && root.controller.expanded
         property real revealProgress: 0
         property bool pendingMaskSettlement: false
+        property bool dragMaskActive: false
         visible: root.attached && root.controller.visible
         flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
         color: "transparent"
@@ -39,7 +94,9 @@ Item {
 
         onVisibleChanged: if (!visible) scripts.closeMenus()
         onFrameSwapped: {
-            if (pendingMaskSettlement && !panelSlide.running) {
+            if (root.pendingDocks.length > 0)
+                root.finishCardDocks()
+            if (pendingMaskSettlement && !panelSlide.running && !root.controller.dragging) {
                 pendingMaskSettlement = false;
                 root.controller.setDrawerAnimating(false);
             }
@@ -72,7 +129,20 @@ Item {
         }
         Connections {
             target: root.controller
-            function onStateChanged() { panel.updateReveal(); }
+            function onStateChanged() {
+                if (root.controller.dragging) {
+                    panel.dragMaskActive = true;
+                    panel.pendingMaskSettlement = false;
+                    root.controller.setDrawerAnimating(true);
+                } else if (panel.dragMaskActive) {
+                    panel.dragMaskActive = false;
+                    // Restore the precise native region only after the final
+                    // dragged Tip position has reached the rendered frame.
+                    panel.pendingMaskSettlement = true;
+                    panel.update();
+                }
+                panel.updateReveal();
+            }
         }
         NumberAnimation {
             id: panelSlide
@@ -120,11 +190,16 @@ Item {
                 Behavior on opacity {
                     NumberAnimation { duration: Theme.motionStandard }
                 }
-                MaterialIcon {
+                Image {
+                    objectName: "floatingTipAppIcon"
                     anchors.centerIn: parent
-                    icon: "drag_indicator"
-                    iconSize: 18
-                    color: root.controller.expanded ? Theme.primaryText : Theme.textSecondary
+                    width: 28
+                    height: 28
+                    source: "../../../resources/icons/app-icon-ui.png"
+                    sourceSize: Qt.size(width * Screen.devicePixelRatio,
+                                        height * Screen.devicePixelRatio)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
                 }
                 Accessible.role: Accessible.Button
                 Accessible.name: root.controller.expanded ? "收起自定义脚本" : "展开自定义脚本"
@@ -215,6 +290,45 @@ Item {
                             font.weight: Font.DemiBold
                         }
                         PrimaryButton {
+                            objectName: "floatingPinButton"
+                            width: Theme.controlHeightSmall
+                            height: Theme.controlHeightSmall
+                            compact: true
+                            showHoverTips: false
+                            text: root.controller.pinned ? "取消置顶" : "置顶卡包"
+                            iconName: "push_pin"
+                            tonal: true
+                            border.width: 0
+                            color: root.controller.pinned ? Theme.primaryContainer
+                                : hovered ? Theme.surfaceContainer : "transparent"
+                            foregroundColor: root.controller.pinned ? Theme.primary : Theme.textSecondary
+                            Accessible.role: Accessible.CheckBox
+                            Accessible.name: text
+                            Accessible.checked: root.controller.pinned
+                            Accessible.onPressAction: root.controller.togglePinned()
+                            onClicked: root.controller.togglePinned()
+                        }
+                        PrimaryButton {
+                            objectName: "floatingRecallAllButton"
+                            width: Theme.controlHeightSmall
+                            height: Theme.controlHeightSmall
+                            compact: true
+                            showHoverTips: false
+                            text: Theme.decadeMode ? "收回全部卡牌" : "关闭全部脚本弹窗"
+                            iconName: "layers_clear"
+                            tonal: true
+                            border.width: 0
+                            enabled: root.controller.openCardCount > 0
+                            color: hovered ? Theme.surfaceContainer : "transparent"
+                            Accessible.role: Accessible.Button
+                            Accessible.name: text
+                            function recall() {
+                                root.controller.recallAllCards()
+                            }
+                            Accessible.onPressAction: recall()
+                            onClicked: recall()
+                        }
+                        PrimaryButton {
                             objectName: "floatingCollapseButton"
                             width: Theme.controlHeightSmall
                             height: Theme.controlHeightSmall
@@ -229,6 +343,7 @@ Item {
                         }
                     }
                     CustomScriptList {
+                        continuousRecall: root.continuousRecall
                         id: scripts
                         objectName: "floatingScriptList"
                         Layout.fillWidth: true
@@ -242,6 +357,9 @@ Item {
                             root.controller.setToolSearchQuery(query);
                         }
                         onToolActivated: function(toolId) { root.controller.launchTool(toolId); }
+                        onToolActivatedAt: function(toolId, sourceRect) {
+                            root.controller.launchToolFrom(toolId, sourceRect)
+                        }
                         onMenuOpenChanged: root.controller.setMenuOpen(menuOpen)
                     }
                 }

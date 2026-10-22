@@ -1,13 +1,26 @@
+import os
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Q_ARG, QEvent, QMetaObject, QObject, QPoint, QPointF, QRect, Qt, QUrl
+from PySide6.QtCore import (
+    Q_ARG,
+    QEvent,
+    QMetaObject,
+    QObject,
+    QPoint,
+    QPointF,
+    QRect,
+    QRectF,
+    Qt,
+    QUrl,
+)
 from PySide6.QtGui import QCursor, QFontDatabase, QMouseEvent, QRegion, QWindow
 from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent, QQmlEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
 
 from poptools.infrastructure.config_store import ConfigStore
+from poptools.infrastructure.foreground_window import ForegroundWindow
 from poptools.infrastructure.json_tool_repository import JsonToolRepository
 from poptools.infrastructure.python_environment import PythonEnvironment
 from poptools.infrastructure.system_tray import SystemTrayController
@@ -15,6 +28,7 @@ from poptools.infrastructure.tool_registry import ToolRegistry
 from poptools.native_terminal import register_terminal_type, terminal_library_path
 from poptools.paths import AppPaths, package_root, resource_path
 from poptools.runners import ExecutionCoordinator, ExecutionManager
+from poptools.viewmodels import floating_launcher_controller as floating_module
 from poptools.viewmodels.android_controller import AndroidController
 from poptools.viewmodels.app_controller import AppController
 from poptools.viewmodels.developer_console_controller import DeveloperConsoleController
@@ -43,6 +57,9 @@ def launcher(qapp, tmp_path, monkeypatch):
     controller = FloatingLauncherController(qapp, backend, settings)
     main = QWindow()
     monkeypatch.setattr(controller, "_ordinary_window_active", lambda: False)
+    # Keep Qt activation tests independent of OS foreground-lock restrictions.
+    # Native ownership and stale startup state are exercised explicitly below.
+    monkeypatch.setattr(floating_module, "foreground_window", lambda: None)
     controller.attach_main_window(main)
     controller.reconcile()
     yield controller, backend, settings, main
@@ -167,6 +184,70 @@ def test_foreground_setting_and_shutdown_collapse(launcher, monkeypatch):
     assert not controller.visible and not controller.expanded
 
 
+def test_startup_without_click_recovers_missing_focus_notification(launcher, qtbot, monkeypatch):
+    controller, _, settings, main = launcher
+    monkeypatch.setattr(controller, "_ordinary_window_active", lambda:
+                        FloatingLauncherController._ordinary_window_active(controller))
+    monkeypatch.setattr(controller._app, "platformName", lambda: "windows")
+    monkeypatch.setattr(controller._app, "applicationState", lambda:
+                        Qt.ApplicationState.ApplicationActive)
+    monkeypatch.setattr(controller._app, "topLevelWindows", lambda: [main])
+    monkeypatch.setattr(main, "isVisible", lambda: True)
+    monkeypatch.setattr(main, "isActive", lambda: True)
+    foreground = ForegroundWindow(int(main.winId()), os.getpid(), 0)
+    monkeypatch.setattr(floating_module, "foreground_window", lambda: foreground)
+    controller.reconcile()
+    assert not controller.visible
+
+    # No click, FocusOut or applicationStateChanged: Qt's startup activation is
+    # stale, but Windows already reports another process in the foreground.
+    foreground = ForegroundWindow(123, os.getpid() + 1, 123)
+    qtbot.waitUntil(lambda: controller.visible, timeout=1000)
+
+    # The reverse stale state must not leave the tip over the main window.
+    monkeypatch.setattr(controller._app, "applicationState", lambda:
+                        Qt.ApplicationState.ApplicationInactive)
+    monkeypatch.setattr(main, "isActive", lambda: False)
+    foreground = ForegroundWindow(int(main.winId()), os.getpid(), 0)
+    qtbot.waitUntil(lambda: not controller.visible, timeout=1000)
+    settings.saveFloatingLauncherEnabled(False)
+    assert not controller._foreground_timer.isActive()
+    foreground = ForegroundWindow(123, os.getpid() + 1, 123)
+    settings.saveFloatingLauncherEnabled(True)
+    assert controller.visible and controller._foreground_timer.isActive()
+    controller.shutdown()
+    assert not controller._foreground_timer.isActive()
+
+
+def test_native_foreground_preserves_cards_and_owned_dialogs(launcher, monkeypatch):
+    controller, _, _, main = launcher
+    card = QWindow()
+    card.setProperty("keepsFloatingLauncherVisible", True)
+    monkeypatch.setattr(controller, "_ordinary_window_active", lambda:
+                        FloatingLauncherController._ordinary_window_active(controller))
+    monkeypatch.setattr(controller._app, "platformName", lambda: "windows")
+    monkeypatch.setattr(controller._app, "topLevelWindows", lambda: [main, card])
+    for window in (main, card):
+        monkeypatch.setattr(window, "isVisible", lambda: True)
+    try:
+        main_id, card_id = int(main.winId()), int(card.winId())
+        for handle, owner, expected in (
+            (main_id, main_id, False), (card_id, main_id, True),
+            (123, card_id, True), (123, main_id, False), (123, 0, False),
+        ):
+            monkeypatch.setattr(
+                floating_module, "foreground_window",
+                lambda handle=handle, owner=owner: ForegroundWindow(handle, os.getpid(), owner),
+            )
+            controller.reconcile()
+            assert controller.visible is expected
+        controller.togglePinned()
+        assert controller.visible
+    finally:
+        card.destroy()
+        card.deleteLater()
+
+
 def test_mouse_leave_delay_menu_and_drag(launcher, qtbot, monkeypatch):
     controller, _, settings, _ = launcher
     monkeypatch.setattr(controller, "_pointer_inside", lambda: False)
@@ -194,12 +275,44 @@ def test_mouse_leave_delay_menu_and_drag(launcher, qtbot, monkeypatch):
     assert settings.config_store.floating_launcher_position()[1] == 1
 
 
-def test_independent_all_scripts_filter_sort_and_updates(launcher):
+@pytest.mark.parametrize("theme", ["light", "dark", "decade"])
+def test_pin_and_script_focus_keep_pack_open(launcher, monkeypatch, theme):
+    controller, _, settings, _ = launcher
+    settings.saveThemeMode(theme)
+    monkeypatch.setattr(controller, "_pointer_inside", lambda: False)
+    monkeypatch.setattr(controller, "_script_window_active", lambda: False)
+    controller.toggleExpanded()
+    controller.togglePinned()
+    controller.pointerChanged()
+    controller._collapse_if_outside()
+    assert controller.pinned and controller.expanded
+    monkeypatch.setattr(controller, "_ordinary_window_active", lambda: True)
+    controller.reconcile()
+    assert controller.visible and controller.expanded
+    controller.collapse()  # Explicit collapse still works while pinned.
+    assert not controller.expanded
+    controller.toggleExpanded()
+    controller.togglePinned()
+    assert not controller.visible and not controller.expanded
+    monkeypatch.setattr(controller, "_ordinary_window_active", lambda: False)
+    controller.reconcile()
+    controller.toggleExpanded()
+    monkeypatch.setattr(controller, "_script_window_active", lambda: True)
+    controller.pointerChanged()
+    controller._collapse_if_outside()
+    assert controller.expanded and not controller._collapse_timer.isActive()
+    monkeypatch.setattr(controller, "_script_window_active", lambda: False)
+    controller._collapse_if_outside()
+    assert not controller.expanded
+
+
+def test_independent_all_scripts_filter_sort_and_updates(launcher, qtbot):
     controller, backend, _, _ = launcher
     beta = create_tool(backend, "Beta")
     alpha = create_tool(backend, "Alpha", kind="powershell")
     backend.setToolSearchQuery("Beta")
     controller.setToolSortMode("name")
+    qtbot.waitUntil(lambda: controller.toolsModel.totalCount == 2)
     assert ids(controller.toolsModel) == [alpha.id, beta.id]
     assert ids(backend.toolsModel) == [beta.id]
     backend.navigate("preset")
@@ -213,6 +326,7 @@ def test_independent_all_scripts_filter_sort_and_updates(launcher):
     assert ids(controller.toolsModel) == [alpha.id]
     backend.registry.delete(alpha.id)
     backend.reloadImportedScripts()
+    qtbot.waitUntil(lambda: controller.toolsModel.totalCount == 1)
     assert controller.toolsModel.count == 0
     assert controller.toolsModel.totalCount == 1
 
@@ -305,15 +419,25 @@ def test_grip_drag_uses_screen_coordinates_after_leaving_window(
     try:
         send(QEvent.Type.MouseButtonPress, QPoint())
         assert not controller.dragging  # A press alone is still a possible Tip click.
-        for delta in (QPoint(-120, 0), QPoint(-120, 40), QPoint(-180, 40),
+        for delta in (QPoint(-120, 0), QPoint(-120, 200), QPoint(-180, -200),
+                      QPoint(-120, 40), QPoint(-180, 40),
                       QPoint(-120, -40), QPoint(-180, -40), QPoint(0, 0)):
             send(QEvent.Type.MouseMove, delta)
             assert controller.dragging
+            # Rapid moves before a render frame must not let the native mask
+            # crop the preceding Tip texture at its old vertical offset.
+            assert notch.mask().boundingRect() == QRect(0, 0, notch.width(), notch.height())
             assert notch.x() == initial.x()
             assert notch.y() + controller.drawerTipOffset == initial_tip_y + delta.y()
         send(QEvent.Type.MouseButtonRelease, QPoint(), pressed=False)
         assert not controller.dragging
         assert controller.expanded == expanded
+        with qtbot.waitSignal(notch.frameSwapped):
+            notch.update()
+        qtbot.waitUntil(lambda: not controller._drawer_animating)
+        if not expanded:
+                assert notch.mask().boundingRect().width() == 40
+                assert notch.mask().boundingRect().height() == 40
         saved = settings.config_store.floating_launcher_position()
         send(QEvent.Type.MouseMove, QPoint(-120, 60), pressed=False)
         assert notch.position() == initial
@@ -434,7 +558,7 @@ def test_panel_animation_reverses_without_restarting_on_window_show(launcher, qt
         monkeypatch.setattr(controller, "_ordinary_window_active", lambda: False)
         controller.reconcile()
         assert not controller.expanded and panel.isVisible()
-        assert panel.mask().boundingRect().width() == 24
+        assert panel.mask().boundingRect().width() == 40
     finally:
         controller.shutdown()
         root.deleteLater()
@@ -444,6 +568,7 @@ def test_panel_animation_reverses_without_restarting_on_window_show(launcher, qt
 def test_slide_does_not_reposition_or_rebuild_the_list_per_frame(launcher, qtbot, monkeypatch):
     controller, backend, _, _ = launcher
     create_tool(backend, "Animation sample")
+    qtbot.waitUntil(lambda: controller.toolsModel.count == 1)
     monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
     engine = QQmlEngine()
     component = QQmlComponent(engine, QUrl.fromLocalFile(str(
@@ -483,7 +608,7 @@ def test_slide_does_not_reposition_or_rebuild_the_list_per_frame(launcher, qtbot
         engine.deleteLater()
 
 
-def test_main_window_run_state_refreshes_the_cached_floating_list(launcher, monkeypatch):
+def test_main_window_run_state_refreshes_the_cached_floating_list(launcher, monkeypatch, qtbot):
     controller, backend, _, _ = launcher
     tool = create_tool(backend, "Run from main window")
     active = set()
@@ -492,10 +617,31 @@ def test_main_window_run_state_refreshes_the_cached_floating_list(launcher, monk
     model = controller.toolsModel
     active.add(tool.id)
     coordinator.runningChanged.emit(tool.id, True)
+    qtbot.waitUntil(lambda: bool(model.data(model.index(0, 0), model.RunningRole)))
     assert model.data(model.index(0, 0), model.RunningRole)
     active.clear()
     coordinator.runningChanged.emit(tool.id, False)
+    qtbot.waitUntil(lambda: not model.data(model.index(0, 0), model.RunningRole))
     assert not model.data(model.index(0, 0), model.RunningRole)
+
+
+def test_floating_updates_coalesce_within_one_event_turn(launcher, qtbot, monkeypatch):
+    controller, backend, _, _ = launcher
+    create_tool(backend, "Coalesced")
+    qtbot.waitUntil(lambda: controller.toolsModel.count == 1)
+    updates = []
+    original = controller.toolsModel.set_tools
+
+    def update(*args, **kwargs):
+        updates.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(controller.toolsModel, "set_tools", update)
+    for _ in range(20):
+        backend.customToolsChanged.emit()
+    assert not updates
+    qtbot.waitUntil(lambda: bool(updates))
+    assert len(updates) == 1
 
 
 @pytest.mark.parametrize("command", [
@@ -520,14 +666,20 @@ def test_shortcut_launch_and_failure_feedback(launcher, monkeypatch, command):
         assert dialogs == [tool.id]
 
 
-def test_running_shortcuts_are_blocked_and_async_launch_errors_are_visible(launcher, monkeypatch):
+def test_running_shortcuts_open_card_without_rerun_and_async_errors_are_visible(
+    launcher, monkeypatch,
+):
     controller, backend, _, _ = launcher
     tool = create_tool(backend, "运行测试")
     dialogs = []
     backend.recentToolDialogRequested.connect(dialogs.append)
+    runs = []
+    monkeypatch.setattr(backend, "runSelected", lambda values: runs.append(values))
     monkeypatch.setattr(backend.execution_coordinator, "running", lambda tool_id: True)
     controller.launchTool(tool.id)
-    assert not dialogs
+    assert dialogs == [tool.id]
+    assert not runs
+    dialogs.clear()
     controller.refreshTools()
     assert controller.toolsModel.data(controller.toolsModel.index(0, 0),
                                      controller.toolsModel.RunningRole)
@@ -586,6 +738,7 @@ RecentToolDialog {
         window.setWidth(window_width)
         assert QMetaObject.invokeMethod(window, "showWithTool", Q_ARG("QVariant", tool.id))
         assert QTest.qWaitForWindowExposed(window)
+        qtbot.waitUntil(lambda: not window.property("entryAnimationRunning"))
 
         def visual_items(item):
             yield item
@@ -630,16 +783,892 @@ RecentToolDialog {
         qtbot.waitUntil(lambda: console.height() >= 200)
         click("customConsoleClearButton")
         assert window.property("toolController").consoleText == ""
-        click("recentToolMinimizeButton")
-        qtbot.waitUntil(lambda: window.windowState() == Qt.WindowState.WindowMinimized)
-        window.showNormal()
-        assert QTest.qWaitForWindowExposed(window)
+        assert not window.findChild(QObject, "recentToolMinimizeButton").isVisible()
         click("recentToolCloseButton")
         qtbot.waitUntil(lambda: not window.isVisible())
         assert not warnings, warnings
     finally:
         window.close()
         window.deleteLater()
+        engine.deleteLater()
+
+
+@pytest.mark.parametrize("dark,size", [(False, (440, 680)), (True, (440, 680)),
+                                      (True, (340, 440))])
+def test_mechanical_card_entry_activation_and_close(launcher, qtbot, dark, size):
+    _, backend, _, _ = launcher
+    QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
+    tool = create_tool(backend, "Mechanical card", command="print('${message:Hello}')")
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda messages: warnings.extend(m.toString() for m in messages))
+    engine.rootContext().setContextProperty("appController", backend)
+    engine.rootContext().setContextProperty("androidBackend", backend.android_controller)
+    engine.rootContext().setContextProperty("testDarkMode", dark)
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+RecentToolDialog {
+    deviceController: androidBackend
+    presetUtilities: null
+    jiraFeishuBackend: null
+    Component.onCompleted: { Theme.darkMode = testDarkMode; Theme.decadeMode = true }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/CardMotionHarness.qml")))
+    window = component.create()
+    assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
+    occluder = QWindow()
+    occluder.resize(200, 100)
+    try:
+        assert QMetaObject.invokeMethod(window, "showWithTool", Q_ARG("QVariant", tool.id))
+        assert window.property("entryAnimationRunning")
+        assert QTest.qWaitForWindowExposed(window)
+        qtbot.waitUntil(lambda: not window.property("entryAnimationRunning"))
+        window.resize(*size)
+        # Exercise the real timeline, then inspect each visual stage deterministically.
+        motion = window.findChild(QObject, "mechanicalCardMotion")
+        entry = window.findChild(QObject, "mechanicalCardEntryAnimation")
+        assert motion.property("progress") == 1
+        position = window.position()
+        session = window.property("toolController")
+        backend.append_tool_console(tool.id, "Preserve existing output\n")
+        assert QMetaObject.invokeMethod(motion, "play")
+        assert QMetaObject.invokeMethod(motion, "startPreparedEntry")
+        assert QMetaObject.invokeMethod(entry, "pause")
+        output_dir = Path("build/card-motion")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        frame_prefix = f"{'dark' if dark else 'light'}-{size[0]}"
+        frames = []
+        for step, progress in enumerate((0.08, 0.28, 0.52, 0.72, 0.90)):
+            motion.setProperty("progress", progress)
+            qtbot.wait(20)
+            frame = window.grabWindow()
+            assert not frame.isNull()
+            frames.append(frame)
+            assert frame.save(str(output_dir / f"{frame_prefix}-{step}.png"))
+            assert window.position() == position
+        assert all(frames[index] != frames[index + 1] for index in range(len(frames) - 1))
+        # Repeated clicks cannot cut off an in-flight card or replace its live form.
+        assert QMetaObject.invokeMethod(window, "activateCard")
+        assert window.property("entryAnimationRunning")
+        assert not window.property("activationAnimationRunning")
+        assert motion.property("progress") == .90
+        assert QMetaObject.invokeMethod(entry, "resume")
+        qtbot.waitUntil(lambda: not window.property("entryAnimationRunning"))
+        assert QMetaObject.invokeMethod(window, "activateCard")
+        assert not window.property("entryAnimationRunning")
+        assert window.property("activationAnimationRunning")
+        assert motion.property("progress") == 1
+        assert window.property("toolController") is session
+        assert session.consoleText == "Preserve existing output\n"
+        assert window.position() == position
+        activation = window.findChild(QObject, "mechanicalCardActivationAnimation")
+        spin = window.findChild(QObject, "mechanicalCardSpin")
+        assert spin.property("axis").x() == 0
+        assert spin.property("axis").y() == 1
+        assert QMetaObject.invokeMethod(activation, "pause")
+        for angle in (0, 60, 180, 300, 360):
+            motion.setProperty("spinAngle", angle)
+            assert window.grabWindow().save(str(output_dir / f"{frame_prefix}-spin-{angle}.png"))
+            assert window.position() == position
+            assert window.property("toolController") is session
+            assert motion.property("activationBack") == (90 < angle < 270)
+        motion.setProperty("spinAngle", 150)
+        assert QMetaObject.invokeMethod(window, "activateCard")
+        assert motion.property("spinAngle") == 150  # Rapid clicks do not reset the rotation.
+        motion.setProperty("spinAngle", 360)
+        motion.setProperty("activationScan", .5)
+        assert window.findChild(QObject, "mechanicalCardScan").opacity() > .8
+        assert window.grabWindow().save(str(output_dir / f"{frame_prefix}-activation-scan.png"))
+        assert QMetaObject.invokeMethod(activation, "resume")
+        qtbot.waitUntil(lambda: not window.property("activationAnimationRunning"))
+        assert motion.property("spinAngle") == 360
+        assert motion.property("activationScan") == 1
+        assert window.grabWindow().save(str(output_dir / f"{frame_prefix}-5.png"))
+        # Native window activation scans only, preserving the form and the click.
+        occluder.show()
+        occluder.requestActivate()
+        qtbot.waitUntil(occluder.isActive)
+        window.requestActivate()
+        qtbot.waitUntil(lambda: window.property("focusScanRunning"))
+        assert not window.property("activationAnimationRunning")
+        assert not window.property("entryAnimationRunning")
+        focus_scan = window.findChild(QObject, "mechanicalCardFocusScanAnimation")
+        assert QMetaObject.invokeMethod(focus_scan, "pause")
+        motion.setProperty("focusScanProgress", .5)
+        angle = motion.property("spinAngle")
+        assert QMetaObject.invokeMethod(window, "showFocusFeedback")
+        assert motion.property("focusScanProgress") == .5
+        assert motion.property("spinAngle") == angle
+        assert window.position() == position
+        assert window.property("toolController") is session
+        assert window.grabWindow().save(str(output_dir / f"{frame_prefix}-focus-scan.png"))
+        clear = window.findChild(QObject, "customConsoleClearButton")
+        clear_rect = clear.mapRectToItem(window.contentItem(), clear.boundingRect())
+        QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=clear_rect.center().toPoint())
+        assert session.consoleText == ""  # Scan overlay never eats the activating click.
+        assert QMetaObject.invokeMethod(focus_scan, "resume")
+        qtbot.waitUntil(lambda: not window.property("focusScanRunning"))
+        # List activation keeps the deliberate spin+scan, with no second focus scan.
+        occluder.requestActivate()
+        qtbot.waitUntil(occluder.isActive)
+        assert QMetaObject.invokeMethod(window, "activateCard")
+        qtbot.wait(20)
+        assert window.property("activationAnimationRunning")
+        assert not window.property("focusScanRunning")
+        # Minimized cards use the same activation path; a close stops all effects.
+        window.showMinimized()
+        assert QMetaObject.invokeMethod(window, "activateCard")
+        qtbot.waitUntil(lambda: window.windowState() != Qt.WindowState.WindowMinimized)
+        assert not window.property("entryAnimationRunning")
+        window.close()
+        assert not window.property("activationAnimationRunning")
+        assert not warnings, warnings
+    finally:
+        occluder.close()
+        occluder.deleteLater()
+        window.close()
+        window.deleteLater()
+        engine.deleteLater()
+
+
+@pytest.mark.parametrize("mode", ["light", "dark", "system"])
+def test_card_theme_fades_and_live_theme_switch(launcher, qtbot, mode):
+    _, backend, settings, _ = launcher
+    assert settings.saveThemeMode(mode)
+    tool = create_tool(backend, "Theme transition", command="print('${message:Hello}')")
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda messages: warnings.extend(m.toString() for m in messages))
+    engine.rootContext().setContextProperty("appController", backend)
+    engine.rootContext().setContextProperty("settingsBackend", settings)
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+RecentToolDialog {
+    deviceController: null
+    presetUtilities: null
+    jiraFeishuBackend: null
+    Binding { target: Theme; property: "darkMode"; value: settingsBackend.darkTheme }
+    Binding { target: Theme; property: "decadeMode"; value: settingsBackend.themeMode === "decade" }
+    readonly property color themeAccent: Theme.primary
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/ThemeCardHarness.qml")))
+    window = component.create()
+    assert window, component.errors()
+    try:
+        window.setProperty("launchOrigin", QRectF(800, 400, 280, 40))
+        QMetaObject.invokeMethod(window, "showWithTool", Q_ARG("QVariant", tool.id))
+        motion = window.findChild(QObject, "mechanicalCardMotion")
+        fade_in = window.findChild(QObject, "cardFadeInAnimation")
+        fade_out = window.findChild(QObject, "cardFadeOutAnimation")
+        assert not motion.property("desktopFlight")
+        qtbot.waitUntil(lambda: fade_in.property("running"))
+        QMetaObject.invokeMethod(fade_in, "pause")
+        motion.setProperty("fadeOpacity", .4)
+        position, handle = window.position(), window.winId()
+        session = window.property("toolController")
+        backend.append_tool_console(tool.id, "Keep this output\n")
+        assert not window.findChild(QObject, "mechanicalCardBack").isVisible()
+        assert not window.findChild(QObject, "mechanicalCardScan").isVisible()
+        assert window.findChild(QObject, "movingScriptCard").opacity() == .4
+        # Closing during fade-in starts at the current alpha; reopening cancels close.
+        QMetaObject.invokeMethod(window, "closeCardAnimated")
+        assert fade_out.property("running")
+        QMetaObject.invokeMethod(fade_out, "pause")
+        assert motion.property("fadeOpacity") == .4
+        QMetaObject.invokeMethod(window, "activateCard")
+        assert motion.property("fadeOpacity") == 1
+        assert not window.property("activationAnimationRunning")
+        QMetaObject.invokeMethod(window, "showFocusFeedback")
+        assert not window.property("focusScanRunning")
+        assert settings.saveThemeMode("decade")
+        assert settings.darkTheme
+        assert ConfigStore(settings.config_store.paths).theme_mode() == "decade"
+        assert window.property("themeAccent").name() == "#f12786"
+        QMetaObject.invokeMethod(window, "activateCard")
+        assert window.property("activationAnimationRunning")
+        assert settings.saveThemeMode(mode)
+        assert not window.property("activationAnimationRunning")
+        assert motion.property("spinAngle") == 0
+        assert motion.property("fadeOpacity") == 1
+        assert window.property("toolController") is session
+        assert session.consoleText == "Keep this output\n"
+        assert window.position() == position and window.winId() == handle
+        dismissed = []
+        window.dismissed.connect(dismissed.append)
+        QMetaObject.invokeMethod(window, "closeCardAnimated")
+        assert fade_out.property("running")
+        qtbot.waitUntil(lambda: not window.isVisible())
+        assert dismissed == [tool.id]
+        assert not warnings, warnings
+    finally:
+        window.close()
+        window.deleteLater()
+        engine.deleteLater()
+
+
+def test_card_origin_is_scoped_to_the_clicked_script(launcher):
+    controller, backend, _, _ = launcher
+    tool = create_tool(backend, "Flight", command="print('${message}')")
+    origins = []
+    backend.recentToolDialogRequested.connect(
+        lambda tool_id: origins.append(controller.cardLaunchOrigin(tool_id)))
+    origin = QRectF(-330.5, 410.25, 280, 40)
+    controller.launchToolFrom(tool.id, origin)
+    controller.launchTool(tool.id)
+    assert origins == [origin, QRectF()]
+    assert controller.cardLaunchOrigin(tool.id).isEmpty()
+
+
+def test_decade_pack_tracks_open_cards_across_refresh_filter_and_theme(launcher, monkeypatch):
+    controller, backend, settings, _ = launcher
+    alpha = create_tool(backend, "Pack Alpha")
+    beta = create_tool(backend, "Pack Beta")
+    controller.refreshTools()
+    settings.saveThemeMode("decade")
+    requested = []
+    backend.recentToolDialogRequested.connect(requested.append)
+    monkeypatch.setattr(backend, "open_custom_tool_shortcut",
+                        lambda _: pytest.fail("Drawing a card must not execute the script"))
+    controller.launchTool(alpha.id)  # A parameterless card still opens the live form.
+    assert requested == [alpha.id]
+    controller.setCardOpen(alpha.id, True)
+    controller.setCardOpen(beta.id, True)
+    controller.refreshTools()
+    assert controller.toolsModel.count == 0
+    settings.saveThemeMode("light")
+    assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
+    settings.saveThemeMode("decade")
+    assert controller.toolsModel.count == 0
+    assert controller.beginCardReturn(alpha.id)
+    assert controller.beginCardReturn(beta.id)
+    assert set(controller.returningCardIds) == {alpha.id, beta.id}
+    controller.setToolSearchQuery("Alpha")
+    assert ids(controller.toolsModel) == []  # Return preparation never adds a blank row.
+    controller.setCardOpen(alpha.id, False)
+    assert controller.returningCardIds == [beta.id]
+    controller.setCardOpen(beta.id, False)
+    controller.setToolSearchQuery("")
+    assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
+    assert controller.openCardCount == 0 and not controller.returningCardIds
+
+
+def test_decade_pack_launches_directly_without_raising_the_face(launcher, qtbot, monkeypatch):
+    controller, backend, settings, _ = launcher
+    monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
+    tools = [create_tool(backend, f"Concurrent {i}") for i in range(3)]
+    settings.saveThemeMode("decade")
+    controller.refreshTools()
+    engine = QQmlEngine()
+    engine.rootContext().setContextProperty("backend", controller)
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+Item {
+    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    FloatingLauncher { controller: backend }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/ConcurrentPackHarness.qml")))
+    root = component.create()
+    assert root, component.errors()
+    scripts = root.findChild(QObject, "floatingScriptList")
+    panel = root.findChild(QQuickWindow, "floatingScriptPanelWindow")
+    requested = []
+    backend.recentToolDialogRequested.connect(requested.append)
+
+    def launch(tool):
+        assert QMetaObject.invokeMethod(scripts, "activateTool", Q_ARG("QVariant", tool.id),
+                                       Q_ARG("QVariant", None))
+
+    try:
+        controller.toggleExpanded()
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+        for tool in tools:
+            face = root.findChild(QObject, "deckCard_" + tool.id)
+            host = face.parentItem()
+            origin = face.mapToGlobal(QPointF())
+            size = face.size()
+            launch(tool)
+            assert requested[-1] == tool.id  # Immediate, no lift timer or animation queue.
+            assert face.parentItem() is host  # No full-card overlay in the pack.
+            assert face.mapToGlobal(QPointF()) == origin and face.size() == size
+            assert face.property("packVisibleRect").height() <= host.parentItem().height() + 3
+        assert requested == [tool.id for tool in tools]
+        # Cards align exactly; elevation comes from their shadow and stacking order.
+        faces = [root.findChild(QObject, "deckCard_" + tool.id) for tool in tools]
+        assert len({face.mapToGlobal(QPointF()).x() for face in faces}) == 1
+    finally:
+        controller.shutdown()
+        root.deleteLater()
+        engine.deleteLater()
+
+
+@pytest.mark.parametrize("source_x,source_y,clip_offset", [
+    (1000, 200, 0), (-1200, -350, 25), (850, 620, 60),
+])
+def test_card_flight_keeps_full_departure_and_tucks_return_into_pack(
+    qapp, qtbot, source_x, source_y, clip_offset,
+):
+    QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
+    engine = QQmlEngine()
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import QtQuick.Window
+import QtQuick.Effects
+import "components"
+import "theme"
+Window {
+    width: 440; height: 680; color: "transparent"
+    flags: Qt.FramelessWindowHint
+    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    MechanicalCardFace {
+        id: face; visible: false
+        objectName: "departureTestFace"
+    }
+    MechanicalCardMotion {
+        id: motion; anchors.fill: parent; cardFace: face
+        cardTitle: "Direct departure"
+    }
+    Rectangle {
+        id: form; parent: motion.surface; anchors.fill: parent
+        anchors.margins: 4; color: "#19191F"; radius: 8
+    }
+    MultiEffect {
+        parent: motion.surface; anchors.fill: parent; source: form
+        shadowEnabled: true; shadowBlur: 0.7; blurMax: 24
+        shadowOpacity: 0.72; shadowVerticalOffset: 6
+    }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/DepartureMaskHarness.qml")))
+    window = component.create()
+    assert window, component.errors()
+    motion = window.findChild(QObject, "mechanicalCardMotion")
+    face = window.findChild(QObject, "departureTestFace")
+    face.setProperty("packVisibleRect", QRectF(source_x, source_y + clip_offset, 300, 60))
+    geometry = {"x": 0, "y": 0, "width": 1500, "height": 1000,
+                "sourceX": source_x, "sourceY": source_y, "sourceWidth": 300,
+                "sourceHeight": 680 * 300 / 440, "targetX": 32, "targetY": 32,
+                "targetWidth": 440, "targetHeight": 680, "preserveSource": True}
+    try:
+        QMetaObject.invokeMethod(motion, "prepareFlight", Q_ARG("QVariant", geometry))
+        window.show()
+        assert QTest.qWaitForWindowExposed(window)
+        qtbot.wait(60)
+        first = window.grabWindow()
+        assert motion.property("sourceFrameClipped")
+        # At rest the 60-pixel card head is visible; the covered body stays transparent.
+        ratio = first.devicePixelRatio()
+        head_top = (680 - geometry["sourceHeight"]) / 2 + clip_offset
+        assert first.pixelColor(round(220 * ratio), round((head_top + 20) * ratio)).alpha() > 200
+        assert first.pixelColor(round(220 * ratio), round(300 * ratio)).alpha() < 10
+        # Include the form shadow: no residual outline beneath the stationary head.
+        for y in range(round((head_top + 65) * ratio), first.height(), 8):
+            for x in range(0, first.width(), 8):
+                assert first.pixelColor(x, y).alpha() < 10
+        assert first.save("build/direct-departure-first.png")
+        for tick in (.005, .025, .05, .075, .10, .15, .25, .5, 1):
+            motion.setProperty("progress", tick * motion.property("travelDuration")
+                               / motion.property("flightDuration"))
+            qtbot.wait(20)
+            assert not motion.property("sourceFrameClipped")
+            departing = window.grabWindow()
+            # Every interior region stays opaque, including the right-hand body
+            # that the former union mask cut into an L shape at early flight ticks.
+            for fx in (.12, .35, .65, .88):
+                for fy in (.10, .25, .5, .75, .90):
+                    point = face.mapToItem(window.contentItem(), QPointF(face.width() * fx,
+                                                                        face.height() * fy))
+                    assert departing.pixelColor(round(point.x() * ratio),
+                                                round(point.y() * ratio)).alpha() > 200, tick
+            assert departing.save(f"build/direct-departure-moving-{tick}.png")
+        # The return uses a single card-local clip: the head stays opaque across
+        # its whole width while the lower body is tucked away before landing.
+        QMetaObject.invokeMethod(motion, "recycle", Q_ARG("QVariant", geometry))
+        animation = window.findChild(QObject, "mechanicalCardRecycleAnimation")
+        animation.setProperty("paused", True)
+        motion.setProperty("returnScan", 0)
+        clip = window.findChild(QObject, "cardDockingClip")
+        previous_height = 680
+        for tick in (0, .45, .6, .75, .85, 1):
+            motion.setProperty("returnProgress", tick)
+            qtbot.wait(20)
+            returning = window.grabWindow()
+            assert clip.height() <= previous_height
+            previous_height = clip.height()
+            for fx in (.12, .5, .88):
+                point = clip.mapToItem(window.contentItem(), QPointF(clip.width() * fx,
+                                                                    clip.height() / 2))
+                assert returning.pixelColor(round(point.x() * ratio),
+                                             round(point.y() * ratio)).alpha() > 200, tick
+            if tick >= .6:
+                point = clip.mapToItem(window.contentItem(), QPointF(clip.width() / 2,
+                                                                    clip.height() + 20))
+                assert returning.pixelColor(round(point.x() * ratio),
+                                             round(point.y() * ratio)).alpha() < 10, tick
+            assert returning.save(f"build/card-return-clipped-{tick}.png")
+        assert clip.height() == pytest.approx(60 * 440 / 300)
+    finally:
+        window.close()
+        window.deleteLater()
+        engine.deleteLater()
+
+
+def test_loading_one_card_never_holds_another_card_animation(qapp, qtbot):
+    engine = QQmlEngine()
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+Window {
+    width: 880; height: 680; color: "transparent"
+    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    MechanicalCardMotion {
+        id: waiting; objectName: "waitingCard"; width: 440; height: 680
+        contentReady: false
+    }
+    MechanicalCardMotion {
+        id: ready; objectName: "readyCard"; x: 440; width: 440; height: 680
+    }
+    Rectangle { parent: waiting.surface; anchors.fill: parent; color: "#171e28" }
+    Rectangle { parent: ready.surface; anchors.fill: parent; color: "#171e28" }
+    function begin() {
+        waiting.play(); waiting.startPreparedEntry()
+        ready.play(); ready.startPreparedEntry()
+    }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/IndependentCardLoading.qml")))
+    window = component.create()
+    assert window, component.errors()
+    waiting = window.findChild(QObject, "waitingCard")
+    ready = window.findChild(QObject, "readyCard")
+    try:
+        window.show()
+        QMetaObject.invokeMethod(window, "begin")
+        face = waiting.property("cardFace")
+        qtbot.waitUntil(lambda: not ready.property("entering"))
+        assert ready.property("progress") == 1
+        assert waiting.property("waitingForContent")
+        assert waiting.property("scan") == 0
+        assert waiting.property("entering") and face.isVisible()
+        assert waiting.property("progress") == pytest.approx(360 / 660)
+        waiting.setProperty("contentReady", True)
+        qtbot.waitUntil(lambda: not waiting.property("entering"))
+        assert waiting.property("cardFace") is face
+        assert waiting.property("scan") == 1
+        # Closing before asynchronous loading completes must still cover the form.
+        waiting.setProperty("contentReady", False)
+        QMetaObject.invokeMethod(waiting, "finish")
+        assert waiting.property("scan") == 0
+        assert face.isVisible()
+    finally:
+        window.close()
+        window.deleteLater()
+        engine.deleteLater()
+
+
+@pytest.mark.parametrize("manual_first", [False, True])
+def test_recall_queue_overlaps_flights_and_skips_closed_cards(qapp, qtbot, manual_first):
+    engine = QQmlEngine()
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+Item {
+    id: root
+    Component.onCompleted: Theme.decadeMode = true
+    CardRecallQueue { id: queue; objectName: "recallQueue" }
+    component TestCard: QtObject {
+        property bool visible: true
+        property bool customScriptMode: true
+        property bool recallQueued: false
+        property bool returnPending: false
+        property bool recycleAnimationRunning: false
+        property int closes: 0
+        signal dismissed()
+        function closeCardAnimated() { closes++; recycleAnimationRunning = true }
+        function complete() { visible = false; dismissed() }
+    }
+    TestCard { id: a; objectName: "a"; onDismissed: queue.completed(a) }
+    TestCard { id: b; objectName: "b"; onDismissed: queue.completed(b) }
+    TestCard { id: c; objectName: "c"; onDismissed: queue.completed(c) }
+    function recallAll() { queue.recall([a, b, c]) }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/RecallQueueHarness.qml")))
+    root = component.create()
+    assert root, component.errors()
+    queue = root.findChild(QObject, "recallQueue")
+    a, b, c = [root.findChild(QObject, name) for name in ("a", "b", "c")]
+    first, second = (b, a) if manual_first else (a, b)
+    try:
+        if manual_first:
+            QMetaObject.invokeMethod(b, "closeCardAnimated")
+        for _ in range(3):
+            QMetaObject.invokeMethod(root, "recallAll")
+        assert queue.property("launchingCard") is first
+        assert first.property("closes") == 1
+        assert second.property("closes") == 0
+        # A queued window closed by its native close event must not block the rest.
+        QMetaObject.invokeMethod(c, "complete")
+        qtbot.wait(10)
+        assert queue.property("launchingCard") is first
+        # The next flight starts while the first card is still visible/in flight.
+        qtbot.waitUntil(lambda: second.property("closes") == 1)
+        assert first.property("visible") and first.property("recycleAnimationRunning")
+        assert len(queue.property("activeCards").toVariant()) == 2
+        QMetaObject.invokeMethod(first, "complete")
+        assert second.property("closes") == 1
+        assert c.property("closes") == 0
+        QMetaObject.invokeMethod(second, "complete")
+        qtbot.wait(10)
+        assert not queue.property("running")
+        assert not any(card.property("recallQueued") for card in (a, b, c))
+    finally:
+        root.deleteLater()
+        engine.deleteLater()
+
+
+def test_swapping_pack_presentations_preserves_borrowed_and_docked_faces(launcher, qtbot):
+    controller, backend, settings, _ = launcher
+    tools = [create_tool(backend, f"Theme card {i}") for i in range(3)]
+    settings.saveThemeMode("decade")
+    controller.refreshTools()
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda messages: warnings.extend(m.toString() for m in messages))
+    engine.rootContext().setContextProperty("backend", controller)
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+Item {
+    property string mode: "decade"
+    Binding { target: Theme; property: "decadeMode"; value: mode === "decade" }
+    Binding { target: Theme; property: "darkMode"; value: mode !== "light" }
+    FloatingLauncher { id: pack; controller: backend }
+    Window {
+        objectName: "borrowedFaceWindow"
+        width: 440; height: 680
+        Item { id: host; anchors.fill: parent }
+    }
+    function borrow(id) {
+        const face = pack.takeCardFace(id)
+        face.attachTo(host)
+        backend.setCardOpen(id, true)
+    }
+    function dock(id) {
+        const face = pack.takeCardFace(id)
+        pack.dockCardFace(id, face, function() {})
+    }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/PresentationSwapHarness.qml")))
+    root = component.create()
+    assert root, component.errors()
+    panel = root.findChild(QQuickWindow, "floatingScriptPanelWindow")
+    scripts = root.findChild(QObject, "floatingScriptList")
+    try:
+        controller.togglePinned()
+        controller.toggleExpanded()
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+        faces = {tool.id: root.findChild(QObject, "deckCard_" + tool.id) for tool in tools}
+        assert all(faces.values())
+        QMetaObject.invokeMethod(root, "borrow", Q_ARG("QVariant", tools[0].id))
+        borrowed_window = root.findChild(QQuickWindow, "borrowedFaceWindow")
+        search = root.findChild(QObject, "scriptListSearch")
+        search.setProperty("text", "Theme")
+        scripts.setProperty("kindFilter", "python")
+        for mode in ("light", "dark", "decade", "light", "decade"):
+            settings.saveThemeMode(mode)
+            root.setProperty("mode", mode)
+            qtbot.wait(30)
+            view = scripts.findChild(QObject, "sharedScriptList")
+            expected_heading = "DECADE / 脚本卡包" if mode == "decade" else "脚本名称"
+            assert view.property("headingText") == expected_heading
+            assert scripts.property("kindFilter") == "python"
+            assert search.property("text") == "Theme"
+            assert scripts.property("visibleCount") == (2 if mode == "decade" else 3)
+            for tool_id, original in faces.items():
+                assert root.findChild(QObject, "deckCard_" + tool_id) is original
+            assert faces[tools[0].id].window() is borrowed_window
+        QMetaObject.invokeMethod(root, "dock", Q_ARG("QVariant", tools[0].id))
+        assert faces[tools[0].id].window() is panel
+        assert controller.openCardCount == 0 and controller.toolsModel.count == 3
+        assert not warnings, warnings
+    finally:
+        controller.shutdown()
+        root.deleteLater()
+        engine.deleteLater()
+
+
+def test_decade_pack_last_card_stays_rendered_at_scroll_end(launcher, qtbot):
+    controller, backend, settings, _ = launcher
+    QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
+    for index in range(18):
+        create_tool(backend, f"Stack {index:02}", kind="python" if index % 2 else "powershell")
+    settings.saveThemeMode("decade")
+    controller.refreshTools()
+    engine = QQmlEngine()
+    engine.rootContext().setContextProperty("backend", controller)
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+Item {
+    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    FloatingLauncher { controller: backend }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/StackScrollHarness.qml")))
+    root = component.create()
+    assert root, component.errors()
+    panel = root.findChild(QQuickWindow, "floatingScriptPanelWindow")
+    scripts = root.findChild(QObject, "floatingScriptList")
+
+    def visual_items(item):
+        yield item
+        for child in item.childItems():
+            yield from visual_items(child)
+
+    try:
+        # Scroll/render assertions should not race the unrelated focus-loss timer.
+        controller.togglePinned()
+        controller.toggleExpanded()
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+        script_list = scripts.findChild(QObject, "sharedScriptList")
+        for kind in ("all", "python", "powershell", "all"):
+            scripts.setProperty("kindFilter", kind)
+            QMetaObject.invokeMethod(script_list, "forceLayout")
+            QMetaObject.invokeMethod(script_list, "positionViewAtEnd")
+            qtbot.wait(50)  # Let the newly instantiated last delegate report its full height.
+            QMetaObject.invokeMethod(script_list, "forceLayout")
+            QMetaObject.invokeMethod(script_list, "positionViewAtEnd")
+            qtbot.wait(200)
+            last_id = controller.toolsModel.lastToolId(kind)
+            face = next(item for item in visual_items(script_list)
+                        if item.objectName() == "deckCard_" + last_id)
+            assert face.isVisible()
+            bounds = face.mapRectToItem(script_list, face.boundingRect())
+            assert bounds.intersected(script_list.boundingRect()).height() > 100
+            assert panel.grabWindow().save(f"build/stack-bottom-{kind}.png")
+        assert controller.toolsModel.count == 18
+    finally:
+        controller.shutdown()
+        root.deleteLater()
+        engine.deleteLater()
+
+
+@pytest.mark.parametrize("interrupt", ["none", "activate", "close", "recycle", "reopen"])
+def test_card_flies_from_row_to_window_and_can_be_reactivated(launcher, qapp, qtbot, interrupt):
+    _, backend, _, _ = launcher
+    QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
+    tool = create_tool(backend, "Card flight", command="print('${message:Hello}')")
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda messages: warnings.extend(m.toString() for m in messages))
+    engine.rootContext().setContextProperty("appController", backend)
+    engine.rootContext().setContextProperty("androidBackend", backend.android_controller)
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+RecentToolDialog {
+    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    deviceController: androidBackend
+    presetUtilities: null
+    jiraFeishuBackend: null
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/CardFlightHarness.qml")))
+    window = component.create()
+    assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
+    available = qapp.primaryScreen().availableGeometry()
+    source = QRectF(available.right() - 300, available.center().y(), 280, 40)
+    try:
+        window.setProperty("launchOrigin", source)
+        assert QMetaObject.invokeMethod(window, "showWithTool", Q_ARG("QVariant", tool.id))
+        assert window.isVisible()
+        native_id = window.winId()
+        motion = window.findChild(QObject, "mechanicalCardMotion")
+        live_content = window.findChild(QObject, "liveScriptCardContent")
+        session = window.property("toolController")
+        geometry = motion.property("flightGeometry")
+        destination = QRect(geometry["x"] + geometry["targetX"],
+                            geometry["y"] + geometry["targetY"],
+                            geometry["targetWidth"], geometry["targetHeight"])
+        assert destination.topLeft() == available.topLeft() + QPoint(32, 32)
+        assert window.property("cardPlacementRect").toAlignedRect() == destination
+        assert motion.property("scanDuration") == 300
+        assert QTest.qWaitForWindowExposed(window)
+        animation = window.findChild(QObject, "mechanicalCardEntryAnimation")
+        qtbot.waitUntil(lambda: animation.property("running"))
+        assert QMetaObject.invokeMethod(animation, "pause")
+        card = window.findChild(QObject, "movingScriptCard")
+        output_dir = Path("build/card-flight")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for index, travel in enumerate((0, .20, .45, .70, 1)):
+            motion.setProperty("progress", travel * motion.property("travelDuration")
+                               / motion.property("flightDuration"))
+            qtbot.wait(20)
+            card_rect = card.mapRectToItem(window.contentItem(), card.boundingRect())
+            global_rect = card_rect.translated(window.x(), window.y())
+            if travel == 0:
+                assert global_rect.center().x() == pytest.approx(source.center().x(), abs=1)
+                assert global_rect.y() == pytest.approx(source.y(), abs=1)
+                assert global_rect.height() == pytest.approx(source.height(), abs=1)
+            elif travel == 1:
+                assert window.geometry() == destination
+            else:
+                assert global_rect.center().x() < source.center().x()
+                assert global_rect.height() > source.height()
+            assert available.adjusted(-1, -1, 1, 1).contains(global_rect.toAlignedRect())
+            assert window.size() == destination.size()
+            assert window.property("cardPlacementRect").toAlignedRect() == destination
+            assert window.winId() == native_id and window.isVisible()
+            assert window.grabWindow().save(str(output_dir / f"flight-{index}.png"))
+        if interrupt == "close":
+            dismissed = []
+            window.dismissed.connect(dismissed.append)
+            assert QMetaObject.invokeMethod(window, "dismissCard")
+            assert dismissed == [tool.id]
+            assert not window.isVisible()
+            assert not window.property("entryAnimationRunning")
+            assert not warnings, warnings
+            return
+        if interrupt in ("recycle", "reopen"):
+            dismissed = []
+            window.dismissed.connect(dismissed.append)
+            # Return from the card's current (possibly manually moved) position.
+            assert QMetaObject.invokeMethod(motion, "finish")
+            window.setPosition(destination.topLeft() + QPoint(20, 16))
+            return_start = window.geometry()
+            assert QMetaObject.invokeMethod(window, "closeCardAnimated")
+            assert window.isVisible() and not dismissed
+            assert window.property("recycleAnimationRunning")
+            recycle = window.findChild(QObject, "mechanicalCardRecycleAnimation")
+            assert QMetaObject.invokeMethod(recycle, "pause")
+            motion.setProperty("returnScan", 0)
+            for progress in (0, .35, .65, 1):
+                motion.setProperty("returnProgress", progress)
+                rect = card.mapRectToItem(window.contentItem(), card.boundingRect())
+                rect = rect.translated(window.x(), window.y())
+                assert window.winId() == native_id and window.isVisible()
+                assert window.size() == return_start.size()
+                assert window.findChild(QObject, "liveScriptCardContent") is live_content
+                if progress == 0:
+                    assert window.geometry() == return_start
+                elif progress == 1:
+                    assert rect.center().x() == pytest.approx(source.center().x(), abs=1)
+                    assert rect.center().y() == pytest.approx(source.center().y(), abs=1)
+                    assert rect.height() == pytest.approx(source.height(), abs=1)
+                assert window.grabWindow().save(str(output_dir / f"recycle-{progress}.png"))
+            if interrupt == "reopen":
+                assert QMetaObject.invokeMethod(window, "activateCard")
+                assert window.geometry() == return_start
+                assert window.property("activationAnimationRunning")
+                assert not window.property("recycleAnimationRunning")
+                qtbot.waitUntil(lambda: not window.property("activationAnimationRunning"))
+                assert window.isVisible() and not dismissed
+            else:
+                assert QMetaObject.invokeMethod(window, "closeCardAnimated")
+                assert recycle.property("paused")  # A second close never restarts return.
+                assert QMetaObject.invokeMethod(recycle, "resume")
+                qtbot.waitUntil(lambda: not window.isVisible())
+                assert dismissed == [tool.id]
+                assert not window.property("recycleAnimationRunning")
+            assert not warnings, warnings
+            return
+        if interrupt == "activate":
+            assert QMetaObject.invokeMethod(window, "activateCard")
+            assert window.property("entryAnimationRunning")
+            assert not window.property("activationAnimationRunning")
+            assert QMetaObject.invokeMethod(animation, "resume")
+            qtbot.waitUntil(lambda: not window.property("entryAnimationRunning"))
+            assert QMetaObject.invokeMethod(window, "activateCard")
+            assert window.property("activationAnimationRunning")
+        else:
+            face = window.findChild(QObject, "mechanicalCardBack")
+            scan = window.findChild(QObject, "mechanicalCardScan")
+            for progress in (0, .25, .5, .75, 1):
+                motion.setProperty("progress", (motion.property("travelDuration")
+                                                + motion.property("scanDuration") * progress)
+                                   / motion.property("flightDuration"))
+                frame = window.grabWindow()
+                assert window.findChild(QObject, "mechanicalCardBack") is face
+                assert window.findChild(QObject, "liveScriptCardContent") is live_content
+                assert window.winId() == native_id and window.isVisible()
+                assert window.geometry() == destination
+                scale = frame.devicePixelRatio()
+                # No part of the opaque card becomes desktop during the scan.
+                for height_fraction in (.1, .4, .6, .9):
+                    assert frame.pixelColor(round(window.width() / 2 * scale),
+                        round(window.height() * height_fraction * scale)).alpha() >= 250
+                if progress == .5:
+                    assert scan.isVisible() and scan.opacity() > .7
+                    # Check the light itself, not just its animation properties.
+                    color = frame.pixelColor(round(window.width() / 2 * scale),
+                        round((scan.y() + 64 * .97 + 4) * scale))
+                    assert color.red() > color.green() + 40
+                    assert color.blue() > color.green() + 20
+                assert frame.save(str(output_dir / f"continuous-reveal-{progress}.png"))
+                if progress == 1:
+                    revealed_frame = frame
+            assert QMetaObject.invokeMethod(animation, "resume")
+        qtbot.waitUntil(lambda: not window.property("entryAnimationRunning"))
+        assert window.property("toolController") is session
+        assert window.findChild(QObject, "liveScriptCardContent") is live_content
+        assert window.winId() == native_id and window.isVisible()
+        assert window.geometry() == destination
+        if interrupt == "none":
+            assert window.grabWindow() == revealed_frame
+        assert not [w for w in qapp.topLevelWindows() if w.objectName() == "cardFlightWindow"]
+        assert not warnings, warnings
+    finally:
+        QMetaObject.invokeMethod(window, "dismissCard")
+        window.deleteLater()
+        engine.deleteLater()
+
+
+def test_flight_rotation_fits_small_desktop_surface(qapp):
+    from poptools.infrastructure.window_placement import card_flight_geometry
+
+    engine = QQmlEngine()
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+MechanicalCardMotion { Component.onCompleted: Theme.decadeMode = true }
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/SmallCardHarness.qml")))
+    geometry = card_flight_geometry(QRectF(-160, 120, 150, 40), QRect(-288, 12, 276, 226),
+                                    QRect(-300, 0, 300, 250))
+    motion = component.createWithInitialProperties({"width": 276, "height": 226})
+    assert motion is not None, [error.toString() for error in component.errors()]
+    positions = []
+    motion.positionRequested.connect(lambda x, y: positions.append(QPointF(x, y)))
+    try:
+        assert QMetaObject.invokeMethod(motion, "prepareFlight", Q_ARG("QVariant", geometry))
+        card = motion.findChild(QObject, "movingScriptCard")
+        for progress in (0, .15, .35, .55, .75, .95, 1):
+            motion.setProperty("progress", progress * motion.property("travelDuration")
+                               / motion.property("flightDuration"))
+            bounds = card.mapRectToItem(motion, card.boundingRect())
+            assert bounds.left() >= -0.01 and bounds.top() >= -0.01
+            assert bounds.right() <= motion.width() + .01
+            assert bounds.bottom() <= motion.height() + .01
+            global_bounds = bounds.translated(positions[-1])
+            assert QRectF(-300.01, -.01, 300.02, 250.02).contains(global_bounds)
+    finally:
+        motion.deleteLater()
         engine.deleteLater()
 
 
@@ -722,8 +1751,8 @@ Item {
     try:
         controller.reconcile()
         qtbot.waitUntil(panel.isVisible)
-        assert panel.mask().boundingRect().width() == 24
-        assert panel.mask().boundingRect().height() == 64
+        assert panel.mask().boundingRect().width() == 40
+        assert panel.mask().boundingRect().height() == 40
         assert root.findChild(QObject, "floatingScriptsTip") is None
         assert root.findChild(QObject, "floatingSettingsTip") is None
         tip = root.findChild(QObject, "floatingDragGrip")
@@ -741,6 +1770,26 @@ Item {
         qtbot.waitUntil(lambda: controller.toolsModel.count == 1)
         assert script_list.property("visibleCount") == 1
         search.setProperty("text", "")
+        # Mouse coordinates come from the actual delegate before drawer collapse.
+        def visual_items(item):
+            yield item
+            for child in item.childItems():
+                yield from visual_items(child)
+
+        row = next(item for item in visual_items(panel.contentItem())
+                   if item.objectName().startswith("scriptRow_") and item.isVisible())
+        point = row.mapToGlobal(QPointF(0, 0))
+        expected_origin = QRectF(point.x(), point.y(), row.width(), row.height())
+        origins = []
+        monkeypatch.setattr(backend, "open_custom_tool_shortcut",
+                            lambda tool_id: origins.append(controller.cardLaunchOrigin(tool_id)))
+        rect = row.mapRectToItem(panel.contentItem(), row.boundingRect())
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
+        assert origins == [expected_origin]
+        assert controller.expanded
+        qtbot.wait(250)
+        assert controller.expanded  # Launching no longer schedules a collapse.
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
         sort_button = root.findChild(QObject, "scriptListSort")
         assert QMetaObject.invokeMethod(sort_button, "openMenu")
         qtbot.waitUntil(lambda: sort_button.property("menuOpen"))
@@ -790,8 +1839,10 @@ def test_main_window_settings_navigation_and_close_to_tray(
     if not terminal_library_path().exists():
         pytest.skip("Full application requires the built native terminal")
     register_terminal_type()
+    QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     controller, backend, settings, _ = launcher
     settings.markUserGuideSeen()
+    settings.saveThemeMode("decade")
     preset = PresetController()
     jira = JiraFeishuController(settings.config_store.paths.data_dir)
     terminal = DeveloperConsoleController(settings.python_environment)
@@ -827,6 +1878,20 @@ def test_main_window_settings_navigation_and_close_to_tray(
         settings.saveFloatingLauncherEnabled(True)
         window.resize(960, 720)
         qtbot.wait(150)
+
+        def visual_items(item):
+            yield item
+            for child in item.childItems():
+                yield from visual_items(child)
+
+        for mode in ("light", "dark", "decade"):
+            choice = next(item for item in visual_items(window.contentItem())
+                          if item.objectName() == "themeChoice_" + mode)
+            assert choice.isVisible()
+            rect = choice.mapRectToItem(window.contentItem(), choice.boundingRect())
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
+            assert settings.themeMode == mode
+        assert window.property("chromeBackgroundColor").name() == "#19191f"
         assert window.grabWindow().save("build/floating-settings.png")
         if tray.available:
             assert not window.close()
@@ -844,6 +1909,8 @@ def test_main_window_settings_navigation_and_close_to_tray(
                         if w.objectName() == "recentToolWindow" and w.isVisible()}
 
             def set_message(target, text):
+                qtbot.waitUntil(lambda: target.findChild(
+                    QObject, "recentToolFormLoader").property("item") is not None)
                 def descendants(item):
                     yield item
                     for child in item.childItems():
@@ -857,9 +1924,34 @@ def test_main_window_settings_navigation_and_close_to_tray(
                 values = target.property("parameterValues")
                 return values.toVariant() if hasattr(values, "toVariant") else values
 
-            controller.launchTool(alpha.id)
+            controller.refreshTools()
+            controller.toggleExpanded()
+            panel = window.findChild(QQuickWindow, "floatingScriptPanelWindow")
+            qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+            rows = [item for item in visual_items(panel.contentItem())
+                    if item.objectName().startswith("scriptRow_")]
+            assert len(rows) == 2
+            rows.sort(key=lambda item: item.y())
+            assert rows[1].z() > rows[0].z()
+            face = next(item for item in visual_items(rows[0])
+                        if item.objectName() == "deckCard_" + rows[0].property("toolId"))
+            assert face.height() > rows[0].height()
+            assert panel.grabWindow().save("build/decade-card-pack.png")
+            row = next(item for item in rows if item.property("toolId") == alpha.id)
+            original_face = next(item for item in visual_items(row)
+                                 if item.objectName() == "deckCard_" + alpha.id)
+            point = row.mapToItem(panel.contentItem(), QPointF(row.width() / 2, 35))
+            QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point.toPoint())
+            assert not any(w.objectName() == "cardFlightWindow" for w in qapp.topLevelWindows())
             qtbot.waitUntil(lambda: alpha.id in tool_windows())
             first = tool_windows()[alpha.id]
+            assert first.property("cardFace") is original_face
+            assert original_face.window() is first
+            assert first.property("launchOrigin").height() > 300
+            qtbot.waitUntil(lambda: not first.property("entryAnimationRunning"))
+            assert alpha.id not in ids(controller.toolsModel)
+            assert controller.openCardCount == 1
+            assert not first.findChild(QObject, "recentToolMinimizeButton").isVisible()
             qtbot.waitUntil(first.isActive)
             window.show()
             first.requestActivate()
@@ -881,11 +1973,19 @@ def test_main_window_settings_navigation_and_close_to_tray(
             assert first.isVisible() and controller.visible
             set_message(second, "draft B")
             session_b = second.property("toolController")
+            qtbot.waitUntil(lambda: controller.openCardCount == 2)
+            assert controller.toolsModel.count == 0
+            settings.saveThemeMode("light")
+            assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
+            settings.saveThemeMode("decade")
+            assert controller.toolsModel.count == 0
             assert session_a.selectedTool["id"] == alpha.id
             assert session_b.selectedTool["id"] == beta.id
             # Reopening a tool activates its existing window without resetting its form.
-            backend.recentToolDialogRequested.emit(alpha.id)
+            controller.launchTool(alpha.id)
             qtbot.waitUntil(first.isActive)
+            assert first.property("activationAnimationRunning")
+            assert not first.property("entryAnimationRunning")
             assert len(tool_windows()) == 2
             assert first.position() == first_position
             assert second.position() == second_position
@@ -920,6 +2020,11 @@ def test_main_window_settings_navigation_and_close_to_tray(
             assert session_b.runSelected(values_b)
             assert runs == [(alpha.id, values_a), (beta.id, values_b)]
             assert session_a.running and session_b.running
+            controller.launchTool(alpha.id)
+            assert first.property("activationAnimationRunning")
+            assert not first.property("entryAnimationRunning")
+            assert len(tool_windows()) == 2
+            assert runs == [(alpha.id, values_a), (beta.id, values_b)]
             coordinator.output.emit(alpha.id, "only A\n")
             coordinator.output.emit(beta.id, "only B\n")
             backend._flush_console()
@@ -937,8 +2042,28 @@ def test_main_window_settings_navigation_and_close_to_tray(
             session_a.clearConsole()
             assert session_a.consoleText == "" and session_b.consoleText == "only B\n"
             assert "only A" in backend.consoleText and "only B" in backend.consoleText
-            first.close()
+            controller.collapse()
+            QMetaObject.invokeMethod(first, "closeCardAnimated")
+            assert alpha.id in controller.returningCardIds
+            assert first.isVisible()
+            qtbot.waitUntil(lambda: first.property("recycleAnimationRunning"))
+            assert alpha.id not in ids(controller.toolsModel)  # No empty return slot.
+            assert first.property("cardFace") is original_face
+            assert original_face.window() is first
+            landing = first.findChild(QObject, "mechanicalCardMotion").property("flightGeometry")
+            landing_scale = landing["sourceWidth"] / first.width()
+            expected_origin = QPointF(landing["x"] + landing["sourceX"] + 4 * landing_scale,
+                                      landing["y"] + landing["sourceY"] + 4 * landing_scale)
+            expected_width = landing["sourceWidth"] - 8 * landing_scale
             qtbot.waitUntil(lambda: len(tool_windows()) == 1)
+            assert alpha.id in ids(controller.toolsModel)
+            assert beta.id not in ids(controller.toolsModel)
+            assert not controller.returningCardIds
+            assert original_face.window() is panel  # The item is docked, not recreated.
+            docked_origin = original_face.mapToGlobal(QPointF(0, 0))
+            assert abs(docked_origin.x() - expected_origin.x()) <= 1
+            assert abs(docked_origin.y() - expected_origin.y()) <= 1
+            assert abs(original_face.width() - expected_width) <= 1
             qtbot.waitUntil(lambda: len(backend.findChildren(ToolSessionController)) == 1)
             assert second.isVisible() and session_b.running
             second.close()
@@ -950,6 +2075,65 @@ def test_main_window_settings_navigation_and_close_to_tray(
             reopened = tool_windows()[beta.id]
             assert reopened.property("toolController").consoleText == "only B\n"
             assert reopened.property("toolController").running
+            # All themes expose the same controls; bulk close preserves running jobs.
+            for mode in ("decade", "light", "dark"):
+                settings.saveThemeMode(mode)
+                backend.recentToolDialogRequested.emit(alpha.id)
+                backend.recentToolDialogRequested.emit(beta.id)
+                qtbot.waitUntil(lambda: len(tool_windows()) == 2)
+                qtbot.waitUntil(lambda: controller.openCardCount == 2)
+                pin = window.findChild(QObject, "floatingPinButton")
+                recall = window.findChild(QObject, "floatingRecallAllButton")
+                assert not pin.property("showHoverTips")
+                assert not recall.property("showHoverTips")
+                if not controller.pinned:
+                    QMetaObject.invokeMethod(pin, "clicked")
+                if not controller.expanded:
+                    controller.toggleExpanded()
+                qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+                assert recall.isEnabled()
+                QMetaObject.invokeMethod(recall, "clicked")
+                if mode == "decade":
+                    assert len(controller.returningCardIds) == 1
+                    first_return = controller.returningCardIds[0]
+                    # Repeated clicks must not restart the cadence or launch the next card early.
+                    QMetaObject.invokeMethod(recall, "clicked")
+                    for card_window in tool_windows().values():
+                        assert card_window.property("recallQueued")
+                        QMetaObject.invokeMethod(card_window, "activateCard")
+                    qtbot.wait(20)  # Less than the configured 50 ms recall cadence.
+                    assert controller.returningCardIds == [first_return]
+                    assert len(tool_windows()) == 2
+                    samples = []
+                    landings, checked = {}, set()
+                    while tool_windows():
+                        samples.append(tuple(controller.returningCardIds))
+                        current = tool_windows()
+                        for tid, card_window in current.items():
+                            face = card_window.property("cardFace")
+                            if card_window.property("recycleAnimationRunning") and face:
+                                motion = card_window.findChild(QObject, "mechanicalCardMotion")
+                                g = motion.property("flightGeometry")
+                                scale = g["sourceWidth"] / card_window.width()
+                                landings[tid] = (face, QPointF(g["x"] + g["sourceX"] + 4 * scale,
+                                                              g["y"] + g["sourceY"] + 4 * scale))
+                        for tid, (face, expected) in landings.items():
+                            if tid not in current and tid not in checked:
+                                actual = face.mapToGlobal(QPointF(0, 0))
+                                assert abs(actual.x() - expected.x()) <= 1
+                                assert abs(actual.y() - expected.y()) <= 1
+                                checked.add(tid)
+                        qtbot.wait(10)
+                        assert len(samples) < 300
+                    assert max(map(len, samples)) == 2  # Flights overlap before either lands.
+                    assert {tid for batch in samples for tid in batch} == {alpha.id, beta.id}
+                qtbot.waitUntil(lambda: not tool_windows())
+                qtbot.waitUntil(lambda: not backend.findChildren(ToolSessionController))
+                assert controller.openCardCount == 0
+                assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
+                assert controller.expanded and controller.pinned
+                assert not recall.isEnabled()
+                assert stops == [alpha.id] and beta.id in active
         assert not warnings, warnings
     finally:
         QMetaObject.invokeMethod(window, "closeRecentToolWindows")

@@ -68,9 +68,11 @@ class PluginController(QObject):
     changed = Signal()
     completed = Signal(str, bool, str)
 
-    def __init__(self, service: PluginService, parent=None):
+    def __init__(self, service: PluginService, parent=None, runtime=None):
         super().__init__(parent)
         self.service = service
+        self.runtime = runtime or (RuntimeEnvironment(service.paths, service=service)
+                                   if service else None)
         self._jobs = {}
         self._latest = {}
         self._progress = {}
@@ -86,7 +88,7 @@ class PluginController(QObject):
         rows = []
         for plugin, name in NAMES.items():
             record = self.service.record(plugin)
-            runtime = RuntimeEnvironment(self.service.paths)
+            runtime = self.runtime
             provider, custom, scrcpy = runtime.source(plugin)
             managed = provider == "managed"
             version = record.get("package", {}).get("version", "")
@@ -138,7 +140,7 @@ class PluginController(QObject):
             or plugin in self._jobs
         ):
             return False
-        if self.service and RuntimeEnvironment(self.service.paths).source(plugin)[0] == "custom":
+        if self.service and self.runtime.source(plugin)[0] == "custom":
             self._errors[plugin] = "本地环境由用户管理，应用不执行插件更新或卸载"
             self.changed.emit()
             return False
@@ -191,7 +193,7 @@ class PluginController(QObject):
             return False
         self._errors[plugin] = ""
         self._actions[plugin] = "正在检测并保存运行环境"
-        job = RuntimeSelection(RuntimeEnvironment(self.service.paths), plugin, provider,
+        job = RuntimeSelection(self.runtime, plugin, provider,
                                executable, scrcpy, self)
         self._jobs[plugin] = job
         job.result.connect(self._on_runtime_validated)
@@ -221,7 +223,7 @@ class PluginController(QObject):
                 reason = self.configuration_busy_check(plugin)
                 if reason:
                     raise RuntimeError(str(reason))
-                RuntimeEnvironment(self.service.paths).config.set_runtime_environment(
+                self.runtime.config.set_runtime_environment(
                     plugin, provider, executable, scrcpy, version
                 )
                 if plugin == "android":
@@ -265,6 +267,10 @@ class PluginController(QObject):
     def cancel(self, plugin):
         if plugin in self._jobs:
             self._jobs[plugin].requestInterruption()
+
+    def operation_state(self, plugin: str) -> tuple[bool, int, str]:
+        return (plugin in self._jobs, self._progress.get(plugin, 0),
+                self._errors.get(plugin) or self._actions.get(plugin, ""))
 
     @Slot()
     def shutdown(self):

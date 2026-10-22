@@ -16,6 +16,15 @@ Rectangle {
     required property var displayedTool
     property bool splitConsole: false
     property bool consoleExpanded: !splitConsole || controller.running
+    property real consoleReveal: consoleExpanded ? 1 : 0
+    Behavior on consoleReveal {
+        enabled: root.splitConsole
+        NumberAnimation {
+            objectName: "customConsoleRevealAnimation"
+            duration: Theme.motionStandard
+            easing.type: Easing.InOutCubic
+        }
+    }
     property real consoleHeightRatio: 0.4
     readonly property real separatorHeight: splitConsole ? Theme.space12 : Theme.space8
     readonly property bool executionRunning: !!controller.running
@@ -27,13 +36,14 @@ Rectangle {
     property bool actionsInTitleBar: false
     property bool deviceInTitleBar: false
     property bool externalRun: false
+    property bool submitParametersOnEnter: false
     property bool compactLayout: false
     readonly property real panelPadding: compactLayout ? Theme.space8 : Theme.detailPanelPadding
     property real minimumFormReservedHeight: Theme.detailFormReservedHeight
     readonly property bool narrowManagementLayout: allowManagement && width < Theme.detailCompactWidth
-    readonly property bool compactConsoleActions: consolePanel.width < 458
+    readonly property bool compactConsoleActions: consolePanel.width < (splitConsole ? 560 : 458)
     readonly property bool showConsoleStatusText: !compactConsoleActions
-        || consolePanel.width >= 280
+        || consolePanel.width >= (splitConsole ? 340 : 280)
     readonly property color consoleStatusColor: controller.running ? Theme.consoleWarning
         : controller.statusText === "执行成功" ? Theme.success
         : controller.statusText.indexOf("执行失败") === 0 ? Theme.consoleError
@@ -47,26 +57,8 @@ Rectangle {
 
     radius: Theme.radiusMedium
     color: splitConsole ? "transparent" : Theme.surfaceContainerLow
-    border.color: Theme.outlineVariant
-    border.width: splitConsole || compactLayout ? 0 : 1
+    border.width: 0
     clip: true
-
-    component ParameterDefaultButton: PrimaryButton {
-        enabled: !root.controller.running
-        width: 30
-        height: 30
-        compact: true
-        text: "设为默认值"
-        iconName: "save"
-        glyphSize: 19
-        tonal: true
-        foregroundColor: Theme.primaryText
-        border.width: 0
-        radius: Theme.radiusControl
-        // Keep the button above the text edit menu's input overlay.
-        z: 201
-        color: hovered ? Theme.primaryContainerHover : Theme.runtimeBadge
-    }
 
     function kindLabel() {
         if (!root.displayedTool.executor)
@@ -113,8 +105,7 @@ Rectangle {
         height: Math.max(0, consolePanel.y - root.separatorHeight)
         radius: Theme.radiusMedium
         color: root.splitConsole ? Theme.surfaceContainerLow : "transparent"
-        border.width: root.splitConsole ? 1 : 0
-        border.color: Theme.outlineVariant
+        border.width: 0
         clip: true
 
         Item {
@@ -218,266 +209,16 @@ Rectangle {
                 width: parameterArea.width
                 spacing: Theme.space8
 
-                Repeater {
-                    model: root.displayedTool.parameters || []
-                    delegate: Column {
-                        id: parameterItem
-                        required property var modelData
-                        width: parameterColumn.width
-                        spacing: 6
-
-                        Rectangle {
-                            id: parameterRow
-                            objectName: "customParameterRow_" + parameterItem.modelData.id
-                            width: parent.width
-                            height: parameterItem.modelData.kind === "multiline" ? 88
-                                : parameterItem.modelData.kind === "radio" && parameterInput.item
-                                ? Math.max(Theme.inputHeight, parameterInput.item.implicitHeight + 2)
-                                : Theme.inputHeight
-                            radius: Theme.radiusSmall
-                            color: Theme.surfaceContainerLow
-                            readonly property bool inputFocused: parameterInput.item
-                                ? parameterInput.item.activeFocus : false
-                            border.color: inputFocused ? Theme.primary : Theme.inputBorder
-                            border.width: inputFocused ? 2 : 1
-
-                            Item {
-                                id: parameterLabelCell
-                                objectName: "customParameterLabelCell_" + parameterItem.modelData.id
-                                x: 1
-                                y: 1
-                                width: Math.max(0, (parameterRow.width - 2)
-                                    * (root.compactLayout ? 0.34 : 0.25))
-                                height: parameterInput.height
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: if (parameterInput.item)
-                                        parameterInput.item.forceActiveFocus()
-                                }
-                                Text {
-                                    id: parameterLabelText
-                                    objectName: "customParameterLabel_" + parameterItem.modelData.id
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: Theme.space12
-                                    anchors.right: requiredLabel.left
-                                    anchors.rightMargin: requiredLabel.visible ? Theme.space4 : 0
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: parameterItem.modelData.label
-                                    color: Theme.textPrimary
-                                    font.pixelSize: Theme.fontCaption
-                                    font.weight: Font.DemiBold
-                                    elide: Text.ElideRight
-                                    HoverHandler { id: labelHover }
-                                    HoverTips {
-                                        visible: parameterLabelText.truncated && labelHover.hovered
-                                        text: parameterLabelText.text
-                                    }
-                                }
-                                Text {
-                                    id: requiredLabel
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: Theme.space8
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    visible: !!parameterItem.modelData.required
-                                    text: visible ? "必填" : ""
-                                    color: Theme.textSecondary
-                                    font.pixelSize: Theme.fontCaption
-                                }
-                            }
-
-                            Rectangle {
-                                x: parameterInput.x
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                anchors.margins: Theme.space8
-                                width: 1
-                                color: Theme.outlineVariant
-                            }
-
-                            Loader {
-                                id: parameterInput
-                                objectName: "customParameterInput_" + parameterItem.modelData.id
-                                x: parameterLabelCell.x + parameterLabelCell.width
-                                y: 1
-                                width: parameterRow.width - x - 1
-                                height: parameterRow.height - 2
-                                clip: true
-                                sourceComponent: parameterItem.modelData.kind === "choice"
-                                    ? choiceField : parameterItem.modelData.kind === "radio"
-                                    ? radioField : parameterItem.modelData.kind === "boolean"
-                                    ? booleanField : parameterItem.modelData.kind === "multiline"
-                                    ? multilineField : textField
-
-                                Component {
-                                    id: textField
-                                    AppTextField {
-                                        id: parameterTextField
-                                        Accessible.name: parameterItem.modelData.label
-                                        readonly property bool pathPickerVisible:
-                                            parameterItem.modelData.kind === "file"
-                                            || parameterItem.modelData.kind === "directory"
-                                        text: String(parameterItem.modelData.default ?? "")
-                                        placeholderText: parameterItem.modelData.placeholder || ""
-                                        color: Theme.textPrimary
-                                        font.pixelSize: Theme.fontBody
-                                        leftPadding: 13
-                                        rightPadding: pathPickerVisible ? 81 : 45
-                                        validator: parameterItem.modelData.kind === "integer" ? integerValidator
-                                            : parameterItem.modelData.kind === "number" ? numberValidator : null
-                                        RegularExpressionValidator {
-                                            id: integerValidator
-                                            regularExpression: /[+-]?[0-9]+/
-                                        }
-                                        RegularExpressionValidator {
-                                            id: numberValidator
-                                            regularExpression: /[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/
-                                        }
-                                        echoMode: parameterItem.modelData.kind === "secret"
-                                            ? TextInput.Password : TextInput.Normal
-                                        background: null
-                                        onTextChanged: root.parameterValues[parameterItem.modelData.id] = text
-                                        FilePathDropArea { target: parameterTextField }
-                                        AppTextEditMenu { target: parameterTextField }
-
-                                        ParameterDefaultButton {
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: parameterTextField.pathPickerVisible ? 42 : 6
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            onClicked: root.controller.setParameterDefault(
-                                                parameterItem.modelData.id, parameterTextField.text)
-                                        }
-
-                                        PrimaryButton {
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 6
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            visible: parameterTextField.pathPickerVisible
-                                            width: 30
-                                            height: 30
-                                            compact: true
-                                            text: parameterItem.modelData.kind === "directory"
-                                                ? "选择文件夹" : "选择文件"
-                                            iconName: "folder_open"
-                                            glyphSize: 19
-                                            tonal: true
-                                            foregroundColor: Theme.primaryText
-                                            border.width: 0
-                                            radius: Theme.radiusControl
-                                            // Above AppTextEditMenu's input-event overlay (z: 200).
-                                            z: 201
-                                            color: hovered
-                                                ? Theme.primaryContainerHover
-                                                : Theme.primaryContainer
-                                            onClicked: {
-                                                const selectedPath = parameterItem.modelData.kind === "directory"
-                                                    ? root.controller.chooseParameterDirectory(parameterTextField.text)
-                                                    : root.controller.chooseParameterFile(parameterTextField.text)
-                                                if (selectedPath.length > 0) {
-                                                    parameterTextField.text = selectedPath
-                                                    parameterTextField.forceActiveFocus()
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Component {
-                                    id: multilineField
-                                    TextArea {
-                                        id: parameterTextArea
-                                        Accessible.name: parameterItem.modelData.label
-                                        text: String(parameterItem.modelData.default ?? "")
-                                        placeholderText: parameterItem.modelData.placeholder || ""
-                                        color: Theme.textPrimary
-                                        font.pixelSize: Theme.fontBody
-                                        leftPadding: 13
-                                        rightPadding: 45
-                                        wrapMode: TextEdit.Wrap
-                                        background: null
-                                        onTextChanged: root.parameterValues[parameterItem.modelData.id] = text
-                                        FilePathDropArea { target: parameterTextArea }
-                                        AppTextEditMenu { target: parameterTextArea }
-                                        ParameterDefaultButton {
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 6
-                                            anchors.top: parent.top
-                                            anchors.topMargin: 5
-                                            onClicked: root.controller.setParameterDefault(
-                                                parameterItem.modelData.id, parameterTextArea.text)
-                                        }
-                                    }
-                                }
-
-                                Component {
-                                    id: choiceField
-                                    AppComboBox {
-                                        id: choiceControl
-                                        Accessible.name: parameterItem.modelData.label
-                                        background: null
-                                        readonly property var choiceOptions: parameterItem.modelData.options || []
-                                        function optionValue(index) {
-                                            if (index < 0 || index >= choiceOptions.length)
-                                                return ""
-                                            const option = choiceOptions[index]
-                                            return typeof option === "object" ? option.value : option
-                                        }
-                                        model: choiceOptions
-                                        currentIndex: {
-                                            const expected = String(parameterItem.modelData.default ?? "")
-                                            for (let index = 0; index < choiceOptions.length; index++) {
-                                                if (String(choiceControl.optionValue(index)) === expected)
-                                                    return index
-                                            }
-                                            return choiceOptions.length > 0 ? 0 : -1
-                                        }
-                                        textRole: choiceOptions.length > 0 && typeof choiceOptions[0] === "object" ? "label" : ""
-                                        leftPadding: 13
-                                        font.pixelSize: Theme.fontBody
-                                        onCurrentIndexChanged: {
-                                            if (currentIndex >= 0)
-                                                root.parameterValues[parameterItem.modelData.id] = optionValue(currentIndex)
-                                        }
-                                    }
-                                }
-
-                                Component {
-                                    id: radioField
-                                    ParameterRadioGroup {
-                                        options: parameterItem.modelData.options || []
-                                        currentValue: String(parameterItem.modelData.default ?? "")
-                                        onValueChanged: function(value) {
-                                            root.parameterValues[parameterItem.modelData.id] = value
-                                        }
-                                    }
-                                }
-
-                                Component {
-                                    id: booleanField
-                                    AppCheckBox {
-                                        text: ""
-                                        Accessible.name: parameterItem.modelData.label
-                                        checked: parameterItem.modelData.default === true
-                                            || String(parameterItem.modelData.default).toLowerCase() === "true"
-                                        onToggled: root.parameterValues[parameterItem.modelData.id] = checked
-                                        Component.onCompleted: root.parameterValues[parameterItem.modelData.id] = checked
-                                    }
-                                }
-                            }
-
-                        }
-
-                        Text {
-                            x: parameterInput.x
-                            width: parameterInput.width
-                            visible: parameterItem.modelData.kind !== "boolean" && text.length > 0
-                            text: parameterItem.modelData.label.indexOf("VIN") >= 0
-                                ? "17 位车辆识别码，写入后将自动读取并验证。"
-                                : ""
-                            color: Theme.textSecondary
-                            font.pixelSize: Theme.fontSmall
-                            elide: Text.ElideRight
-                        }
-
+                ParameterForm {
+                    width: parent.width
+                    parameters: root.displayedTool.parameters || []
+                    controller: root.controller
+                    parameterValues: root.parameterValues
+                    compactLayout: root.compactLayout
+                    submitOnEnter: root.submitParametersOnEnter
+                    onSubmitRequested: {
+                        if (root.displayedTool.id && !root.controller.running)
+                            root.runSelectedTool()
                     }
                 }
 
@@ -613,7 +354,7 @@ Rectangle {
             id: separatorMouse
             objectName: "customConsoleResizeHandle"
             anchors.fill: parent
-            enabled: root.consoleExpanded
+            enabled: root.consoleExpanded && root.consoleReveal === 1
             hoverEnabled: true
             cursorShape: Qt.SizeVerCursor
             property real startY: 0
@@ -645,16 +386,16 @@ Rectangle {
         readonly property real formReservedHeight: Math.max(root.minimumFormReservedHeight,
             parameterArea.y + Math.min(parameterColumn.height, Theme.detailFormMaximumVisibleHeight)
             + actionArea.height + Theme.space8 * 2 + root.panelPadding)
-        height: root.consoleExpanded
-            ? (root.splitConsole
+        readonly property real expandedHeight: root.splitConsole
                 ? Math.max(minimumSplitHeight,
                     Math.min(maximumSplitHeight, root.height * root.consoleHeightRatio))
                 : Math.min(root.compactLayout ? root.height : Theme.consoleMaximumHeight,
                        Math.max(Math.min(Theme.consoleMinimumHeight,
                            Math.max(Theme.consoleHeaderHeight, root.height - parameterArea.y
                                - actionArea.height - root.panelPadding * 2)),
-                           root.height - formReservedHeight)))
-            : Theme.consoleHeaderHeight
+                           root.height - formReservedHeight))
+        height: Theme.consoleHeaderHeight
+            + (expandedHeight - Theme.consoleHeaderHeight) * root.consoleReveal
         anchors.bottom: parent.bottom
         anchors.bottomMargin: root.splitConsole ? 0 : root.panelPadding
         radius: 9
@@ -700,6 +441,27 @@ Rectangle {
                     font.pixelSize: Theme.fontCaption
                 }
                 Item { Layout.fillWidth: true }
+                PrimaryButton {
+                    objectName: "customConsoleRunButton"
+                    visible: root.splitConsole
+                    enabled: !!root.displayedTool.id
+                    implicitWidth: root.compactConsoleActions ? 30 : 90
+                    implicitHeight: 30
+                    radius: Theme.radiusTiny
+                    text: root.controller.running ? "停止运行" : "运行脚本"
+                    iconName: root.controller.running ? "stop" : "play_arrow"
+                    compact: root.compactConsoleActions
+                    Accessible.name: text
+                    tonal: true
+                    color: hovered ? Theme.consoleBackground : "transparent"
+                    border.width: 0
+                    foregroundColor: root.controller.running ? Theme.consoleError : Theme.success
+                    labelFontSize: 12
+                    labelFontWeight: Font.Normal
+                    glyphSize: 16
+                    contentSpacing: 4
+                    onClicked: root.runSelectedTool()
+                }
                 PrimaryButton {
                     objectName: "customConsoleCopyButton"
                     implicitWidth: root.compactConsoleActions ? 30 : 82
@@ -771,8 +533,8 @@ Rectangle {
         DesktopScrollView {
             id: consoleScroll
             objectName: "customConsoleScroll"
-            visible: consolePanel.height > 43
-            opacity: root.consoleExpanded ? 1 : 0
+            visible: height > 0
+            opacity: root.consoleReveal
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
@@ -784,14 +546,26 @@ Rectangle {
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-            Behavior on opacity {
-                NumberAnimation { duration: 140 }
-            }
-
             TextArea {
                 id: consoleText
+                objectName: "customConsoleText"
                 width: consoleScroll.availableWidth
-                text: root.controller.consoleText
+                // Keep the document alive while output grows. Replacing text on
+                // every batch resets layout and the viewport before tail scrolling.
+                property string output: root.controller.consoleText
+                property string renderedOutput: ""
+                function updateOutput() {
+                    if (output === renderedOutput)
+                        return
+                    if (output.startsWith(renderedOutput))
+                        insert(length, output.slice(renderedOutput.length))
+                    else
+                        text = output // Clear or bounded-history truncation.
+                    renderedOutput = output
+                }
+                onOutputChanged: updateOutput()
+                Component.onCompleted: updateOutput()
+                textFormat: TextEdit.PlainText
                 readOnly: true
                 selectByMouse: true
                 wrapMode: TextEdit.WrapAnywhere
@@ -810,8 +584,8 @@ Rectangle {
         Rectangle {
             id: footer
             radius: Theme.radiusConsole
-            visible: consolePanel.height > 43
-            opacity: root.consoleExpanded ? 1 : 0
+            visible: consolePanel.height > Theme.consoleHeaderHeight + height
+            opacity: root.consoleReveal
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
@@ -819,9 +593,6 @@ Rectangle {
             color: Theme.consoleBackground
             border.color: Theme.darkMode ? "#2A3442" : "#25303D"
             border.width: 1
-            Behavior on opacity {
-                NumberAnimation { duration: 140 }
-            }
             Text { anchors.left: parent.left; anchors.leftMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: "脚本输出"; color: Theme.consoleMuted; font.pixelSize: Theme.fontSmall }
             Text { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: root.controller.statusText; color: Theme.consoleMuted; font.pixelSize: Theme.fontSmall }
         }

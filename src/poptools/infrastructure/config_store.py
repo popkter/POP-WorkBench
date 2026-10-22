@@ -5,6 +5,7 @@ import math
 import re
 import shutil
 import time
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
@@ -48,7 +49,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 TOOL_SORT_MODES = ("added_time", "name", "usage", "custom")
-THEME_MODES = ("system", "light", "dark")
+THEME_MODES = ("system", "light", "dark", "decade")
 THEME_STYLE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 LOCAL_SCRIPT_ENTRIES = ("tools", "scripts")
 
@@ -64,8 +65,20 @@ class ConfigStore:
         self.paths = paths
         self.paths.ensure()
         self.files = JsonFileStorage(paths.backups_dir)
+        self._snapshot: dict[str, Any] | None = None
+        self._signature: tuple[int, int, int] | None = None
+
+    def _file_signature(self) -> tuple[int, int, int] | None:
+        try:
+            stat = self.paths.config_file.stat()
+            return stat.st_mtime_ns, stat.st_size, stat.st_ino
+        except FileNotFoundError:
+            return None
 
     def load_config(self) -> dict[str, Any]:
+        signature = self._file_signature()
+        if self._snapshot is not None and signature == self._signature:
+            return deepcopy(self._snapshot)
         if not self.paths.config_file.exists():
             self.save_config(DEFAULT_CONFIG)
             return self._copy_default()
@@ -88,6 +101,8 @@ class ConfigStore:
                         changed = True
                 if changed:
                     self.save_config(config)
+            self._snapshot = deepcopy(config)
+            self._signature = signature
             return config
         except (OSError, json.JSONDecodeError):
             self.files.backup(self.paths.config_file, suffix="corrupt")
@@ -96,6 +111,8 @@ class ConfigStore:
 
     def save_config(self, value: dict[str, Any]) -> None:
         self.files.write(self.paths.config_file, value)
+        self._snapshot = deepcopy(value)
+        self._signature = self._file_signature()
 
     def max_parallel(self) -> int:
         config = self.load_config()
@@ -535,6 +552,23 @@ class ConfigStore:
         items.insert(0, tool_id)
         items = items[:10]
         settings["recent_tools"] = items
+        self.save_config(config)
+
+    def record_tool_use(self, tool_id: str) -> None:
+        """Persist recent history and usage as one atomic settings update."""
+        config, settings = self._custom_tool_settings()
+        raw = settings.get("recent_tools")
+        recent = raw if isinstance(raw, list) else []
+        settings["recent_tools"] = [tool_id, *[
+            item for item in recent if isinstance(item, str) and item != tool_id
+        ]][:10]
+        raw_counts = settings.get("usage_count")
+        counts = dict(raw_counts) if isinstance(raw_counts, dict) else {}
+        count = counts.get(tool_id, 0)
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            count = 0
+        counts[tool_id] = count + 1
+        settings["usage_count"] = counts
         self.save_config(config)
 
     def recent_tools(self) -> list[str]:

@@ -7,6 +7,11 @@ import "../theme"
 DesktopScrollView {
     id: picker
     clip: true
+    padding: Theme.detailPanelPadding
+    background: Rectangle {
+        radius: Theme.radiusMedium
+        color: Theme.surfaceContainerLow
+    }
 
     required property var utilities
     property real selectedHue: 0.67

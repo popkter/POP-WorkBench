@@ -69,8 +69,11 @@ class SettingsController(QObject):
         self._plugin_controller = None
         if sys.platform == "win32":
             from poptools.infrastructure.plugin_service import PluginService
+            from poptools.infrastructure.runtime_environment import RuntimeEnvironment
             from poptools.viewmodels.plugin_controller import PluginController
-            self._plugin_controller = PluginController(PluginService(config_store.paths), self)
+            service = PluginService(config_store.paths)
+            runtime = RuntimeEnvironment(config_store.paths, config_store, service)
+            self._plugin_controller = PluginController(service, self, runtime)
             self._plugin_controller.changed.connect(self.pluginsChanged)
 
         application = cast(QGuiApplication | None, QGuiApplication.instance())
@@ -189,7 +192,7 @@ class SettingsController(QObject):
 
     @Property(bool, notify=themeChanged)
     def darkTheme(self) -> bool:
-        if self._theme_mode == "dark":
+        if self._theme_mode in ("dark", "decade"):
             return True
         if self._theme_mode == "light":
             return False

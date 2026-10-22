@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import Property, QObject, QRect, Signal, Slot
+from PySide6.QtCore import Property, QObject, QPoint, QRect, QRectF, Signal, Slot
 from PySide6.QtGui import QWindow
 from PySide6.QtWidgets import QDialog, QFileDialog
 
-from poptools.infrastructure.window_placement import place_tool_window
+from poptools.infrastructure.window_placement import (
+    card_flight_geometry,
+    place_tool_window,
+    set_card_return_layer,
+)
 from poptools.viewmodels.app_controller import _file_picker_start_directory
 
 if TYPE_CHECKING:
@@ -29,6 +33,7 @@ class ToolSessionController(QObject):
         self._tool = backend.registry.get(tool_id)
         self._window: QWindow | None = None
         self._disposed = False
+        self._card_return_layer = False
         backend.customToolsChanged.connect(self._refresh_tool)
         backend.toolConsoleChanged.connect(self._on_console)
         backend.toolStatusChanged.connect(self._on_status)
@@ -48,13 +53,11 @@ class ToolSessionController(QObject):
 
     @Property(str, notify=statusTextChanged)
     def statusText(self) -> str:
-        return self._backend._tool_statuses.get(
-            self._tool_id, "运行中" if self.running else "就绪",
-        )
+        return self._backend.tool_status(self._tool_id)
 
     @Property(str, notify=consoleTextChanged)
     def consoleText(self) -> str:
-        return self._backend._console_texts.get(self._tool_id, "")
+        return self._backend.console_store.text(self._tool_id)
 
     @Slot(QObject)
     def attachWindow(self, window: QObject) -> None:
@@ -65,6 +68,45 @@ class ToolSessionController(QObject):
     def placeWindow(self) -> None:
         if self._window is not None:
             place_tool_window(self._window)
+
+    @Slot(QRectF, result="QVariantMap")
+    @Slot(QRectF, bool, result="QVariantMap")
+    def prepareCardFlight(self, source: QRectF, preserve_source: bool = False) -> dict[str, Any]:
+        if self._window is None or source.isEmpty():
+            return {}
+        place_tool_window(self._window, source.center().toPoint())
+        screen = self._window.screen()
+        return card_flight_geometry(source, self._window.geometry(), screen.availableGeometry(),
+                                    preserve_source)
+
+    @Slot(QRectF, result="QVariantMap")
+    @Slot(QRectF, bool, result="QVariantMap")
+    def prepareCardReturn(self, source: QRectF, preserve_source: bool = False) -> dict[str, Any]:
+        if self._window is None or self._window.screen() is None:
+            return {}
+        target = self._window.geometry()
+        available = self._window.screen().availableGeometry()
+        if not preserve_source:
+            source = source.intersected(QRectF(available))
+        if source.isEmpty():
+            # Cards opened without a list origin fold into their current center.
+            center = target.center()
+            source = QRectF(center.x() - 20, center.y() - 20, 40, 40)
+        return card_flight_geometry(source, target, available, preserve_source)
+
+    @Slot(float, float)
+    def moveCard(self, x: float, y: float) -> None:
+        """Submit both animation coordinates in one native window move."""
+        if self._window is not None:
+            position = QPoint(round(x), round(y))
+            if self._window.position() != position:
+                self._window.setPosition(position)
+
+    @Slot(bool)
+    def setCardReturnLayer(self, returning: bool) -> None:
+        if self._window is not None and self._card_return_layer != returning:
+            set_card_return_layer(self._window, returning)
+            self._card_return_layer = returning
 
     @Slot("QVariantMap", result=bool)
     def runSelected(self, values: dict[str, Any]) -> bool:
@@ -83,22 +125,10 @@ class ToolSessionController(QObject):
 
     @Slot(str, str, result=bool)
     def setParameterDefault(self, parameter_id: str, default: str) -> bool:
-        if self.running:
-            return False
-        try:
-            self._tool = self._backend.registry.set_parameter_default(
-                self._tool_id, parameter_id, default,
-            )
-            if self._backend._selected is not None and self._backend._selected.id == self._tool_id:
-                self._backend._selected = self._tool
-            self._backend.append_tool_console(
-                self._tool_id, f"已更新参数“{parameter_id}”的默认值。\n",
-            )
-            # Keep current forms intact so another field's unsaved input survives.
-            return True
-        except (KeyError, OSError, ValueError) as exc:
-            self._backend.append_tool_console(self._tool_id, f"默认值保存失败：{exc}\n")
-            return False
+        saved = self._backend.update_tool_parameter_default(self._tool_id, parameter_id, default)
+        if saved:
+            self._tool = self._backend.registry.get(self._tool_id)
+        return saved
 
     @Slot(str, result=str)
     def localPathFromUrl(self, url: str) -> str:

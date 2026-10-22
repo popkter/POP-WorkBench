@@ -13,7 +13,7 @@ Rectangle {
     signal pluginManageRequested()
     signal terminalEnableRequested()
     signal userHelpRequested()
-    color: Theme.workspaceBackground
+    color: "transparent"
 
     function scrollToBottom() {
         settingsFlick.contentY = Math.max(0, settingsFlick.contentHeight - settingsFlick.height)
@@ -43,8 +43,7 @@ Rectangle {
         implicitHeight: sectionLayout.implicitHeight + Theme.detailPanelPadding * 2
         radius: Theme.radiusMedium
         color: Theme.surfaceContainerLow
-        border.color: Theme.outlineVariant
-        border.width: 1
+        border.width: 0
 
         ColumnLayout {
             id: sectionLayout
@@ -267,7 +266,8 @@ Rectangle {
                             model: [
                                 {label: "浅色", value: "light", icon: "light_mode"},
                                 {label: "深色", value: "dark", icon: "dark_mode"},
-                                {label: "跟随系统", value: "system", icon: "computer"}
+                                {label: "跟随系统", value: "system", icon: "computer"},
+                                {label: "Decade", value: "decade", icon: "style"}
                             ]
                             delegate: PrimaryButton {
                                 required property var modelData

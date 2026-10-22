@@ -20,7 +20,7 @@ Rectangle {
     property alias kindFilter: mainScriptList.kindFilter
     readonly property bool drawerVisible: false
     readonly property bool popupVisible: false
-    color: Theme.workspaceBackground
+    color: "transparent"
 
     signal searchEdited(string query)
     signal createRequested()
@@ -55,8 +55,7 @@ Rectangle {
                 Layout.fillHeight: true
                 radius: Theme.radiusMedium
                 color: Theme.surfaceContainerLow
-                border.color: Theme.outlineVariant
-                border.width: 1
+                border.width: 0
 
                 CustomScriptList {
                     id: mainScriptList
@@ -83,6 +82,7 @@ Rectangle {
                     parameterValues: root.parameterValues
                     displayedTool: root.controller.selectedTool
                     splitConsole: true
+                    submitParametersOnEnter: true
                     actionsInTitleBar: true
                     deviceInTitleBar: root.deviceInTitleBar
                     onEditRequested: root.editRequested()
