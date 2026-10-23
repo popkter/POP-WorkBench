@@ -14,6 +14,7 @@ Item {
     property var pendingReturns: []
     property var pendingDocks: []
     function takeCardFace(toolId) { return scripts.takeCardFace(toolId) }
+    function cancelCardLaunch(toolId) { scripts.cancelCardLaunch(toolId) }
     function dockCardFace(toolId, face, callback) {
         scripts.dockCardFace(toolId, face)
         if (!Theme.decadeMode || !panel.visible) {
@@ -73,6 +74,11 @@ Item {
     }
     Connections {
         target: Theme
+        function onFloatingPanelWidthChanged() {
+            if (root.attached)
+                root.controller.attachDrawerWindow(panel, Theme.floatingTipWidth,
+                    Theme.floatingTipHeight, Theme.floatingPanelWidth, Theme.floatingPanelHeight)
+        }
         function onFloatingPanelHeightChanged() {
             if (root.attached)
                 root.controller.attachDrawerWindow(panel, Theme.floatingTipWidth,

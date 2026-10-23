@@ -728,17 +728,48 @@ ApplicationWindow {
     }
 
     property var recentToolWindows: ({})
+    property var pendingToolWindows: ({})
+    property var retiredToolWindows: []
+    function cancelToolIncubations() {
+        for (const id in pendingToolWindows)
+            if (floatingLauncherLoader.item) floatingLauncherLoader.item.cancelCardLaunch(id)
+        pendingToolWindows = ({})
+    }
+    function retireToolWindow(card) {
+        retiredToolWindows.push(card)
+        cardCleanup.start()
+    }
+    Timer {
+        id: cardCleanup
+        interval: 32
+        repeat: true
+        onTriggered: {
+            if (cardRecallQueue.running || Object.keys(window.pendingToolWindows).length > 0
+                    || Object.values(window.recentToolWindows).some(card =>
+                        card.entryAnimationRunning || card.activationAnimationRunning
+                        || card.recycleAnimationRunning || card.focusScanRunning))
+                return
+            const card = window.retiredToolWindows.shift()
+            if (card) card.destroy()
+            if (window.retiredToolWindows.length === 0) stop()
+        }
+    }
     property string lastRequestedToolWindow: ""
     CardRecallQueue { id: cardRecallQueue }
 
     function closeRecentToolWindows() {
+        cancelToolIncubations()
         cardRecallQueue.clear()
         var opened = recentToolWindows
         for (var toolId in opened)
             opened[toolId].dismissCard()
     }
 
-    Component.onDestruction: closeRecentToolWindows()
+    Component.onDestruction: {
+        closeRecentToolWindows()
+        for (let card of retiredToolWindows) if (card) card.destroy()
+        retiredToolWindows = []
+    }
 
     Connections {
         target: trayController
@@ -764,6 +795,7 @@ ApplicationWindow {
             trayController.show_window()
         }
         function onRecallAllCardsRequested() {
+            window.cancelToolIncubations()
             cardRecallQueue.recall(Object.values(window.recentToolWindows))
         }
     }
@@ -795,9 +827,34 @@ ApplicationWindow {
                 })
                 return
             }
-            var win = recentToolWindowComponent.createObject(null, {launchOrigin: origin})
-            if (!win)
+            if (window.pendingToolWindows[toolId])
                 return
+            if (!Theme.decadeMode) {
+                const win = recentToolWindowComponent.createObject(null, {launchOrigin: origin})
+                if (win) finishToolWindow(toolId, win)
+                return
+            }
+            // Incubate the shell as well as the form. A synchronous createObject
+            // blocks rotation/scans in every window sharing the GUI thread.
+            const incubator = recentToolWindowComponent.incubateObject(
+                null, {launchOrigin: origin}, Qt.Asynchronous)
+            window.pendingToolWindows[toolId] = incubator
+            function completed() {
+                if (incubator.status === Component.Loading)
+                    return
+                const wanted = window.pendingToolWindows[toolId] === incubator
+                if (wanted) delete window.pendingToolWindows[toolId]
+                if (incubator.status === Component.Ready) {
+                    if (wanted) finishToolWindow(toolId, incubator.object)
+                    else incubator.object.destroy()
+                } else if (wanted && floatingLauncherLoader.item) {
+                    floatingLauncherLoader.item.cancelCardLaunch(toolId)
+                }
+            }
+            incubator.onStatusChanged = completed
+            completed()
+        }
+        function finishToolWindow(toolId, win) {
             if (floatingLauncherLoader.item)
                 win.cardFace = floatingLauncherLoader.item.takeCardFace(toolId)
             win.dockReturn = function(id, face, callback) {
@@ -831,7 +888,7 @@ ApplicationWindow {
                     delete remaining[closedToolId]
                 window.recentToolWindows = remaining
                 cardRecallQueue.completed(win)
-                win.destroy()
+                window.retireToolWindow(win)
             })
             win.showWithTool(toolId)
         }

@@ -6,6 +6,10 @@ Rectangle {
     property string cardTitle: ""
     property string cardIcon: "terminal"
     property rect packVisibleRect: Qt.rect(0, 0, 0, 0)
+    property real packViewportTop: NaN
+    property real packViewportBottom: NaN
+    property rect packPort: Qt.rect(0, 0, 0, 0)
+    property rect packPortOrigin: Qt.rect(0, 0, 0, 0)
     readonly property color accent: "#F12786"
     radius: Theme.radiusMedium
     color: "#101118"

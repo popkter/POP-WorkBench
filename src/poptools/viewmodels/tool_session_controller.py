@@ -6,6 +6,7 @@ from PySide6.QtCore import Property, QObject, QPoint, QRect, QRectF, Signal, Slo
 from PySide6.QtGui import QRegion, QWindow
 from PySide6.QtWidgets import QDialog, QFileDialog
 
+from poptools.infrastructure.card_window_updates import card_window_updates
 from poptools.infrastructure.window_placement import (
     card_flight_geometry,
     card_pack_mask,
@@ -32,6 +33,7 @@ class ToolSessionController(QObject):
         self._backend = backend
         self._tool_id = tool_id
         self._tool = backend.registry.get(tool_id)
+        self._tool_data = backend.tool_data(self._tool)
         self._window: QWindow | None = None
         self._disposed = False
         self._card_flight_layer = False
@@ -46,7 +48,7 @@ class ToolSessionController(QObject):
 
     @Property(dict, notify=selectedToolDataChanged)
     def selectedTool(self) -> dict[str, Any]:
-        return self._backend.tool_data(self._tool)
+        return self._tool_data
 
     @Property(bool, notify=runningChanged)
     def running(self) -> bool:
@@ -101,6 +103,9 @@ class ToolSessionController(QObject):
         if self._window is not None:
             position = QPoint(round(x), round(y))
             mask = card_pack_mask(QRect(position, self._window.size()), pack, opening)
+            if self._window.isVisible() and self._card_flight_layer:
+                card_window_updates().schedule(self._window, position, mask)
+                return
             if self._window.position() != position:
                 self._window.setPosition(position)
             if self._window.mask() != mask:
@@ -109,6 +114,8 @@ class ToolSessionController(QObject):
     @Slot(bool)
     def setCardFlightLayer(self, flying: bool) -> None:
         if self._window is not None and self._card_flight_layer != flying:
+            if not flying:
+                card_window_updates().finish(self._window)
             set_card_flight_layer(self._window, flying)
             self._card_flight_layer = flying
             if not flying:
@@ -133,7 +140,7 @@ class ToolSessionController(QObject):
     def setParameterDefault(self, parameter_id: str, default: str) -> bool:
         saved = self._backend.update_tool_parameter_default(self._tool_id, parameter_id, default)
         if saved:
-            self._tool = self._backend.registry.get(self._tool_id)
+            self._refresh_tool()
         return saved
 
     @Slot(str, result=str)
@@ -179,6 +186,7 @@ class ToolSessionController(QObject):
         tool = self._backend.registry.get(self._tool_id)
         if tool is not None and tool != self._tool:
             self._tool = tool
+            self._tool_data = self._backend.tool_data(tool)
             self.selectedToolDataChanged.emit()
 
     def _on_console(self, tool_id: str) -> None:

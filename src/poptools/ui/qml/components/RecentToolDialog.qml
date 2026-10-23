@@ -7,10 +7,11 @@ Window {
     id: root
     objectName: "recentToolWindow"
     transientParent: null
-    title: root.toolController.selectedTool.title || "运行工具"
+    title: root.selectedTool.title || "运行工具"
 
     property string toolId: ""
     property var toolController: appController
+    readonly property var selectedTool: toolController.selectedTool
     property bool ownsController: false
     property rect launchOrigin: Qt.rect(0, 0, 0, 0)
     property var prepareReturn: null
@@ -41,7 +42,8 @@ Window {
         // Hide with the docking mask intact. finish() restores the normal
         // surface/mask and must not expose a closing full-size native window.
         visible = false
-        formLoader.active = false
+        // Main releases the hidden window when other flights have settled.
+        // Destroying a whole form here stalls every other card's GUI animation.
         cardMotion.finish()
         dismissed(toolId)
     }
@@ -65,20 +67,22 @@ Window {
     property var presetUtilities
     property var deviceController
     property var jiraFeishuBackend
-    readonly property bool presetMode: root.toolController.selectedTool.workspace === "preset"
-    readonly property bool customScriptMode: root.toolController.selectedTool.section === "custom"
-        && root.toolController.selectedTool.workspace === "command"
+    readonly property bool presetMode: root.selectedTool.workspace === "preset"
+    readonly property bool customScriptMode: root.selectedTool.section === "custom"
+        && root.selectedTool.workspace === "command"
     readonly property bool recordingPreset: presetMode
-        && root.toolController.selectedTool.executor
-        && root.toolController.selectedTool.executor.command === "recording"
+        && root.selectedTool.executor
+        && root.selectedTool.executor.command === "recording"
     readonly property bool operationRunning: recordingPreset
         ? presetUtilities && presetUtilities.recording
         : root.toolController.running
     readonly property real consolePreferredHeight: 292
     readonly property real bodySpacing: 12
 
-    width: customScriptMode ? 440 : presetMode ? 720 : 680
-    height: Math.min(customScriptMode ? 680 : presetMode ? 560 : 600, Screen.height - 48)
+    readonly property real cardUiScale: customScriptMode ? Theme.scriptCardScale : 1
+    width: customScriptMode ? Math.round(440 * cardUiScale) : presetMode ? 720 : 680
+    height: Math.min(customScriptMode ? Math.round(680 * cardUiScale)
+                                    : presetMode ? 560 : 600, Screen.height - 48)
     visible: false
     flags: Qt.Window | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
     color: "transparent"
@@ -104,7 +108,7 @@ Window {
         ownsController = true
         session.attachWindow(root)
         var values = {}
-        var tool = root.toolController.selectedTool
+        var tool = root.selectedTool
         var parameters = tool.parameters || []
         for (var i = 0; i < parameters.length; i++)
             values[parameters[i].id] = parameters[i].default
@@ -129,10 +133,24 @@ Window {
         requestActivate()
     }
 
+    function queueTitleActivation() {
+        // Finish delivery to the title MouseArea before enabling the animation's
+        // input shield and transforming that MouseArea's ancestors.
+        Qt.callLater(activateFromTitle)
+    }
+
+    function activateFromTitle() {
+        if (Theme.decadeMode && customScriptMode && visible && !closing
+                && !cardMotion.recycling)
+            activateCard()
+    }
+
     function activateCard() {
-        if (returnPending || recallQueued || cardMotion.entering)
+        if (closing || returnPending || recallQueued || cardMotion.entering
+                || cardMotion.activating)
             return
-        showNormal()
+        if (visibility === Window.Minimized)
+            showNormal()
         raise()
         requestActivate()
         if (customScriptMode)
@@ -219,12 +237,13 @@ Window {
     // ── Main content ───────────────────────────────────────
     MechanicalCardMotion {
         id: cardMotion
+        designScale: root.cardUiScale
         width: root.width
         height: root.height
         contentReady: formLoader.status === Loader.Ready
-        cardTitle: root.toolController.selectedTool.title || "运行脚本"
-        cardIcon: root.toolController.selectedTool.presentation
-            ? root.toolController.selectedTool.presentation.icon || "terminal" : "terminal"
+        cardTitle: root.selectedTool.title || "运行脚本"
+        cardIcon: root.selectedTool.presentation
+            ? root.selectedTool.presentation.icon || "terminal" : "terminal"
         onPositionRequested: function(globalX, globalY, packBounds, packOpening) {
             root.toolController.moveCard(globalX, globalY, packBounds, packOpening)
         }
@@ -247,10 +266,24 @@ Window {
         onWheel: function(wheel) { wheel.accepted = true }
     }
 
+    Item {
+        id: scaledForm
+        // Warm the form shortly before the scan, rather than redraw it behind
+        // an opaque, rotating card in every window throughout the flight.
+        visible: !Theme.decadeMode || (!cardMotion.entering && !cardMotion.recycling)
+            || cardMotion.scan > 0
+            || (cardMotion.entering && cardMotion.progress
+                >= cardMotion.scanStartDuration / cardMotion.flightDuration - .05)
+        parent: cardMotion.surface
+        width: parent.width / root.cardUiScale
+        height: parent.height / root.cardUiScale
+        scale: root.cardUiScale
+        transformOrigin: Item.TopLeft
+    }
     Loader {
         id: formLoader
         objectName: "recentToolFormLoader"
-        parent: cardMotion.surface
+        parent: scaledForm
         anchors.fill: parent
         asynchronous: Theme.decadeMode && root.customScriptMode
     }

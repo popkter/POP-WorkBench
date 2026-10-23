@@ -98,7 +98,10 @@ def card_flight_geometry(
             "sourceWidth": source.width(), "sourceHeight": source.height(),
             "targetX": target.x() - bounds.x(), "targetY": target.y() - bounds.y(),
             "targetWidth": target.width(), "targetHeight": target.height(),
-            "preserveSource": preserve_source}
+            "preserveSource": preserve_source,
+            "screenLeft": available.x(), "screenTop": available.y(),
+            "screenRight": available.x() + available.width(),
+            "screenBottom": available.y() + available.height()}
 
 
 def place_tool_window(window: QWindow, origin: QPoint | None = None) -> None:

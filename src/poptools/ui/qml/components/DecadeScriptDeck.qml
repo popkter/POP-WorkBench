@@ -11,10 +11,20 @@ ScriptCollectionView {
     pendingLaunchCount: pendingLaunches.length
     readonly property var returningIds: controller.returningCardIds
     readonly property int deckReflowDuration: 160
+    readonly property real cardWidth: root.width - root.scrollGutter - 16
+    readonly property real cardStep: 76 * Theme.scriptCardScale
     settling: deckLayoutSettlement.running
     headingText: "DECADE / 脚本卡包"
     countSuffix: " 张卡牌"
     actionText: "点击抽卡"
+    // A filter can collapse the delegates at the old scroll position to zero
+    // height. Reset before laying them out, or the viewport can stay beyond
+    // the new extent and never instantiate the remaining matching cards.
+    onKindFilterChanged: {
+        cancelFlick();
+        positionViewAtBeginning();
+        forceLayout();
+    }
     // Keep offscreen delegates out of the incubation queue. Rapid row removals
     // otherwise race Qt DelegateModel cancellation; face ownership is in the store.
     topMargin: 10
@@ -80,10 +90,21 @@ ScriptCollectionView {
         else
             toolActivated(id);
     }
-    function outlineRect(face) {
-        const point = face.mapToGlobal(0, 0);
-        const scale = face.width / 432;
-        return Qt.rect(point.x - 4 * scale, point.y - 4 * scale, face.width + 8 * scale, face.height + 8 * scale);
+    function portOrigin(face) {
+        // The shared port follows the pack, not a row or the scroll position.
+        const point = root.mapToGlobal(-Theme.space16, -32);
+        const height = root.height + 32;
+        const width = Math.min(root.cardWidth, height * 440 / 680);
+        const cardHeight = width * 680 / 440;
+        const origin = Qt.rect(point.x, point.y + (height - cardHeight) / 2,
+                               width, cardHeight);
+        if (face) {
+            face.packPort = Qt.rect(point.x, point.y, 1, height);
+            face.packPortOrigin = origin;
+            face.packViewportTop = point.y;
+            face.packViewportBottom = point.y + height;
+        }
+        return origin;
     }
     function launchCard(id, row) {
         if (cardStore.isBorrowed(id))
@@ -91,14 +112,16 @@ ScriptCollectionView {
         const face = cardStore.peek(id);
         if (!face)
             return;
-        const origin = outlineRect(face);
+        portOrigin(face);
+        const point = face.mapToGlobal(0, 0);
+        const scale = face.width / 432;
+        const origin = Qt.rect(point.x - 4 * scale, point.y - 4 * scale,
+                               face.width + 8 * scale, face.height + 8 * scale);
         const viewport = root.mapToGlobal(0, 0);
-        const rowTop = row.mapToGlobal(0, 0).y;
-        const left = Math.max(origin.x, viewport.x);
         const top = Math.max(origin.y, viewport.y);
-        const right = Math.min(origin.x + origin.width, viewport.x + root.width);
-        const bottom = Math.min(origin.y + origin.height, viewport.y + root.height, rowTop + row.height);
-        face.packVisibleRect = Qt.rect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+        const bottom = Math.min(origin.y + origin.height, viewport.y + root.height,
+                                row.mapToGlobal(0, 0).y + row.height);
+        face.packVisibleRect = Qt.rect(origin.x, top, origin.width, Math.max(1, bottom - top));
         // Reserve synchronously, but create windows outside the MouseArea event.
         // Showing a native window can pump events and retire this very delegate.
         cardStore.lend(id);
@@ -111,7 +134,10 @@ ScriptCollectionView {
         launchDispatch.start();
     }
     function returnCardRect(toolId) {
-        root.forceLayout();
+        const face = cardStore.peek(toolId);
+        portOrigin(face);
+        if (!continuousRecall)
+            root.forceLayout();
         const index = Math.min(listModel.insertionIndex(toolId), root.count - 1);
         if (index >= 0 && !continuousRecall) {
             root.positionViewAtIndex(index, ListView.Beginning);
@@ -120,24 +146,20 @@ ScriptCollectionView {
                 root.contentY = root.originY - root.topMargin;
         }
         const row = index >= 0 ? root.itemAtIndex(index) as DeckRow : null;
-        // All overlapping returns share one stable pack entrance. List insertions
-        // cannot move another in-flight card's destination.
-        // An empty list restores its top margin when the first row is inserted.
-        // Include that margin in the landing point to avoid a final 10px jump.
         const point = !continuousRecall && row && row.height > 0 ? row.mapToGlobal(0, 0)
             : root.mapToGlobal(0, !continuousRecall && root.count === 0 ? root.topMargin : 0);
-        const width = root.width - root.scrollGutter - 16;
-        const scale = width / 432;
-        const origin = Qt.rect(point.x + 8 - 4 * scale, point.y - 4 * scale, width + 8 * scale, 680 * scale);
-        const viewport = root.mapToGlobal(0, 0);
-        // A returning card is covered by the next card in the queue. For an
-        // empty pack its full face is visible up to the viewport's lower edge.
-        const headBottom = (continuousRecall && returningIds.length > 1) || listModel.insertionIndex(toolId) < root.count ? point.y + 76 : origin.y + origin.height;
-        const top = Math.max(origin.y, viewport.y);
-        const bottom = Math.min(origin.y + origin.height, viewport.y + root.height, headBottom);
-        const face = cardStore.peek(toolId);
-        if (face)
-            face.packVisibleRect = Qt.rect(origin.x, top, origin.width, Math.max(0, bottom - top));
+        const scale = root.cardWidth / 432;
+        const origin = Qt.rect(point.x + 8 - 4 * scale, point.y - 4 * scale,
+                               root.cardWidth + 8 * scale, 680 * scale);
+        if (face) {
+            const viewport = root.mapToGlobal(0, 0);
+            const top = Math.max(origin.y, viewport.y);
+            const headBottom = (continuousRecall && returningIds.length > 1)
+                || listModel.insertionIndex(toolId) < root.count
+                ? point.y + root.cardStep : origin.y + origin.height;
+            const bottom = Math.min(headBottom, viewport.y + root.height);
+            face.packVisibleRect = Qt.rect(origin.x, top, origin.width, Math.max(1, bottom - top));
+        }
         return origin;
     }
     function dockCardFace(id, face) {
@@ -186,13 +208,13 @@ ScriptCollectionView {
             root.positionViewAtIndex(index, ListView.Contain)
         width: root.width - root.scrollGutter
 
-        height: (root.kindFilter === "all" || root.kindFilter === executorKind) ? (lastInDeck ? deckFace.height + 10 : 76) : 0
+        height: (root.kindFilter === "all" || root.kindFilter === executorKind) ? (lastInDeck ? deckFace.height + 10 : root.cardStep) : 0
         z: index
         visible: height > 0
         Item {
             id: deckFace
             x: 8
-            width: scriptRow.width - 16
+            width: root.cardWidth
             height: width * 672 / 432
             Rectangle {
                 x: -3
@@ -215,17 +237,6 @@ ScriptCollectionView {
                         color: "#E0000000"
                     }
                 }
-            }
-            Rectangle {
-                x: 0
-                y: 4
-                width: parent.width
-                height: parent.height
-                radius: Theme.radiusMedium
-                color: "#08080C"
-                z: -1
-                border.color: "#635164"
-                border.width: 1
             }
         }
         MouseArea {

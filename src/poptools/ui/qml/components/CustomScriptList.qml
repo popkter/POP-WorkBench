@@ -36,6 +36,9 @@ Item {
     function takeCardFace(id) {
         return sharedCards.borrow(id);
     }
+    function cancelCardLaunch(id) {
+        sharedCards.unlend(id);
+    }
     function returnCardRect(id) {
         return collectionView.returnCardRect(id);
     }

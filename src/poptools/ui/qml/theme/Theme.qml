@@ -211,8 +211,8 @@ QtObject {
     readonly property int motionSpinner: 750
     readonly property int floatingTipWidth: 40
     readonly property int floatingTipHeight: 40
-    readonly property int floatingPanelWidth: 360
-    // Leave room below the exposed heads for the complete card inside its sleeve.
-    readonly property int floatingPanelHeight: decadeMode ? 600 : 480
+    readonly property real scriptCardScale: 5 / 7
+    readonly property int floatingPanelWidth: decadeMode ? 320 : 360
+    readonly property int floatingPanelHeight: decadeMode ? 480 : 480
     readonly property real floatingIdleOpacity: 0.55
 }

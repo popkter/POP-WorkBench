@@ -12,10 +12,11 @@ Item {
     property alias workspace: workspaceLoader
     MultiEffect {
         id: dialogShadow
+        visible: !dialog.customScriptMode
         anchors.fill: parent
         anchors.margins: dialog.customScriptMode ? Theme.space4 : Theme.space8
         source: contentRect
-        shadowEnabled: true
+        shadowEnabled: !dialog.customScriptMode
         shadowBlur: 0.7
         blurMax: 24
         shadowOpacity: Theme.darkMode ? 0.72 : 0.42
@@ -48,11 +49,27 @@ Item {
 
                 // Drag-to-move area (covers title bar, behind interactive elements)
                 MouseArea {
+                    objectName: "recentToolTitleDragArea"
                     anchors.left: parent.left
                     anchors.right: titleButtons.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    onPressed: dialog.startSystemMove()
+                    property point pressPosition: Qt.point(0, 0)
+                    property bool systemDragging: false
+                    onPressed: function(mouse) {
+                        pressPosition = Qt.point(mouse.x, mouse.y)
+                        systemDragging = false
+                    }
+                    onPositionChanged: function(mouse) {
+                        if (pressed && !systemDragging
+                                && Math.max(Math.abs(mouse.x - pressPosition.x),
+                                            Math.abs(mouse.y - pressPosition.y)) >= Qt.styleHints.startDragDistance) {
+                            systemDragging = true
+                            dialog.startSystemMove()
+                        }
+                    }
+                    onDoubleClicked: if (dialog.customScriptMode && Theme.decadeMode)
+                        dialog.queueTitleActivation()
                 }
 
                 Image {
@@ -76,7 +93,7 @@ Item {
                     anchors.rightMargin: Theme.space12
                     anchors.verticalCenter: parent.verticalCenter
                     text: dialog.customScriptMode ? "泡泡工具箱"
-                        : dialog.toolController.selectedTool.title || "运行工具"
+                        : dialog.selectedTool.title || "运行工具"
                     color: dialog.customScriptMode ? Theme.chromeForeground : Theme.textPrimary
                     font.pixelSize: dialog.customScriptMode ? Theme.fontSupporting : Theme.fontSectionTitle
                     font.weight: dialog.customScriptMode ? Font.Medium : Font.Bold
@@ -129,8 +146,8 @@ Item {
                         compact: true
                         controller: dialog.deviceController
                         toolId: dialog.toolId
-                        requiredDevice: !!dialog.toolController.selectedTool.requires_android_device
-                        explicitTarget: !!dialog.toolController.selectedTool.android_explicit_target
+                        requiredDevice: !!dialog.selectedTool.requires_android_device
+                        explicitTarget: !!dialog.selectedTool.android_explicit_target
                     }
 
                     PrimaryButton {
@@ -195,11 +212,12 @@ Item {
                     androidBackend: dialog.deviceController
                     parentWindow: dialog
                     parameterValues: dialog.parameterValues
-                    displayedTool: dialog.toolController.selectedTool
+                    displayedTool: dialog.selectedTool
                     allowManagement: false
                     actionsInTitleBar: true
                     deviceInTitleBar: true
                     externalRun: true
+                    submitParametersOnEnter: true
                     compactLayout: true
                     minimumFormReservedHeight: 0
                     onRunRequested: dialog.runCustomScript()
@@ -224,7 +242,7 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         visible: text.length > 0
-                        text: dialog.toolController.selectedTool.description || ""
+                        text: dialog.selectedTool.description || ""
                         color: Theme.textSecondary
                         Layout.leftMargin: 20
                         Layout.rightMargin: 20
@@ -245,7 +263,7 @@ Item {
                         Layout.fillHeight: true
                         Layout.leftMargin: 20
                         Layout.rightMargin: 20
-                        sourceComponent: dialog.toolController.selectedTool.workspace === "preset"
+                        sourceComponent: dialog.selectedTool.workspace === "preset"
                             ? presetWorkspace : commandWorkspace
                     }
                 }
@@ -289,7 +307,7 @@ Item {
             androidController: dialog.deviceController
             parentWindow: dialog
             parameterValues: dialog.parameterValues
-            scrcpySelected: dialog.toolController.selectedTool.workspace === "scrcpy"
+            scrcpySelected: dialog.selectedTool.workspace === "scrcpy"
             overlaysVisible: false
         }
     }
