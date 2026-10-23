@@ -1,6 +1,31 @@
 [
   {
     "schema_version": 1,
+    "id": "preset.video_preview",
+    "revision": 1,
+    "origin": "builtin",
+    "section": "preset",
+    "title": "视频预览",
+    "description": "播放本地视频，放大时间轴查看连续逐帧画面，支持拖放导入与播放列表",
+    "tags": ["视频", "预览", "逐帧", "时间轴"],
+    "editable": false,
+    "enabled": true,
+    "executor": {
+      "kind": "internal",
+      "command": "video_preview",
+      "args": [],
+      "requirements": []
+    },
+    "parameters": [],
+    "presentation": {
+      "icon": "video_library",
+      "order": 905,
+      "confirm_before_run": false,
+      "output_mode": "inline"
+    }
+  },
+  {
+    "schema_version": 1,
     "id": "preset.jira_feishu",
     "revision": 1,
     "origin": "builtin",

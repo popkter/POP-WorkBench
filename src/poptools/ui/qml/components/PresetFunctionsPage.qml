@@ -14,6 +14,7 @@ Rectangle {
     required property var presetUtilities
     required property var androidBackend
     required property var jiraFeishuBackend
+    property var videoBackend: null
     property string searchQuery: ""
     property bool compact: false
     property bool overlaysVisible: false
@@ -179,6 +180,8 @@ Rectangle {
                 utilities: root.presetUtilities
                 androidBackend: root.androidBackend
                 jiraFeishuBackend: root.jiraFeishuBackend
+                videoBackend: root.videoBackend
+                shortcutsEnabled: !root.overlaysVisible
                 compact: root.compact
                 actionsInTitleBar: root.actionsInTitleBar
             }

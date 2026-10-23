@@ -11,6 +11,8 @@ aqtinstall==3.3.0
     # via poptools
 ast-serialize==0.6.0
     # via mypy
+av==16.1.0
+    # via poptools
 backports-zstd==1.7.0
     # via py7zr
 beautifulsoup4==4.15.0
@@ -100,8 +102,12 @@ pypinyin==0.55.0
     # via poptools
 pyppmd==1.3.1
     # via py7zr
-pyside6-essentials==6.11.1
+pyside6-addons==6.11.1
     # via poptools
+pyside6-essentials==6.11.1
+    # via
+    #   poptools
+    #   pyside6-addons
 pytest==9.1.1
     # via
     #   poptools
@@ -128,7 +134,9 @@ setuptools==69.5.1
     #   poptools
     #   pyinstaller
 shiboken6==6.11.1
-    # via pyside6-essentials
+    # via
+    #   pyside6-addons
+    #   pyside6-essentials
 soupsieve==2.9.2
     # via beautifulsoup4
 texttable==1.7.0

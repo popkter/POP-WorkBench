@@ -90,22 +90,29 @@ Item {
         : phase(scanStartDuration / flightDuration, 1)
     readonly property real initialScale: desktopFlight
         ? Math.min(flightGeometry.sourceWidth / width, flightGeometry.sourceHeight / height) : 1
+    readonly property real initialScaleX: portFlight ? flightGeometry.sourceWidth / width : initialScale
+    readonly property real initialScaleY: portFlight ? flightGeometry.sourceHeight / height : initialScale
     readonly property real portScale: portFlight && portSource.width > 0
         ? Math.min(portSource.width / width, portSource.height / height) : initialScale
     readonly property real portAlignment: Math.min(1, travel / .2)
-    readonly property real flightScale: portFlight
-        ? initialScale + (portScale - initialScale) * portAlignment + (1 - portScale) * freeTravel
+    readonly property real flightScaleX: portFlight
+        ? initialScaleX + (portScale - initialScaleX) * portAlignment + (1 - portScale) * freeTravel
         : initialScale + (1 - initialScale) * freeTravel
+    readonly property real flightScale: portFlight
+        ? initialScaleY + (portScale - initialScaleY) * portAlignment + (1 - portScale) * freeTravel
+        : initialScale + (1 - initialScale) * freeTravel
+    readonly property real faceAspectCompensation: desktopFlight && flightScale > 0
+        ? flightScaleX / flightScale : 1
     readonly property real flightTilt: desktopFlight
         ? (flightGeometry.preserveSource || flightGeometry.targetX < flightGeometry.sourceX ? -1 : 1)
             * 8 * Math.sin(Math.PI * (sleeveFlight ? freeTravel : flightProgress)) : 0
     readonly property real radians: flightTilt * Math.PI / 180
     // Keep rotation inside this fixed-size native surface; never resize or swap it.
     readonly property real fit: Math.min(1,
-        width / (width * flightScale * Math.abs(Math.cos(radians))
+        width / (width * flightScaleX * Math.abs(Math.cos(radians))
             + height * flightScale * Math.abs(Math.sin(radians))),
         height / (height * flightScale * Math.abs(Math.cos(radians))
-            + width * flightScale * Math.abs(Math.sin(radians))))
+            + width * flightScaleX * Math.abs(Math.sin(radians))))
     readonly property real settleScale: 1 - 0.008 * Math.sin(
         Math.PI * Math.max(0, (flightProgress - 0.85) / 0.15))
     readonly property real edgeStrength: entering
@@ -227,12 +234,16 @@ Item {
             ? Math.min(portSource.width / width, portSource.height / height) : startScale
         const alignment = Math.min(1, eased / .2)
         const scale = portFlight
-            ? startScale + (gateScale - startScale) * alignment + (1 - gateScale) * free
+            ? g.sourceHeight / height + (gateScale - g.sourceHeight / height) * alignment
+                + (1 - gateScale) * free
             : startScale + (1 - startScale) * free
-        const rotatedWidth = scale * (width * Math.abs(Math.cos(angle))
-            + height * Math.abs(Math.sin(angle)))
-        const rotatedHeight = scale * (height * Math.abs(Math.cos(angle))
-            + width * Math.abs(Math.sin(angle)))
+        const scaleX = portFlight
+            ? g.sourceWidth / width + (gateScale - g.sourceWidth / width) * alignment
+                + (1 - gateScale) * free : scale
+        const rotatedWidth = scaleX * width * Math.abs(Math.cos(angle))
+            + scale * height * Math.abs(Math.sin(angle))
+        const rotatedHeight = scale * height * Math.abs(Math.cos(angle))
+            + scaleX * width * Math.abs(Math.sin(angle))
         const fitting = Math.min(1, width / rotatedWidth, height / rotatedHeight)
         const bounce = 1 - 0.008 * Math.sin(Math.PI * Math.max(0, (tick - .85) / .15))
         const footprintWidth = rotatedWidth * fitting * bounce
@@ -455,11 +466,11 @@ Item {
             },
             Scale {
                 origin.x: card.width / 2; origin.y: card.height / 2
-                xScale: root.desktopFlight ? root.flightScale * root.fit * root.settleScale
+                xScale: root.desktopFlight ? root.flightScaleX * root.fit * root.settleScale
                     : root.progress < 0.78
                     ? 0.72 + 0.28 * root.easeOut(root.phase(0, 0.78))
                     : 1 - 0.012 * Math.sin(Math.PI * root.phase(0.78, 1))
-                yScale: xScale
+                yScale: root.desktopFlight ? root.flightScale * root.fit * root.settleScale : xScale
             },
             Rotation {
                 origin.x: card.width / 2; origin.y: card.height / 2
@@ -498,9 +509,13 @@ Item {
                 Item {
                     id: faceHost
                     x: Theme.space4 * root.designScale
-                    y: Theme.space4 * root.designScale - parent.y
+                    y: (Theme.space4 * root.designScale - parent.y) / root.faceAspectCompensation
                     width: card.width - Theme.space4 * root.designScale * 2
-                    height: card.height - Theme.space4 * root.designScale * 2
+                    height: (card.height - Theme.space4 * root.designScale * 2)
+                        / root.faceAspectCompensation
+                    // Compact pack cards change layout height, not text shape.
+                    // Counter the flight's outer Y scale for the live card face.
+                    transform: Scale { yScale: root.faceAspectCompensation }
                     // The whole card owns the single 0..360 degree turn.
                     // Do not flip this face again at 90/270 degrees: that
                     // creates extra apparent turns in the middle of the spin.

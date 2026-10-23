@@ -1,5 +1,24 @@
 # Third-party notices
 
+## PyAV / FFmpeg and Qt audio
+
+视频预览 uses PyAV 16.1.0 to access FFmpeg for video decoding, frame previews,
+and audio resampling. PySide6 QtMultimedia is used for the system audio sink;
+the application does not use QMediaPlayer or an additional player engine.
+
+- PyAV source: https://github.com/PyAV-Org/PyAV/tree/v16.1.0
+- PyAV license: BSD-3-Clause; the package license metadata is bundled.
+- FFmpeg source: https://ffmpeg.org/download.html
+- PyAV binary build sources: https://github.com/PyAV-Org/pyav-ffmpeg
+- FFmpeg and codec dependencies retain their own licenses. The Windows PyAV
+  wheel used for development reports LGPL version 3 or later through
+  `avcodec_license()`. Binary contents and build options are platform-specific.
+- PySide6 source and license notices: https://doc.qt.io/qtforpython-6/licenses.html
+
+The lockfile records the selected PyAV and PySide6 wheel versions. Distributors
+must retain the applicable FFmpeg/codec source and license obligations for the
+specific binary builds they distribute.
+
 ## libvterm 0.3.3
 
 泡泡工具箱 embeds libvterm as the terminal emulation state machine used by

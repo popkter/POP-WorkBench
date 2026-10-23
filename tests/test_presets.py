@@ -15,6 +15,7 @@ def test_only_retained_presets_are_registered(tmp_path):
         "preset.android.scrcpy": "scrcpy",
         "preset.android.recording": "recording",
         "preset.colors": "colors",
+        "preset.video_preview": "video_preview",
     }
 
 
@@ -43,7 +44,7 @@ def test_removed_or_hidden_preset_override_does_not_restore_tool(tmp_path, tool_
     assert restarted.get(removed.id) is None
     assert restarted.get(retained.id).title == "Local palette"
     assert restarted.get(custom.id) == custom
-    assert len(restarted.for_section(ToolSection.PRESET)) == 3
+    assert len(restarted.for_section(ToolSection.PRESET)) == 4
 
 
 def test_keyboard_navigation_respects_search_and_kind_filters(tmp_path):

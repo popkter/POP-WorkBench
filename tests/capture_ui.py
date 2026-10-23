@@ -33,6 +33,7 @@ from poptools.viewmodels import (
     SettingsController,
     UpdateController,
 )
+from poptools.viewmodels.video_preview_controller import VideoPreviewController
 
 
 def grab_native_window_frame(window: QWindow) -> QImage:
@@ -193,6 +194,15 @@ def main() -> int:
         else:
             controller.selectTool(sys.argv[3])
     engine = QQmlApplicationEngine()
+    video_controller = VideoPreviewController()
+    app.aboutToQuit.connect(video_controller.shutdown)
+    engine.addImageProvider("video", video_controller.images)
+    engine.rootContext().setContextProperty("videoPreviewController", video_controller)
+    if os.environ.get("POPTOOLS_CAPTURE_VIDEO"):
+        settings_controller.markUserGuideSeen()
+        QTimer.singleShot(450, lambda: video_controller.addFiles(
+            [os.environ["POPTOOLS_CAPTURE_VIDEO"]]))
+        QTimer.singleShot(1000, lambda: video_controller.zoom(15))
     qml_warnings: list[str] = []
     engine.warnings.connect(
         lambda warnings: qml_warnings.extend(warning.toString() for warning in warnings)

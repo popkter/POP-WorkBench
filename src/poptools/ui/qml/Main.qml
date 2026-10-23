@@ -59,6 +59,11 @@ ApplicationWindow {
         Math.min(maximumNavigationWidth,
                  width - primaryNavWidth - minimumContentWidth))
     property bool developerSelected: false
+    readonly property var videoBackend: typeof videoPreviewController !== "undefined" ? videoPreviewController : null
+    readonly property bool videoSelected: !settingsSelected && !developerSelected
+        && appController.section === "preset" && !!appController.selectedTool.executor
+        && appController.selectedTool.executor.command === "video_preview"
+    onVideoSelectedChanged: if (!videoSelected && videoBackend) videoBackend.pause()
     property bool settingsSelected: false
     property bool terminalEnablePending: false
     property bool updateDialogPending: false
@@ -269,6 +274,7 @@ ApplicationWindow {
             hideScrcpyWindow()
     }
     onVisibleChanged: {
+        if (!visible && videoBackend) videoBackend.pause()
         if (!visible) {
             hideScrcpyWindow()
             Qt.callLater(function () { window.releaseResources() })
@@ -390,6 +396,8 @@ ApplicationWindow {
             && appController.selectedTool.executor.command === "recording"
         presetToolController: appController
         recordingController: presetController
+        videoController: window.videoBackend
+        videoActionsVisible: window.videoSelected
         onImportRequested: window.importCustomScriptFromClipboard()
         onCreateRequested: window.openCommandEditorForCreate()
         onShareRequested: customScriptsPage.shareSelectedTool()
@@ -544,6 +552,7 @@ ApplicationWindow {
                     presetUtilities: presetController
                     androidBackend: androidController
                     jiraFeishuBackend: jiraFeishuController
+                    videoBackend: window.videoBackend
                     toolListWidth: window.toolListWidth
                     searchQuery: window.toolSearchQuery
                     compact: window.compactContentActions
@@ -810,6 +819,12 @@ ApplicationWindow {
     Connections {
         target: appController
         function onRecentToolDialogRequested(toolId) {
+            if (toolId === "preset.video_preview") {
+                window.openPresetFunctionsPage()
+                appController.selectTool(toolId)
+                trayController.show_window()
+                return
+            }
             window.lastRequestedToolWindow = toolId
             var origin = typeof floatingController !== "undefined"
                 ? floatingController.cardLaunchOrigin(toolId) : Qt.rect(0, 0, 0, 0)

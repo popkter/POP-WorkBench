@@ -21,6 +21,7 @@ ListView {
     }
     readonly property bool needsVerticalScroll: contentHeight > height + 0.5
     readonly property real scrollGutter: verticalBar.width + Theme.space8
+    property alias verticalScrollBar: verticalBar
     signal toolActivated(string toolId)
     signal toolActivatedAt(string toolId, rect sourceRect)
     signal navigationRequested(string toolId)
@@ -67,6 +68,7 @@ ListView {
     }
     ScrollBar.vertical: ScrollBar {
         id: verticalBar
+        objectName: "scriptListScrollBar"
         policy: root.needsVerticalScroll ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
     }
 }

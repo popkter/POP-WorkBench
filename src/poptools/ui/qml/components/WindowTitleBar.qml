@@ -25,6 +25,8 @@ Item {
     property bool recordingSelected: false
     property var presetToolController: null
     property var recordingController: null
+    property var videoController: null
+    property bool videoActionsVisible: false
     readonly property bool presetDevicePopupVisible:
         presetDevicePicker.popupVisible || presetDisplayPicker.popupVisible
     readonly property bool presetRunning: recordingSelected
@@ -51,6 +53,8 @@ Item {
         value: root.terminalTabsVisible && terminalTabsLoader.item
             ? Qt.rect(terminalTabsLoader.x, terminalTabsLoader.y,
                 terminalTabsLoader.item.interactiveWidth, terminalTabsLoader.height)
+            : root.videoActionsVisible
+            ? Qt.rect(videoActions.x, videoActions.y, videoActions.width, videoActions.height)
             : root.scriptActionsVisible
             ? Qt.rect(scriptActions.x, scriptActions.y, scriptActions.width, scriptActions.height)
             : root.presetActionsVisible
@@ -252,6 +256,18 @@ Item {
             visible: root.presetActionsVisible && !root.recordingSelected
             backend: root.presetToolController ? root.presetToolController.scrcpyDisplays : null
         }
+    }
+
+    VideoToolbar {
+        id: videoActions
+        objectName: "titleBarVideoActions"
+        anchors.left: parent.left
+        anchors.leftMargin: root.contentLeftInset
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.videoActionsVisible
+        enabled: root.presetActionsEnabled
+        controller: root.videoController
+        chrome: true
     }
 
     Row {

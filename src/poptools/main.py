@@ -198,6 +198,8 @@ def main() -> int:
         jira_feishu_controller = components.jira_feishu_controller
         developer_console_controller = components.developer_console_controller
         update_controller = components.update_controller
+        video_preview_controller = components.video_preview_controller
+        app.aboutToQuit.connect(video_preview_controller.shutdown)
         app.aboutToQuit.connect(developer_console_controller.shutdown)
         app.aboutToQuit.connect(update_controller.shutdown)
         app.aboutToQuit.connect(jira_feishu_controller.shutdown)
@@ -207,6 +209,8 @@ def main() -> int:
             settings_controller.setStatus(f"运行环境初始化失败：{python_setup_error}")
 
         engine = QQmlApplicationEngine()
+        engine.addImageProvider("video", video_preview_controller.images)
+        engine.rootContext().setContextProperty("videoPreviewController", video_preview_controller)
         engine.rootContext().setContextProperty("appController", controller)
         engine.rootContext().setContextProperty("settingsController", settings_controller)
         engine.rootContext().setContextProperty("presetController", preset_controller)

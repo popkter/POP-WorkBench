@@ -1158,8 +1158,9 @@ Item {
             origin = face.mapToGlobal(QPointF())
             size = face.size()
             inset = 4 * face.width() / 432
-            list_origins.append(QRectF(origin.x() - inset, origin.y() - inset,
-                                      face.width() + 2 * inset, face.height() + 2 * inset))
+            inset_y = 4 * face.height() / 672
+            list_origins.append(QRectF(origin.x() - inset, origin.y() - inset_y,
+                                      face.width() + 2 * inset, face.height() + 2 * inset_y))
             launch(tool)
             launch(tool)  # Coalesce repeated clicks before the safe dispatch.
             assert requested == []  # No native window creation inside MouseArea dispatch.
@@ -1313,8 +1314,10 @@ Window {
 
 @pytest.mark.parametrize("row_y", [200, 500, 800])
 @pytest.mark.parametrize("offset", [QPoint(0, 0), QPoint(-1920, -400)])
-@pytest.mark.parametrize("uses_port", [False, True])
-def test_all_pack_rows_clear_sleeve_before_turning_or_growing(qapp, row_y, offset, uses_port):
+@pytest.mark.parametrize("uses_port,compact_face", [(False, False), (True, False), (True, True)])
+def test_all_pack_rows_clear_sleeve_before_turning_or_growing(
+    qapp, row_y, offset, uses_port, compact_face,
+):
     from poptools.infrastructure.window_placement import card_flight_geometry
 
     engine = QQmlEngine()
@@ -1332,6 +1335,8 @@ MechanicalCardMotion {
     motion = component.create()
     assert motion, component.errors()
     source = QRectF(1400, row_y, 210, 453 * 210 / 293).translated(offset)
+    if compact_face:
+        source.setHeight(source.height() * .75)
     available = QRect(0, 0, 1920, 1040).translated(offset)
     # Even a destination on the right cannot pull a low card sideways first.
     target = QRect(1450, 450, 293, 453).translated(offset)
@@ -1364,7 +1369,10 @@ MechanicalCardMotion {
                     gate = face.property("packPortOrigin")
                     alignment = min(1, distance / .2)
                     expected_width = source.width() + (gate.width() - source.width()) * alignment
+                    expected_height = (source.height()
+                                       + (gate.height() - source.height()) * alignment)
                     assert bounds.width() == pytest.approx(expected_width, abs=.5)
+                    assert bounds.height() == pytest.approx(expected_height, abs=.5)
                     if distance <= .2:
                         assert bounds.center().x() == pytest.approx(source.center().x())
                     else:
@@ -1719,8 +1727,20 @@ Item {
                  if item.objectName().startswith("scriptRow_")])
             assert face.isVisible()
             bounds = face.mapRectToItem(script_list, face.boundingRect())
-            assert bounds.intersected(script_list.boundingRect()).height() > 100
+            assert bounds.top() >= -1
+            assert bounds.bottom() == pytest.approx(script_list.height(), abs=1)
             assert panel.grabWindow().save(f"build/stack-bottom-{kind}.png")
+        scroll_bar = script_list.findChild(QObject, "scriptListScrollBar")
+        assert scroll_bar.isVisible()
+        handle = scroll_bar.property("contentItem")
+        assert handle.objectName() == "decadeSwordScrollHandle"
+        start_y = script_list.property("contentY")
+        start = handle.mapToItem(panel.contentItem(), handle.boundingRect().center()).toPoint()
+        end = start - QPoint(0, 70)
+        QTest.mousePress(panel, Qt.MouseButton.LeftButton, pos=start)
+        QTest.mouseMove(panel, end)
+        QTest.mouseRelease(panel, Qt.MouseButton.LeftButton, pos=end)
+        assert script_list.property("contentY") < start_y
         assert controller.toolsModel.count == 18
     finally:
         controller.shutdown()
@@ -2154,7 +2174,7 @@ Item {
         engine.deleteLater()
 
 
-@pytest.mark.parametrize("multiple", [False, True, "burst"])
+@pytest.mark.parametrize("multiple", [False, True, "burst", "bottom"])
 def test_main_window_settings_navigation_and_close_to_tray(
     launcher, qapp, qtbot, monkeypatch, multiple,
 ):
@@ -2223,6 +2243,54 @@ def test_main_window_settings_navigation_and_close_to_tray(
             monkeypatch.setattr(controller, "_ordinary_window_active", lambda:
                                 FloatingLauncherController._ordinary_window_active(controller))
             controller.reconcile()
+            if multiple == "bottom":
+                tools = [create_tool(backend, f"Bottom {i:02}", command="print('${value:A}')")
+                         for i in range(18)]
+                controller.setToolSortMode("name")
+                controller.togglePinned()
+                controller.toggleExpanded()
+                pack = window.findChild(QObject, "floatingScriptList")
+                view = pack.findChild(QObject, "sharedScriptList")
+                panel = window.findChild(QQuickWindow, "floatingScriptPanelWindow")
+                qtbot.wait(250)
+                QMetaObject.invokeMethod(view, "positionViewAtEnd")
+                qtbot.wait(150)
+                QMetaObject.invokeMethod(view, "forceLayout")
+                QMetaObject.invokeMethod(view, "positionViewAtEnd")
+                qtbot.wait(150)
+                opened_ids = set()
+                for attempt in range(5):
+                    tid = controller.toolsModel.lastToolId("all")
+                    face = window.findChild(QObject, "deckCard_" + tid)
+                    assert face is not None
+                    bounds = face.mapRectToItem(view, face.boundingRect())
+                    assert bounds.top() >= -1 and bounds.bottom() <= view.height() + 1
+                    if attempt == 0:
+                        assert panel.grabWindow().save("build/decade-bottom-complete.png")
+                    samples = []
+                    sampler = QTimer(window)
+                    sampler.setInterval(8)
+                    sampler.timeout.connect(lambda samples=samples: samples.append(
+                        view.property("contentY") - view.property("bottomRevealOffset")))
+                    sampler.start()
+                    point = face.mapToItem(panel.contentItem(), face.boundingRect().center())
+                    QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point.toPoint())
+                    qtbot.waitUntil(lambda tid=tid: any(card.objectName() == "recentToolWindow"
+                        and card.property("toolId") == tid and card.isVisible()
+                        for card in qapp.topLevelWindows()), timeout=7000)
+                    qtbot.waitUntil(lambda tid=tid: tid not in ids(controller.toolsModel))
+                    opened_ids.add(tid)
+                    qtbot.wait(300)
+                    sampler.stop()
+                    sampler.deleteLater()
+                    assert len({round(value, 1) for value in samples}) >= 3
+                    assert view.property("atYEnd")
+                    assert controller.toolsModel.count == 17 - attempt
+                    expected_last = tools[16 - attempt].id
+                    assert controller.toolsModel.lastToolId("all") == expected_last
+                assert controller.openCardCount == len(opened_ids)
+                assert not warnings, warnings
+                return
             if multiple == "burst":
                 tools = [create_tool(backend, f"Burst {i}",
                                      command="print('${one:A}', '${two:B}', '${three:C}')")
@@ -2235,7 +2303,10 @@ def test_main_window_settings_navigation_and_close_to_tray(
                 def cards():
                     return [card for card in qapp.topLevelWindows()
                             if card.objectName() == "recentToolWindow" and card.isVisible()]
-                beats, overlap, return_overlap = [], [], []
+                view = pack.findChild(QObject, "sharedScriptList")
+                scroll_bar = view.findChild(QObject, "scriptListScrollBar")
+                gutter = view.property("scrollGutter")
+                beats, overlap, return_overlap, recall_scroll_bars = [], [], [], []
                 heartbeat = QTimer()
                 heartbeat.setInterval(16)
                 def sample():
@@ -2244,6 +2315,10 @@ def test_main_window_settings_navigation_and_close_to_tray(
                     overlap.append(sum(card.property("entryAnimationRunning") for card in current))
                     return_overlap.append(sum(card.property("recycleAnimationRunning")
                                               for card in current))
+                    if pack.property("continuousRecall"):
+                        recall_scroll_bars.append((scroll_bar.isVisible(),
+                                                   view.property("scrollGutter"),
+                                                   view.property("needsVerticalScroll")))
                 heartbeat.timeout.connect(sample)
                 heartbeat.start()
                 try:
@@ -2268,6 +2343,11 @@ def test_main_window_settings_navigation_and_close_to_tray(
                     assert controller.openCardCount == 0
                     assert set(ids(controller.toolsModel)) == {tool.id for tool in tools}
                     assert max(return_overlap) >= 2
+                    assert recall_scroll_bars
+                    assert not any(shown for shown, _, _ in recall_scroll_bars)
+                    assert any(needed for _, _, needed in recall_scroll_bars)
+                    assert all(width == gutter for _, width, _ in recall_scroll_bars)
+                    qtbot.waitUntil(scroll_bar.isVisible)
                     gaps = sorted((b - a) * 1000 for a, b in zip(beats, beats[1:], strict=False))
                     print(f"10-card GUI heartbeat: p95={gaps[int(len(gaps) * .95)]:.1f} ms, "
                           f"max={max(gaps):.1f} ms")

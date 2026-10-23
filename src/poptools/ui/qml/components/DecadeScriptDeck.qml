@@ -13,7 +13,75 @@ ScriptCollectionView {
     readonly property int deckReflowDuration: 160
     readonly property real cardWidth: root.width - root.scrollGutter - 16
     readonly property real cardStep: 76 * Theme.scriptCardScale
-    settling: deckLayoutSettlement.running
+    readonly property real cardHeight: Math.min(cardWidth * 672 / 432,
+        Math.max(cardStep, height - topMargin))
+    // Keep row extents uniform. Expanding the newly last delegate on removal
+    // invalidates ListView's estimates and can teleport its origin to row zero.
+    // The tail belongs to the view, so it survives taking the last card out.
+    displayMarginBeginning: cardStep
+    footer: Item {
+        height: root.visibleCount > 0 ? Math.max(0, root.cardHeight - root.cardStep) : 0
+    }
+    // Reserve the same gutter throughout recall; only the handle disappears.
+    // Restore after the final dock has settled its scroll extent.
+    verticalScrollBar {
+        width: 14
+        padding: 0
+        minimumSize: Math.min(1, 72 / Math.max(1, height))
+        hoverEnabled: true
+        visible: root.needsVerticalScroll && !root.continuousRecall && !scrollBarRestore.running
+        contentItem: DecadeSwordHandle {
+            highlighted: root.verticalScrollBar.pressed || root.verticalScrollBar.hovered
+        }
+        background: Item {}
+    }
+    onContinuousRecallChanged: {
+        if (continuousRecall) {
+            scrollBarRestore.stop();
+            cancelBottomReveal();
+        } else {
+            scrollBarRestore.restart();
+        }
+    }
+    Timer {
+        id: scrollBarRestore
+        interval: root.deckReflowDuration + 20
+    }
+    property real bottomRevealOffset: 0
+    property string bottomAnchorId: ""
+    property real bottomAnchorTop: 0
+    contentItem.transform: Translate { y: root.bottomRevealOffset }
+    settling: deckLayoutSettlement.running || bottomReveal.running
+    function cancelBottomReveal() {
+        bottomReveal.stop();
+        bottomRevealOffset = 0;
+        bottomAnchorId = "";
+    }
+    onDraggingChanged: if (dragging) cancelBottomReveal()
+    onFlickingChanged: if (flicking) cancelBottomReveal()
+    function revealPreviousCard() {
+        if (!bottomAnchorId)
+            return;
+        root.forceLayout();
+        const row = root.findRow(bottomAnchorId);
+        bottomAnchorId = "";
+        if (!row)
+            return;
+        bottomReveal.stop();
+        // ListView settles its logical extent immediately. Counter that shift
+        // in the visual layer, then reveal the previous card without a jump.
+        bottomRevealOffset += bottomAnchorTop - row.mapToItem(root, 0, 0).y;
+        bottomReveal.from = bottomRevealOffset;
+        bottomReveal.start();
+    }
+    NumberAnimation {
+        id: bottomReveal
+        target: root
+        property: "bottomRevealOffset"
+        to: 0
+        duration: root.deckReflowDuration
+        easing.type: Easing.OutCubic
+    }
     headingText: "DECADE / 脚本卡包"
     countSuffix: " 张卡牌"
     actionText: "点击抽卡"
@@ -21,6 +89,7 @@ ScriptCollectionView {
     // height. Reset before laying them out, or the viewport can stay beyond
     // the new extent and never instantiate the remaining matching cards.
     onKindFilterChanged: {
+        cancelBottomReveal();
         cancelFlick();
         positionViewAtBeginning();
         forceLayout();
@@ -28,7 +97,7 @@ ScriptCollectionView {
     // Keep offscreen delegates out of the incubation queue. Rapid row removals
     // otherwise race Qt DelegateModel cancellation; face ownership is in the store.
     topMargin: 10
-    bottomMargin: 12
+    bottomMargin: 0
     emptyText: controller.openCardCount > 0 && controller.openCardCount === listModel.totalCount ? "卡牌已抽出，关闭卡牌后归还" : listModel.totalCount === 0 ? "暂无自定义脚本" : "没有匹配的脚本"
     Timer {
         id: deckLayoutSettlement
@@ -66,8 +135,27 @@ ScriptCollectionView {
     }
     Connections {
         target: root.listModel
+        function onRowsAboutToBeRemoved(parentIndex, first, last) {
+            const atCardEnd = root.atYEnd
+                || root.contentY + root.height >= root.originY + root.contentHeight - 2;
+            if (root.continuousRecall || !(atCardEnd || bottomReveal.running))
+                return;
+            const lastIndex = root.listModel.indexOfTool(root.listModel.lastToolId(root.kindFilter));
+            if (lastIndex < first || lastIndex > last)
+                return;
+            for (let index = first - 1; index >= 0; index--) {
+                const row = root.itemAtIndex(index);
+                if (row && row.height > 0) {
+                    root.bottomAnchorId = row.toolId;
+                    root.bottomAnchorTop = row.mapToItem(root, 0, 0).y;
+                    break;
+                }
+            }
+        }
         function onCountChanged() {
             deckLayoutSettlement.restart();
+            if (root.bottomAnchorId)
+                Qt.callLater(root.revealPreviousCard);
         }
     }
     displaced: Transition {
@@ -114,13 +202,16 @@ ScriptCollectionView {
             return;
         portOrigin(face);
         const point = face.mapToGlobal(0, 0);
-        const scale = face.width / 432;
-        const origin = Qt.rect(point.x - 4 * scale, point.y - 4 * scale,
-                               face.width + 8 * scale, face.height + 8 * scale);
+        const scaleX = face.width / 432;
+        const scaleY = face.height / 672;
+        const origin = Qt.rect(point.x - 4 * scaleX, point.y - 4 * scaleY,
+                               face.width + 8 * scaleX, face.height + 8 * scaleY);
         const viewport = root.mapToGlobal(0, 0);
         const top = Math.max(origin.y, viewport.y);
         const bottom = Math.min(origin.y + origin.height, viewport.y + root.height,
-                                row.mapToGlobal(0, 0).y + row.height);
+                                row.mapToGlobal(0, 0).y
+                                    + (id === listModel.lastToolId(root.kindFilter)
+                                       ? root.cardHeight : row.height));
         face.packVisibleRect = Qt.rect(origin.x, top, origin.width, Math.max(1, bottom - top));
         // Reserve synchronously, but create windows outside the MouseArea event.
         // Showing a native window can pump events and retire this very delegate.
@@ -148,9 +239,10 @@ ScriptCollectionView {
         const row = index >= 0 ? root.itemAtIndex(index) as DeckRow : null;
         const point = !continuousRecall && row && row.height > 0 ? row.mapToGlobal(0, 0)
             : root.mapToGlobal(0, !continuousRecall && root.count === 0 ? root.topMargin : 0);
-        const scale = root.cardWidth / 432;
-        const origin = Qt.rect(point.x + 8 - 4 * scale, point.y - 4 * scale,
-                               root.cardWidth + 8 * scale, 680 * scale);
+        const scaleX = root.cardWidth / 432;
+        const scaleY = root.cardHeight / 672;
+        const origin = Qt.rect(point.x + 8 - 4 * scaleX, point.y - 4 * scaleY,
+                               root.cardWidth + 8 * scaleX, root.cardHeight + 8 * scaleY);
         if (face) {
             const viewport = root.mapToGlobal(0, 0);
             const top = Math.max(origin.y, viewport.y);
@@ -193,10 +285,6 @@ ScriptCollectionView {
         required property bool selected
         required property int index
         property alias deckFace: deckFace
-        readonly property bool lastInDeck: {
-            const count = root.listModel.count;
-            return root.listModel.lastToolId(root.kindFilter) === toolId;
-        }
         function mount() {
             root.cardStore.mount(toolId, deckFace, title, iconName);
         }
@@ -208,14 +296,14 @@ ScriptCollectionView {
             root.positionViewAtIndex(index, ListView.Contain)
         width: root.width - root.scrollGutter
 
-        height: (root.kindFilter === "all" || root.kindFilter === executorKind) ? (lastInDeck ? deckFace.height + 10 : root.cardStep) : 0
+        height: (root.kindFilter === "all" || root.kindFilter === executorKind) ? root.cardStep : 0
         z: index
         visible: height > 0
         Item {
             id: deckFace
             x: 8
             width: root.cardWidth
-            height: width * 672 / 432
+            height: root.cardHeight
             Rectangle {
                 x: -3
                 y: -10

@@ -3,7 +3,7 @@ import re
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, copy_metadata
 
 ROOT = Path(SPECPATH).parent
 SRC = ROOT / "src"
@@ -51,7 +51,6 @@ UNUSED_QT_BINARY_PREFIXES = (
     "pyside6/qt6datavisualization",
     "pyside6/qt6graphs",
     "pyside6/qt6location",
-    "pyside6/qt6multimedia",
     "pyside6/qt6pdf",
     "pyside6/qt6quick3d",
     "pyside6/qt6spatialaudio",
@@ -160,6 +159,7 @@ datas = [
     *common_datas,
     *vendor_datas,
     (str(runtime_icon_file), "poptools/resources/icons"),
+    *copy_metadata("av"),
 ]
 
 analysis = Analysis(
@@ -167,7 +167,7 @@ analysis = Analysis(
     pathex=[str(SRC)],
     binaries=platform_binaries,
     datas=datas,
-    hiddenimports=hiddenimports,
+    hiddenimports=hiddenimports + collect_submodules("av"),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

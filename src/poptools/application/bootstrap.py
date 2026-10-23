@@ -26,6 +26,7 @@ from poptools.viewmodels import (
     SettingsController,
     UpdateController,
 )
+from poptools.viewmodels.video_preview_controller import VideoPreviewController
 
 
 @dataclass
@@ -49,6 +50,7 @@ class ApplicationComponents:
     jira_feishu_controller: JiraFeishuController
     developer_console_controller: DeveloperConsoleController
     update_controller: UpdateController
+    video_preview_controller: VideoPreviewController
 
 
 def plugin_usage_reason(plugin, terminal, execution, app) -> str:
@@ -94,6 +96,7 @@ def build_components(
         plugin_manager=settings_controller.pluginManager,
     )
     update_controller = UpdateController(config_store)
+    video_preview_controller = VideoPreviewController(paths.data_dir)
     if sys.platform == "win32":
         manager = settings_controller.pluginManager
         manager.changed.connect(android_controller.refreshPluginAvailability)
@@ -130,4 +133,5 @@ def build_components(
         jira_feishu_controller=jira_feishu_controller,
         developer_console_controller=developer_console_controller,
         update_controller=update_controller,
+        video_preview_controller=video_preview_controller,
     )
