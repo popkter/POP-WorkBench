@@ -18,6 +18,8 @@ from poptools.infrastructure.video_media import (
     filmstrip,
     local_video_paths,
 )
+from poptools.infrastructure.video_proxy import ScrubProxy
+from poptools.infrastructure.video_scrub import ScrubCache
 
 
 class VideoPreviewController(QObject):
@@ -35,6 +37,18 @@ class VideoPreviewController(QObject):
         self.images = VideoImages()
         self._decoder = PlaybackDecoder()
         self._worker = LatestWorker("video-playback")
+        self._cache_worker = LatestWorker("video-scrub-cache")
+        self._proxy_worker = LatestWorker("video-scrub-proxy")
+        self._proxy_worker.completed.connect(self._proxy_finished)
+        self._proxy_worker.failed.connect(self._proxy_finished)
+        self._proxy_token = -1
+        self._proxy_busy = False
+        self._proxy_directory = data_dir / "video-preview-cache" if data_dir else None
+        self._scrub_cache = None
+        self._cache_center = -10.0
+        self._metadata_worker = LatestWorker("video-duration")
+        self._metadata_worker.completed.connect(self._duration_received)
+        self._metadata_token = -1
         self._thumb_worker = LatestWorker("video-filmstrip")
         self._preview_worker = LatestWorker("video-hover")
         self._preview_worker.completed.connect(self._preview_received)
@@ -63,12 +77,15 @@ class VideoPreviewController(QObject):
         self._list_visible = False
         self._rate = 1.0
         self._volume = 0.8
+        self._resolution = 0
         self._thumbnails: list[dict] = []
         self._detailed = False
         self._thumb_busy = False
         self._next: Picture | None = None
         self._decode_pending = self._eof = False
         self._resume_after_seek = False
+        self._scrub_active = False
+        self._scrub_resume = False
         self._queued_scrub = None
         self._clock_start = self._clock_position = 0.0
         self._last_clock = 0.0
@@ -145,6 +162,36 @@ class VideoPreviewController(QObject):
     @Property(float, notify=changed)
     def volume(self):
         return self._volume
+
+    @Property(int, notify=changed)
+    def resolution(self):
+        return self._resolution
+
+    @Property(bool, notify=changed)
+    def previewOptimizing(self):
+        return self._proxy_busy
+
+    def _proxy_finished(self, token, result):
+        if token == self._proxy_token and not self._closed:
+            self._proxy_busy = False
+            self.changed.emit()
+
+    @Property("QVariantList", notify=changed)
+    def resolutionOptions(self):
+        limit = min(self._info.get("width", 0), self._info.get("height", 0))
+        return [{"label": "原生", "value": 0}] + [
+            {"label": label, "value": size}
+            for size, label in ((720, "720P"), (1080, "1080P"), (1440, "2K"), (2160, "4K"))
+            if size <= limit]
+
+    @Slot(int)
+    def setResolution(self, value):
+        if not self.loaded or value not in [row["value"] for row in self.resolutionOptions]:
+            return
+        resume = self._playing
+        self._resolution = value
+        self.seek(self._position)
+        self._resume_after_seek = resume
 
     @Property(str, notify=previewChanged)
     def previewSource(self):
@@ -231,6 +278,7 @@ class VideoPreviewController(QObject):
     def addFiles(self, values):
         paths = local_video_paths(values)
         existing = {item["path"] for item in self._playlist}
+        previous_count = len(self._playlist)
         for path in paths:
             if path not in existing:
                 self._playlist.append({"path": path, "name": Path(path).name, "position": 0.0})
@@ -242,6 +290,9 @@ class VideoPreviewController(QObject):
         elif self._index < 0:
             self.selectVideo(next(i for i, item in enumerate(self._playlist)
                                   if item["path"] == paths[0]))
+        if len(self._playlist) > max(1, previous_count):
+            self._list_visible = True
+            self.changed.emit()
         self._save()
 
     def _remember(self):
@@ -256,7 +307,16 @@ class VideoPreviewController(QObject):
         self.clearPreview()
         self._remember()
         self._index = index
+        self._proxy_worker.cancel()
+        self._proxy_token = -1
+        self._proxy_busy = False
+        self._cache_worker.cancel()
+        self._scrub_cache = ScrubCache(self._playlist[index]["path"])
+        self._cache_center = -10.0
+        self._resolution = 0
         self._generation += 1
+        self._metadata_worker.cancel()
+        self._metadata_token = -1
         self._info = {}
         self._source = ""
         self._thumbnails = []
@@ -293,6 +353,11 @@ class VideoPreviewController(QObject):
             if self._playlist:
                 self.selectVideo(min(index, len(self._playlist) - 1))
             else:
+                self._proxy_worker.cancel()
+                self._proxy_token = -1
+                self._proxy_busy = False
+                self._cache_worker.cancel()
+                self._scrub_cache = None
                 self._worker.cancel()
                 self._token = -1
                 self._worker.submit(lambda check: self._decoder.close())
@@ -349,6 +414,9 @@ class VideoPreviewController(QObject):
 
     @Slot(float)
     def seek(self, position):
+        self._seek(position, fast=False)
+
+    def _seek(self, position, fast=False):
         if not self.loaded or self._closed:
             return
         if self._playing:
@@ -358,17 +426,60 @@ class VideoPreviewController(QObject):
         target = max(0, min(position, self.duration - 0.000001))
         self._busy = True
         self._kind = "seek"
-        self._token = self._worker.submit(lambda check: self._decoder.reader.seek(target, check))
+        resolution = self._resolution
+        cache = self._scrub_cache if fast else None
+        if fast and cache and abs(target - self._cache_center) > 1:
+            self._cache_center = target
+            self._cache_worker.submit(lambda check: cache.warm(target, check))
+
+        def task(check):
+            if cache:
+                picture = cache.get(target)
+                if picture is not None:
+                    return picture
+            self._decoder.reader.output_height = resolution
+            if cache:
+                reader = self._decoder.reader
+                width = round(960 * reader.stream.width
+                              / max(reader.stream.width, reader.stream.height))
+                picture = reader.seek(target, check, width=width)
+                check()
+                if picture is not None:
+                    cache.put(picture)
+                return picture
+            return self._decoder.reader.seek(target, check)
+
+        self._token = self._worker.submit(task)
         self.changed.emit()
 
     @Slot(float)
     def scrub(self, position):
-        # Finish the in-flight frame while retaining only the newest drag target.
-        # Continuously cancelling long-GOP decoding would starve the main view.
-        if self._busy and self._kind == "seek":
+        # Coalesce uncached targets so long-GOP decoding can finish. A known
+        # memory hit can preempt obsolete decoding without starving the view.
+        if (self._busy and self._kind == "seek"
+                and not (self._scrub_cache and self._scrub_cache.contains_memory(position))):
             self._queued_scrub = position
         else:
-            self.seek(position)
+            self._seek(position, fast=True)
+
+    @Slot()
+    def beginScrub(self):
+        if not self.loaded or self._closed or self._scrub_active:
+            return
+        resume = self._playing or self._resume_after_seek
+        self.pause()
+        self._scrub_active = True
+        self._scrub_resume = resume
+
+    @Slot(float)
+    def endScrub(self, position):
+        if not self._scrub_active:
+            return
+        resume = self._scrub_resume
+        self._scrub_active = self._scrub_resume = False
+        # Final source-quality positioning replaces all queued drag previews.
+        self._seek(position, fast=False)
+        self._resume_after_seek = resume
 
     @Slot(int)
     def step(self, direction):
@@ -400,6 +511,9 @@ class VideoPreviewController(QObject):
             self.seek(0)
             self._resume_after_seek = True
             return
+        self._start_playback()
+
+    def _start_playback(self):
         self._playing = True
         self._eof = False
         self._next = None
@@ -415,6 +529,7 @@ class VideoPreviewController(QObject):
 
     @Slot()
     def pause(self):
+        self._scrub_active = self._scrub_resume = False
         self._resume_after_seek = False
         self._queued_scrub = None
         self._playing = False
@@ -480,6 +595,33 @@ class VideoPreviewController(QObject):
             self.changed.emit()
             self.fitRequested.emit()
             self._save()
+            path = self._playlist[self._index]["path"]
+            if self._proxy_directory and max(self._info["width"], self._info["height"]) >= 1280:
+                try:
+                    # Long movies need caches near the user's position, not hours
+                    # of competing sequential decode starting at the opening credits.
+                    on_demand = (self.duration > 300 or Path(path).stat().st_size >= 2 * 1024**3)
+                    proxy = ScrubProxy(path, self._proxy_directory, on_demand=on_demand)
+                    self._scrub_cache.proxy = proxy
+                    if not on_demand:
+                        self._proxy_busy = True
+                        self._proxy_token = self._proxy_worker.submit(proxy.build)
+                except OSError:
+                    pass  # Read-only/full cache storage must not prevent playback.
+            cache = self._scrub_cache
+            target = self._position
+            self._cache_center = target
+            self._cache_worker.submit(lambda check: cache.warm(target, check))
+
+            def probe(check):
+                reader = VideoReader(path)
+                try:
+                    reader.probe_end(check)
+                    return reader.duration
+                finally:
+                    reader.close()
+
+            self._metadata_token = self._metadata_worker.submit(probe)
         elif self._kind == "next":
             self._next = result
             self._eof = result is None
@@ -489,15 +631,21 @@ class VideoPreviewController(QObject):
             self._show(result)
             if self._queued_scrub is not None:
                 target, self._queued_scrub = self._queued_scrub, None
-                self.seek(target)
+                self._seek(target, fast=True)
                 return
             self._busy = False
             self._remember()
             self._save_timer.start()
             if self._resume_after_seek:
                 self._resume_after_seek = False
-                self.togglePlayback()
+                self._start_playback()
         self.changed.emit()
+
+    def _duration_received(self, token, duration):
+        if (token == self._metadata_token and self.loaded and not self._closed
+                and duration > self.duration):
+            self._info["duration"] = duration
+            self.changed.emit()
 
     def _failed(self, token, message):
         if token != self._token or self._closed:
@@ -587,6 +735,9 @@ class VideoPreviewController(QObject):
         done.wait(3)
         self._worker.close()
         self._thumb_worker.close()
+        self._cache_worker.close()
+        self._proxy_worker.close()
+        self._metadata_worker.close()
         preview_done = threading.Event()
 
         def close_preview(check):

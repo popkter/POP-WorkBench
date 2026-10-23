@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from poptools.domain.models import ToolDefinition, ToolOrigin, ToolSection
 from poptools.domain.repositories import ToolRepository
 from poptools.infrastructure.json_file_storage import JsonFileStorage
@@ -13,19 +15,35 @@ class JsonToolRepository(ToolRepository):
         self.paths = paths
         self.paths.ensure()
         self.files = JsonFileStorage(paths.backups_dir)
+        self._cache: dict[Path, tuple[tuple[int, int, int, int], str]] = {}
+
+    @staticmethod
+    def _signature(path: Path) -> tuple[int, int, int, int]:
+        info = path.stat()
+        return info.st_mtime_ns, info.st_ctime_ns, info.st_size, info.st_ino
 
     def list_tools(self) -> list[ToolDefinition]:
         tools: list[ToolDefinition] = []
-        for folder in (self.paths.overrides_dir, self.paths.custom_dir):
+        cache = {}
+        custom_dir = self.paths.custom_dir
+        for folder in (self.paths.overrides_dir, custom_dir):
             for file_path in sorted(folder.glob("*.json")):
                 try:
+                    signature = self._signature(file_path)
+                    cached = self._cache.get(file_path)
+                    if cached is not None and cached[0] == signature:
+                        # Parsing an in-memory snapshot is cheaper than deep-copying
+                        # models and keeps nested caller mutations out of the cache.
+                        tools.append(ToolDefinition.model_validate_json(cached[1]))
+                        cache[file_path] = cached
+                        continue
                     tool = ToolDefinition.model_validate_json(file_path.read_text("utf-8"))
                     # The containing folder is the persistence authority. Older
                     # exports can contain custom scripts whose metadata still says
                     # ``override``/``local``. Treating that metadata literally makes
                     # edits land in tools/overrides while the original custom file
                     # wins on reload, and makes deletion appear to do nothing.
-                    if folder == self.paths.custom_dir and (
+                    if folder == custom_dir and (
                         tool.origin != ToolOrigin.CUSTOM
                         or tool.section != ToolSection.CUSTOM
                         or not tool.editable
@@ -38,6 +56,7 @@ class JsonToolRepository(ToolRepository):
                             }
                         )
                         self.files.write(file_path, tool.model_dump(mode="json"))
+                        signature = self._signature(file_path)
                     migrated_path = file_path.with_name(f"{tool.id}.json")
                     if migrated_path != file_path:
                         if migrated_path.exists():
@@ -46,11 +65,16 @@ class JsonToolRepository(ToolRepository):
                             continue
                         self.files.write(migrated_path, tool.model_dump(mode="json"))
                         file_path.unlink()
+                        file_path = migrated_path
+                        signature = self._signature(file_path)
                     tools.append(tool)
+                    cache[file_path] = (signature, tool.model_dump_json())
                 except Exception:
                     # Quarantine the invalid source after preserving one recoverable copy.
                     self.files.backup(file_path, suffix="invalid")
                     file_path.unlink(missing_ok=True)
+        # Deleted files must not leave unbounded historical definitions in memory.
+        self._cache = cache
         return tools
 
     def save_tool(self, tool: ToolDefinition) -> None:

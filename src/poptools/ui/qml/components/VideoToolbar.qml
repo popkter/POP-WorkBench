@@ -88,6 +88,31 @@ RowLayout {
         enabled: root.ready
         onClicked: root.controller.zoom(1 / 1.6)
     }
+    AppComboBox {
+        id: resolutionBox
+        objectName: "videoResolutionSelector"
+        visible: root.mode === "playback"
+        Layout.preferredWidth: 90
+        Layout.preferredHeight: 30
+        leftPadding: 8
+        rightPadding: 28
+        font.pixelSize: Theme.fontSupporting
+        contentItem: Text {
+            text: resolutionBox.displayText
+            color: Theme.textPrimary
+            font.pixelSize: Theme.fontSupporting
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+        model: root.controller ? root.controller.resolutionOptions : []
+        textRole: "label"
+        valueRole: "value"
+        currentIndex: root.controller ? root.controller.resolutionOptions.findIndex(
+            item => item.value === root.controller.resolution) : 0
+        enabled: root.ready && !root.controller.busy
+        Accessible.name: "播放分辨率"
+        onActivated: root.controller.setResolution(currentValue)
+    }
     Action {
         text: "放大时间轴"; iconName: "zoom_in"
         visible: root.mode === "timeline"
@@ -101,9 +126,12 @@ RowLayout {
         onClicked: root.controller.fit()
     }
     Action {
-        text: "播放列表"; iconName: "playlist_play"
+        objectName: "videoPlaylistButton"
+        text: "播放列表" + (root.controller && root.controller.playlist.length > 0
+            ? "（" + root.controller.playlist.length + "）" : "")
+        iconName: "playlist_play"
         visible: root.mode === "file"
-        Layout.preferredWidth: root.chrome ? -1 : 88
+        Layout.preferredWidth: -1
         compact: false
         labelFontSize: Theme.fontSupporting
         enabled: root.controller !== null

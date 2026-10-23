@@ -134,7 +134,10 @@ class VideoReader:
             if not self.container.streams.video:
                 raise ValueError("此文件没有可播放的视频轨道")
             self.stream = self.container.streams.video[0]
-            self.stream.thread_type = "AUTO"
+            # Bound CPU use across playback, timeline and cache workers, and
+            # avoid FRAME threading's extra startup/seek buffering latency.
+            self.stream.thread_type = "SLICE"
+            self.stream.codec_context.thread_count = 2
             self.origin = float((self.stream.start_time or 0) * self.stream.time_base)
             self.fps = float(self.stream.average_rate or 30)
             self.fps = self.fps if 0 < self.fps < 1000 else 30
@@ -146,6 +149,8 @@ class VideoReader:
             self.rotation = float(self.stream.metadata.get("rotate", 0))
             self._frames = iter(self.container.decode(self.stream))
             self._pending = None
+            self.output_height = 0
+            self._cursor_frame = None
         except Exception:
             self.container.close()
             raise
@@ -167,10 +172,17 @@ class VideoReader:
         check()
         if self._pending is not None:
             frame, self._pending = self._pending, None
-            return frame
-        return next(self._frames, None)
+        else:
+            frame = next(self._frames, None)
+        if frame is not None:
+            self._cursor_frame = frame
+        return frame
 
-    def picture(self, frame, width=1280) -> Picture:
+    def picture(self, frame, width=None) -> Picture:
+        if width is None:
+            scale = (min(1, self.output_height / min(frame.width, frame.height))
+                     if self.output_height else 1)
+            width = round(frame.width * scale)
         height = max(2, round(frame.height * min(1, width / frame.width)))
         width = max(2, round(frame.width * min(1, width / frame.width)))
         rgb = frame.reformat(width=width, height=height, format="rgb24")
@@ -186,24 +198,36 @@ class VideoReader:
     def seek_raw(self, target: float, check):
         """Return the frame covering target, retaining its successor for playback."""
         target = max(0.0, target)
-        self.container.seek(int((target + self.origin) / self.stream.time_base),
-                            stream=self.stream, backward=True, any_frame=False)
-        self._frames = iter(self.container.decode(self.stream))
-        self._pending = None
-        selected = None
-        for frame in self._frames:
+        # Reuse the current decode cursor for nearby forward movement. Seeking
+        # each pointer update would repeatedly decode the same GOP.
+        selected = self._cursor_frame
+        if selected is None or not 0 <= target - self.timestamp(selected) <= 1:
+            self.container.seek(int((target + self.origin) / self.stream.time_base),
+                                stream=self.stream, backward=True, any_frame=False)
+            self._frames = iter(self.container.decode(self.stream))
+            self._pending = None
+            self._cursor_frame = selected = None
+        while True:
+            frame = self.raw_next(check)
+            if frame is None:
+                return selected
             check()
             if self.timestamp(frame) > target + 1e-7 and selected is not None:
                 self._pending = frame
+                self._cursor_frame = selected
                 return selected
             selected = frame
             if self.timestamp(frame) > target + 1e-7:
                 return frame
-        return selected
 
-    def seek(self, target: float, check) -> Picture | None:
+    def seek(self, target: float, check, width=None) -> Picture | None:
         frame = self.seek_raw(target, check)
-        return self.picture(frame) if frame is not None else None
+        if frame is None:
+            return None
+        picture = self.picture(frame, width)
+        if self._pending is not None:
+            picture.end = self.timestamp(self._pending)
+        return picture
 
     def next(self, check) -> Picture | None:
         frame = self.raw_next(check)
@@ -245,7 +269,6 @@ class PlaybackDecoder:
     def open(self, path: str, position: float, check):
         self.close()
         self.reader = VideoReader(path)
-        self.reader.probe_end(check)
         picture = self.reader.seek(min(position, self.reader.duration - 0.000001), check)
         if picture is None:
             raise ValueError("视频中没有可解码的画面")

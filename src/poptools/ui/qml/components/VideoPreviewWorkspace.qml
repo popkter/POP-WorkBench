@@ -31,7 +31,14 @@ Item {
             BusyIndicator {
                 Layout.preferredWidth: 20; Layout.preferredHeight: 20
                 running: root.controller && root.controller.busy
-                visible: running
+                // Keep the header height stable as drag requests start and finish.
+                opacity: running ? 1 : 0
+            }
+            Text {
+                visible: root.controller && root.controller.previewOptimizing
+                text: "正在优化拖动预览…"
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontSupporting
             }
         }
         Rectangle {
@@ -181,31 +188,51 @@ Item {
             radius: Theme.radiusSmall
         }
     }
-    Drawer {
+    Popup {
         id: listDrawer
         objectName: "videoPlaylistDrawer"
-        parent: root
-        edge: Qt.RightEdge
-        width: Math.min(320, root.width * 0.85)
-        height: root.height
+        parent: videoSurface
+        x: videoSurface.width - width
+        y: 0
+        width: Math.min(300, videoSurface.width * 0.85)
+        height: videoSurface.height
+        clip: true
+        property real slideOffset: 0
+        enter: Transition {
+            NumberAnimation {
+                target: listDrawer; property: "slideOffset"
+                from: listDrawer.width; to: 0; duration: 180
+                easing.type: Easing.OutCubic
+            }
+        }
+        exit: Transition {
+            NumberAnimation {
+                target: listDrawer; property: "slideOffset"
+                to: listDrawer.width; duration: 140
+                easing.type: Easing.InCubic
+            }
+        }
         modal: false
         dim: false
-        interactive: false
+        focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         visible: root.visible && root.controller && root.controller.listVisible
         onClosed: if (root.controller) root.controller.closeList()
         background: Rectangle {
-            color: Theme.popupSurface
-            border.color: Theme.outline
+            objectName: "videoPlaylistBackground"
+            color: Qt.rgba(Theme.popupSurface.r, Theme.popupSurface.g, Theme.popupSurface.b, 0.88)
+            border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.45)
             radius: Theme.radiusSmall
+            transform: Translate { x: listDrawer.slideOffset }
         }
         contentItem: ColumnLayout {
+            transform: Translate { x: listDrawer.slideOffset }
             spacing: 8
             RowLayout {
                 Layout.fillWidth: true
                 Text {
                     Layout.fillWidth: true
-                    text: "播放列表"
+                    text: "播放列表（" + (root.controller ? root.controller.playlist.length : 0) + "）"
                     color: Theme.textPrimary
                     font.pixelSize: Theme.fontBody
                 }
@@ -216,6 +243,17 @@ Item {
                     foregroundColor: Theme.textSecondary
                     onClicked: root.controller.closeList()
                 }
+            }
+            PrimaryButton {
+                objectName: "videoPlaylistAddButton"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 34
+                text: "添加视频"; iconName: "folder_open"
+                labelFontSize: Theme.fontSupporting
+                foregroundColor: Theme.textPrimary
+                color: hovered ? Theme.navigationHover : "transparent"
+                border.color: Theme.outline
+                onClicked: if (root.controller) root.controller.chooseFiles()
             }
             ListView {
                 id: playlist
@@ -228,12 +266,17 @@ Item {
                 ScrollBar.vertical: ScrollBar {}
                 delegate: Rectangle {
                     id: row
+                    objectName: "videoPlaylistRow"
                     required property var modelData
                     required property int index
                     width: playlist.width
                     height: 48
                     radius: Theme.radiusSmall
-                    color: modelData.selected ? Theme.primaryContainer : Theme.surfaceContainer
+                    color: modelData.selected
+                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.24)
+                        : rowPointer.containsMouse
+                          ? Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.08)
+                          : "transparent"
                     Text {
                         anchors.left: parent.left
                         anchors.leftMargin: 8
@@ -245,12 +288,20 @@ Item {
                         elide: Text.ElideMiddle
                     }
                     MouseArea {
+                        id: rowPointer
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
                         anchors.fill: parent
                         anchors.rightMargin: 30
-                        onClicked: { root.controller.selectVideo(row.index); root.controller.closeList() }
+                        onClicked: {
+                            // Selection rebuilds the delegates, so close before switching.
+                            root.controller.closeList()
+                            root.controller.selectVideo(row.index)
+                        }
                     }
                     PrimaryButton {
                         id: remove
+                        objectName: "videoPlaylistRemoveButton"
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         width: 28; height: 28

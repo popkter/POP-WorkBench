@@ -52,7 +52,7 @@ ColumnLayout {
         hoverTime = Math.max(0, Math.min(Math.max(0, duration - 0.000001),
                                         viewStart + hoverX / pixelsPerSecond))
         previewPoint = track.mapToItem(preview.parent, hoverX, 0)
-        if (!previewDelay.running) previewDelay.start()
+        if (!pointer.pressed && !previewDelay.running) previewDelay.start()
     }
     function endHover() {
         hovering = false
@@ -74,11 +74,13 @@ ColumnLayout {
     Timer {
         id: previewDelay
         interval: 55
-        onTriggered: if (root.hovering) root.controller.requestPreview(root.hoverTime)
+        onTriggered: if (root.hovering && !pointer.pressed) root.controller.requestPreview(root.hoverTime)
     }
     Timer {
         id: scrubDelay
-        interval: 35
+        // Sample once per typical display frame; the worker coalesces requests
+        // while decoding so slower devices never accumulate a drag backlog.
+        interval: 16
         onTriggered: if (pointer.pressed && pointer.pressedButtons & Qt.LeftButton)
             root.controller.scrub(root.hoverTime)
     }
@@ -248,17 +250,19 @@ ColumnLayout {
             onEntered: { root.hovering = true; root.updateHover(mouseX) }
             onExited: if (!pressed) root.endHover()
             onPressed: mouse => {
+                root.endHover()
                 root.followPlayback = false
                 root.updateHover(mouse.x)
                 if (mouse.button === Qt.MiddleButton) {
                     dragX = mouse.x; dragStart = root.viewStart
                 } else {
+                    root.controller.beginScrub()
                     root.dragTime = root.hoverTime
-                    root.controller.seek(root.dragTime)
+                    root.controller.scrub(root.dragTime)
                 }
             }
             onPositionChanged: mouse => {
-                root.hovering = containsMouse
+                root.hovering = containsMouse && !pressed
                 root.updateHover(mouse.x)
                 if (pressed && pressedButtons & Qt.MiddleButton)
                     root.pan(dragStart + (dragX - mouse.x) / root.pixelsPerSecond)
@@ -269,10 +273,15 @@ ColumnLayout {
             }
             onReleased: mouse => {
                 scrubDelay.stop()
-                if (mouse.button === Qt.LeftButton) root.controller.seek(root.hoverTime)
+                if (mouse.button === Qt.LeftButton) root.controller.endScrub(root.hoverTime)
                 if (!containsMouse) root.endHover()
             }
-            onCanceled: { root.dragTime = -1; scrubDelay.stop(); root.endHover() }
+            onCanceled: {
+                scrubDelay.stop()
+                if (root.controller) root.controller.endScrub(root.playheadTime)
+                root.dragTime = -1
+                root.endHover()
+            }
             onWheel: wheel => {
                 root.followPlayback = false
                 if (wheel.modifiers & Qt.ControlModifier)
@@ -309,7 +318,7 @@ ColumnLayout {
         padding: 8
         modal: false; dim: false; focus: false
         closePolicy: Popup.NoAutoClose
-        visible: root.hovering && root.visible && root.duration > 0
+        visible: root.hovering && !pointer.pressed && root.visible && root.duration > 0
         x: Math.max(8, Math.min(parent.width - width - 8, root.previewPoint.x - width / 2))
         y: Math.max(8, root.previewPoint.y - height - 10)
         background: Rectangle {
