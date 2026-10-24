@@ -11,6 +11,7 @@ Column {
     property bool requiredDevice: false
     property bool explicitTarget: false
     property bool compact: false
+    property bool iconOnly: false
     readonly property bool popupVisible: devicePopup.opened
     property int stateRevision: 0
     readonly property var deviceState: {
@@ -54,13 +55,13 @@ Column {
     Rectangle {
         id: selector
         width: parent.width
-        height: root.compact ? Theme.captionActionHeight : 41
-        radius: root.compact ? Theme.radiusTiny : Theme.radiusConsole
-        color: root.compact
+        height: root.iconOnly ? Theme.decadeCardActionSize : root.compact ? Theme.captionActionHeight : 41
+        radius: root.iconOnly ? Theme.radiusSmall : root.compact ? Theme.radiusTiny : Theme.radiusConsole
+        color: root.iconOnly ? (selectorMouse.containsMouse || devicePopup.opened ? Theme.primaryContainer : Theme.decadeCardActionFill) : root.compact
             ? (selectorMouse.containsMouse || devicePopup.opened ? Theme.navigationHover : "transparent")
             : selectorMouse.containsMouse ? Theme.surfaceContainer : Theme.surfaceContainerLow
-        border.width: root.compact ? 0 : 1
-        border.color: Theme.outlineVariant
+        border.width: root.iconOnly ? Theme.borderWidthThin : root.compact ? 0 : 1
+        border.color: root.iconOnly ? Theme.decadeCardActionBorder : Theme.outlineVariant
         activeFocusOnTab: true
         Accessible.role: Accessible.ComboBox
         Accessible.name: "目标设备：" + root.deviceState.label
@@ -68,6 +69,7 @@ Column {
         Keys.onSpacePressed: root.openDeviceMenu()
         Keys.onReturnPressed: root.openDeviceMenu()
         RowLayout {
+            visible: !root.iconOnly
             anchors.fill: parent
             anchors.leftMargin: root.compact ? 8 : 13
             anchors.rightMargin: root.compact ? 6 : 10
@@ -101,6 +103,15 @@ Column {
                 iconSize: root.compact ? 14 : 18
                 color: root.compact ? Theme.chromeForeground : Theme.textSecondary
             }
+        }
+        Image {
+            objectName: "decadeDeviceCamera"
+            visible: root.iconOnly
+            anchors.centerIn: parent
+            width: 27; height: 29
+            source: "../../../resources/icons/decade-camera.svg"
+            sourceSize: Qt.size(width, height)
+            smooth: true
         }
         MouseArea {
             id: selectorMouse

@@ -15,10 +15,10 @@ Rectangle {
     required property var parameterValues
     required property var displayedTool
     property bool splitConsole: false
-    property bool consoleExpanded: !splitConsole || controller.running
+    property bool consoleExpanded: decadeCardLayout ? controller.running : !splitConsole || controller.running
     property real consoleReveal: consoleExpanded ? 1 : 0
     Behavior on consoleReveal {
-        enabled: root.splitConsole
+        enabled: root.splitConsole || root.decadeCardLayout
         NumberAnimation {
             objectName: "customConsoleRevealAnimation"
             duration: Theme.motionStandard
@@ -29,7 +29,7 @@ Rectangle {
     readonly property real separatorHeight: splitConsole ? Theme.space12 : Theme.space8
     readonly property bool executionRunning: !!controller.running
     onExecutionRunningChanged: {
-        if (splitConsole && executionRunning)
+        if ((splitConsole || decadeCardLayout) && executionRunning)
             consoleExpanded = true
     }
     property bool allowManagement: true
@@ -38,7 +38,8 @@ Rectangle {
     property bool externalRun: false
     property bool submitParametersOnEnter: false
     property bool compactLayout: false
-    readonly property real panelPadding: compactLayout ? Theme.space8 : Theme.detailPanelPadding
+    property bool decadeCardLayout: false
+    readonly property real panelPadding: decadeCardLayout ? Theme.decadeCardPadding : compactLayout ? Theme.space8 : Theme.detailPanelPadding
     property real minimumFormReservedHeight: Theme.detailFormReservedHeight
     readonly property bool narrowManagementLayout: allowManagement && width < Theme.detailCompactWidth
     readonly property bool compactConsoleActions: consolePanel.width < (splitConsole ? 560 : 458)
@@ -56,7 +57,7 @@ Rectangle {
     signal toastRequested(string message, bool error)
 
     radius: Theme.radiusMedium
-    color: splitConsole ? "transparent" : Theme.surfaceContainerLow
+    color: splitConsole || decadeCardLayout ? "transparent" : Theme.surfaceContainerLow
     border.width: 0
     clip: true
 
@@ -110,10 +111,11 @@ Rectangle {
 
         Item {
             id: header
+            visible: !root.decadeCardLayout
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: headingRow.implicitHeight + root.panelPadding * 2
+            height: root.decadeCardLayout ? 0 : headingRow.implicitHeight + root.panelPadding * 2
 
             RowLayout {
                 id: headingRow
@@ -194,7 +196,7 @@ Rectangle {
             objectName: "customParameterArea"
             x: root.panelPadding
             anchors.top: header.bottom
-            anchors.topMargin: root.compactLayout ? Theme.space8 : Theme.space12
+            anchors.topMargin: root.decadeCardLayout ? 0 : root.compactLayout ? Theme.space8 : Theme.space12
             width: parent.width - root.panelPadding * 2
             height: Math.max(0, actionArea.y - y - Theme.space8)
             clip: true
@@ -215,6 +217,7 @@ Rectangle {
                     controller: root.controller
                     parameterValues: root.parameterValues
                     compactLayout: root.compactLayout
+                    decadeCardLayout: root.decadeCardLayout
                     submitOnEnter: root.submitParametersOnEnter
                     onSubmitRequested: {
                         if (root.displayedTool.id && !root.controller.running)
@@ -400,6 +403,8 @@ Rectangle {
         anchors.bottomMargin: root.splitConsole ? 0 : root.panelPadding
         radius: 9
         color: Theme.consoleBackground
+        border.width: root.decadeCardLayout ? Theme.borderWidthThin : 0
+        border.color: Theme.outline
         clip: true
 
         function scrollConsoleToBottom() {
@@ -425,9 +430,23 @@ Rectangle {
                 anchors.leftMargin: root.compactConsoleActions ? 12 : 15
                 anchors.rightMargin: root.compactConsoleActions ? 12 : 15
                 spacing: root.compactConsoleActions ? 6 : 10
-                Text { text: "控制台输出"; color: Theme.consoleText; font.pixelSize: Theme.fontSupporting; font.weight: Font.DemiBold }
+                MaterialIcon {
+                    visible: root.decadeCardLayout
+                    icon: "terminal"; iconSize: 24; color: Theme.consoleText
+                }
+                Text {
+                    text: "控制台输出"; color: Theme.consoleText
+                    font.pixelSize: root.decadeCardLayout ? Theme.decadeCardTextSize : Theme.fontSupporting
+                    font.weight: Font.DemiBold
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: root.decadeCardLayout
+                        onClicked: root.consoleExpanded = !root.consoleExpanded
+                    }
+                }
                 Item { visible: !root.compactConsoleActions; Layout.preferredWidth: 20 }
                 Rectangle {
+                    visible: !root.decadeCardLayout
                     Layout.preferredWidth: 8
                     Layout.preferredHeight: 8
                     radius: Theme.radiusTiny
@@ -435,7 +454,7 @@ Rectangle {
                     Accessible.name: root.controller.statusText
                 }
                 Text {
-                    visible: root.showConsoleStatusText
+                    visible: !root.decadeCardLayout && root.showConsoleStatusText
                     text: root.controller.statusText
                     color: root.consoleStatusColor
                     font.pixelSize: Theme.fontCaption
@@ -464,6 +483,7 @@ Rectangle {
                 }
                 PrimaryButton {
                     objectName: "customConsoleCopyButton"
+                    visible: !root.decadeCardLayout
                     implicitWidth: root.compactConsoleActions ? 30 : 82
                     implicitHeight: 30
                     radius: Theme.radiusTiny
@@ -484,11 +504,12 @@ Rectangle {
                 Item { visible: !root.compactConsoleActions; Layout.preferredWidth: 8 }
                 PrimaryButton {
                     objectName: "customConsoleClearButton"
+                    visible: !root.decadeCardLayout || root.consoleExpanded
                     implicitWidth: root.compactConsoleActions ? 30 : 62
                     implicitHeight: 30
                     radius: Theme.radiusTiny
                     text: "清空"
-                    iconName: "delete_sweep"
+                    iconName: root.decadeCardLayout ? "delete_outline" : "delete_sweep"
                     compact: root.compactConsoleActions
                     Accessible.name: "清空控制台输出"
                     tonal: true
@@ -507,7 +528,9 @@ Rectangle {
                     implicitHeight: 30
                     radius: Theme.radiusTiny
                     text: root.consoleExpanded ? "收起" : "展开"
-                    iconName: root.consoleExpanded ? "expand_more" : "expand_less"
+                    iconName: root.decadeCardLayout
+                        ? (root.consoleExpanded ? "expand_less" : "expand_more")
+                        : (root.consoleExpanded ? "expand_more" : "expand_less")
                     compact: root.compactConsoleActions
                     Accessible.name: root.consoleExpanded ? "收起控制台输出" : "展开控制台输出"
                     tonal: true
@@ -538,7 +561,7 @@ Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: 51
+            anchors.topMargin: root.decadeCardLayout ? Theme.consoleHeaderHeight + Theme.space8 : 51
             anchors.bottom: footer.top
             anchors.leftMargin: Theme.space12
             anchors.rightMargin: Theme.space12
@@ -584,12 +607,12 @@ Rectangle {
         Rectangle {
             id: footer
             radius: Theme.radiusConsole
-            visible: consolePanel.height > Theme.consoleHeaderHeight + height
+            visible: !root.decadeCardLayout && consolePanel.height > Theme.consoleHeaderHeight + height
             opacity: root.consoleReveal
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: Theme.consoleFooterHeight
+            height: root.decadeCardLayout ? 0 : Theme.consoleFooterHeight
             color: Theme.consoleBackground
             border.color: Theme.darkMode ? "#2A3442" : "#25303D"
             border.width: 1

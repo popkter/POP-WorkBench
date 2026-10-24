@@ -305,11 +305,11 @@ ScriptCollectionView {
             width: root.cardWidth
             height: root.cardHeight
             Rectangle {
-                x: -3
-                y: -10
-                width: parent.width + 6
-                height: 22
-                radius: Theme.radiusMedium + 2
+                x: -2
+                y: -5
+                width: parent.width + 4
+                height: Theme.space12
+                radius: Theme.radiusTiny
                 z: -2
                 gradient: Gradient {
                     GradientStop {

@@ -10,6 +10,7 @@ Loader {
     required property var parameterValues
     property bool framed: false
     property bool submitOnEnter: false
+    property bool decadeCardLayout: false
     signal submitRequested()
 
     function handleEnter(event, editor) {
@@ -33,15 +34,16 @@ Loader {
     }
     component ParameterDefaultButton: PrimaryButton {
         enabled: !root.controller.running
-        width: 30
-        height: 30
+        width: root.decadeCardLayout ? Theme.decadeCardFieldActionSize : 30
+        height: width
         compact: true
         text: "设为默认值"
         iconName: "save"
         glyphSize: 19
         tonal: true
         foregroundColor: Theme.primaryText
-        border.width: 0
+        border.width: root.decadeCardLayout ? Theme.borderWidthThin : 0
+        border.color: Theme.decadeCardActionBorder
         radius: Theme.radiusControl
         // Keep the button above the text edit menu's input overlay.
         z: 201
@@ -67,7 +69,9 @@ Loader {
             color: Theme.textPrimary
             font.pixelSize: Theme.fontBody
             leftPadding: 13
-            rightPadding: pathPickerVisible ? 81 : 45
+            rightPadding: root.decadeCardLayout
+                ? (pathPickerVisible ? Theme.decadeCardFieldActionSize * 2 + 14 : Theme.decadeCardFieldActionSize + 12)
+                : pathPickerVisible ? 81 : 45
             validator: root.parameter.kind === "integer" ? integerValidator
                 : root.parameter.kind === "number" ? numberValidator : null
             RegularExpressionValidator {
@@ -89,7 +93,8 @@ Loader {
 
             ParameterDefaultButton {
                 anchors.right: parent.right
-                anchors.rightMargin: parameterTextField.pathPickerVisible ? 42 : 6
+                anchors.rightMargin: parameterTextField.pathPickerVisible
+                    ? (root.decadeCardLayout ? Theme.decadeCardFieldActionSize + 12 : 42) : 6
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.controller.setParameterDefault(
                     root.parameter.id, parameterTextField.text)
@@ -100,8 +105,8 @@ Loader {
                 anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
                 visible: parameterTextField.pathPickerVisible
-                width: 30
-                height: 30
+                width: root.decadeCardLayout ? Theme.decadeCardFieldActionSize : 30
+                height: width
                 compact: true
                 text: root.parameter.kind === "directory"
                     ? "选择文件夹" : "选择文件"
@@ -109,7 +114,8 @@ Loader {
                 glyphSize: 19
                 tonal: true
                 foregroundColor: Theme.primaryText
-                border.width: 0
+                border.width: root.decadeCardLayout ? Theme.borderWidthThin : 0
+                border.color: Theme.decadeCardActionBorder
                 radius: Theme.radiusControl
                 // Above AppTextEditMenu's input-event overlay (z: 200).
                 z: 201
@@ -204,7 +210,7 @@ Loader {
     Component {
         id: booleanField
         AppCheckBox {
-            text: root.framed ? (checked ? "已启用" : "未启用") : ""
+            text: root.framed || root.decadeCardLayout ? (checked ? "已启用" : "未启用") : ""
             Accessible.name: root.parameter.label
             checked: root.parameter.default === true
                 || String(root.parameter.default).toLowerCase() === "true"

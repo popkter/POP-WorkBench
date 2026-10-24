@@ -10,6 +10,7 @@ Item {
     id: content
     required property var dialog
     property alias workspace: workspaceLoader
+    readonly property bool decadeCard: dialog.customScriptMode && Theme.decadeMode
     MultiEffect {
         id: dialogShadow
         visible: !dialog.customScriptMode
@@ -28,13 +29,15 @@ Item {
     Rectangle {
         id: contentRect
         anchors.fill: parent
-        anchors.margins: dialog.customScriptMode ? Theme.space4 : Theme.space8
-        radius: dialog.customScriptMode ? Theme.radiusMedium : Theme.radiusLarge
-        color: dialog.customScriptMode ? Theme.chromeBackground
+        anchors.margins: content.decadeCard ? 0 : dialog.customScriptMode ? Theme.space4 : Theme.space8
+        radius: content.decadeCard ? Theme.decadeCardRadius : dialog.customScriptMode ? Theme.radiusMedium : Theme.radiusLarge
+        color: content.decadeCard ? Theme.decadeCardSurface : dialog.customScriptMode ? Theme.chromeBackground
             : Theme.darkMode ? Theme.surfaceContainer : Theme.surface
-        border.width: dialog.customScriptMode ? 1 : 0
-        border.color: Theme.outlineVariant
+        border.width: content.decadeCard ? Theme.decadeCardBorderWidth : dialog.customScriptMode ? 1 : 0
+        border.color: content.decadeCard ? Theme.primary : Theme.outlineVariant
         clip: true
+
+        DecadeCardArtwork { anchors.fill: parent; visible: content.decadeCard }
 
         ColumnLayout {
             anchors.fill: parent
@@ -44,7 +47,7 @@ Item {
             Rectangle {
                 id: dialogTitleBar
                 Layout.fillWidth: true
-                Layout.preferredHeight: dialog.customScriptMode ? 40 : 56
+                Layout.preferredHeight: content.decadeCard ? Theme.decadeCardHeaderHeight : dialog.customScriptMode ? 40 : 56
                 color: "transparent"
 
                 // Drag-to-move area (covers title bar, behind interactive elements)
@@ -73,7 +76,7 @@ Item {
                 }
 
                 Image {
-                    visible: dialog.customScriptMode
+                    visible: dialog.customScriptMode && !content.decadeCard
                     anchors.left: parent.left
                     anchors.leftMargin: Theme.space12
                     anchors.verticalCenter: parent.verticalCenter
@@ -86,17 +89,18 @@ Item {
 
                 // Title text
                 Text {
-                    visible: !dialog.customScriptMode
+                    objectName: "recentToolTitle"
+                    visible: content.decadeCard || !dialog.customScriptMode
                     anchors.left: parent.left
-                    anchors.leftMargin: dialog.customScriptMode ? 40 : Theme.space20
+                    anchors.leftMargin: content.decadeCard ? Theme.decadeCardPadding : dialog.customScriptMode ? 40 : Theme.space20
                     anchors.right: titleButtons.left
                     anchors.rightMargin: Theme.space12
                     anchors.verticalCenter: parent.verticalCenter
-                    text: dialog.customScriptMode ? "泡泡工具箱"
+                    text: content.decadeCard ? dialog.selectedTool.title || "运行脚本" : dialog.customScriptMode ? "泡泡工具箱"
                         : dialog.selectedTool.title || "运行工具"
                     color: dialog.customScriptMode ? Theme.chromeForeground : Theme.textPrimary
-                    font.pixelSize: dialog.customScriptMode ? Theme.fontSupporting : Theme.fontSectionTitle
-                    font.weight: dialog.customScriptMode ? Font.Medium : Font.Bold
+                    font.pixelSize: content.decadeCard ? Theme.decadeCardTitleSize : dialog.customScriptMode ? Theme.fontSupporting : Theme.fontSectionTitle
+                    font.weight: content.decadeCard ? Font.DemiBold : dialog.customScriptMode ? Font.Medium : Font.Bold
                     elide: Text.ElideRight
                 }
 
@@ -104,28 +108,30 @@ Item {
                 Row {
                     id: titleButtons
                     anchors.right: parent.right
+                    anchors.rightMargin: content.decadeCard ? Theme.decadeCardPadding : 0
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    spacing: Theme.space4
+                    spacing: content.decadeCard ? Theme.space8 : Theme.space4
 
                     // ── Custom command run button ─────────
                     PrimaryButton {
                         objectName: "recentToolRunButton"
                         visible: !dialog.presetMode
-                        width: dialog.customScriptMode ? 102 : 48
-                        height: dialog.customScriptMode ? Theme.captionActionHeight : 32
+                        width: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? 102 : 48
+                        height: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? Theme.captionActionHeight : 32
                         anchors.verticalCenter: parent.verticalCenter
-                        compact: !dialog.customScriptMode
+                        compact: content.decadeCard || !dialog.customScriptMode
                         text: dialog.operationRunning ? "停止运行"
                             : dialog.customScriptMode ? "运行脚本" : "运行工具"
                         iconName: dialog.operationRunning ? "stop" : "play_arrow"
                         glyphSize: dialog.customScriptMode ? 20 : 24
                         tonal: true
-                        foregroundColor: dialog.customScriptMode
+                        foregroundColor: content.decadeCard ? Theme.primaryText : dialog.customScriptMode
                             ? (dialog.operationRunning ? Theme.errorColor : Theme.success) : "white"
-                        border.width: 0
-                        radius: dialog.customScriptMode ? Theme.radiusTiny : Theme.radiusMedium
-                        color: dialog.customScriptMode
+                        border.width: content.decadeCard ? Theme.borderWidthThin : 0
+                        border.color: Theme.decadeCardActionBorder
+                        radius: content.decadeCard ? Theme.radiusSmall : dialog.customScriptMode ? Theme.radiusTiny : Theme.radiusMedium
+                        color: content.decadeCard ? (hovered ? Theme.primaryContainer : Theme.decadeCardActionFill) : dialog.customScriptMode
                             ? (hovered ? Theme.navigationHover : "transparent")
                             : dialog.operationRunning
                             ? (hovered ? Qt.darker(Theme.errorColor, 1.1) : Theme.errorColor)
@@ -141,9 +147,10 @@ Item {
                     DeviceSelector {
                         objectName: "recentToolDeviceSelector"
                         visible: dialog.customScriptMode && !!dialog.deviceController
-                        width: dialog.customScriptMode ? 148 : 160
+                        width: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? 148 : 160
                         anchors.verticalCenter: parent.verticalCenter
                         compact: true
+                        iconOnly: content.decadeCard
                         controller: dialog.deviceController
                         toolId: dialog.toolId
                         requiredDevice: !!dialog.selectedTool.requires_android_device
@@ -183,9 +190,15 @@ Item {
                     // Close
                     Rectangle {
                         objectName: "recentToolCloseButton"
-                        width: 42; height: parent.height
-                        topRightRadius: contentRect.radius
-                        color: closeArea.containsMouse ? "#C42B1C" : "transparent"
+                        width: content.decadeCard ? Theme.decadeCardActionSize : 42
+                        height: content.decadeCard ? Theme.decadeCardActionSize : parent.height
+                        anchors.verticalCenter: parent.verticalCenter
+                        radius: content.decadeCard ? Theme.radiusSmall : 0
+                        topRightRadius: content.decadeCard ? Theme.radiusSmall : contentRect.radius
+                        border.width: content.decadeCard ? Theme.borderWidthThin : 0
+                        border.color: Theme.decadeCardActionBorder
+                        color: content.decadeCard ? (closeArea.containsMouse ? Theme.primaryContainer : Theme.decadeCardActionFill)
+                            : closeArea.containsMouse ? "#C42B1C" : "transparent"
                         MaterialIcon {
                             anchors.centerIn: parent
                             icon: "close"
@@ -196,7 +209,34 @@ Item {
                             id: closeArea; anchors.fill: parent; hoverEnabled: true
                             onClicked: dialog.closeCardAnimated()
                         }
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "关闭卡片"
+                        Accessible.onPressAction: dialog.closeCardAnimated()
+                        Keys.onReturnPressed: dialog.closeCardAnimated()
+                        Keys.onSpacePressed: dialog.closeCardAnimated()
                     }
+                }
+                Rectangle {
+                    visible: content.decadeCard
+                    x: Theme.decadeCardPadding
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: Theme.space8
+                    width: 49; height: Theme.borderWidthMedium
+                    color: Theme.primary
+                }
+            }
+
+            Item {
+                visible: content.decadeCard
+                Layout.fillWidth: true
+                Layout.preferredHeight: visible ? Theme.decadeCounterHeight + Theme.space12 : 0
+                DecadeUsageCounter {
+                    x: Theme.decadeCardPadding
+                    width: parent.width - Theme.decadeCardPadding * 2
+                    height: Theme.decadeCounterHeight
+                    count: dialog.toolController && dialog.toolController.usageCount !== undefined
+                        ? dialog.toolController.usageCount : 0
                 }
             }
 
@@ -219,6 +259,7 @@ Item {
                     externalRun: true
                     submitParametersOnEnter: true
                     compactLayout: true
+                    decadeCardLayout: content.decadeCard
                     minimumFormReservedHeight: 0
                     onRunRequested: dialog.runCustomScript()
                 }

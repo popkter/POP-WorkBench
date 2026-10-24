@@ -9,6 +9,7 @@ Column {
     required property var controller
     required property var parameterValues
     property bool compactLayout: false
+    property bool decadeCardLayout: false
     property bool inlineLabels: true
     property bool submitOnEnter: false
     signal submitRequested()
@@ -50,7 +51,7 @@ Column {
                     x: 1
                     y: 1
                     width: Math.max(0, (parameterRow.width - 2)
-                        * (root.compactLayout ? 0.34 : 0.25))
+                        * (root.decadeCardLayout ? 0.30 : root.compactLayout ? 0.34 : 0.25))
                     height: parameterInput.height
                     MouseArea {
                         anchors.fill: parent
@@ -67,7 +68,7 @@ Column {
                         anchors.verticalCenter: parent.verticalCenter
                         text: parameterItem.modelData.label
                         color: Theme.textPrimary
-                        font.pixelSize: Theme.fontCaption
+                        font.pixelSize: root.decadeCardLayout ? Theme.decadeCardTextSize : Theme.fontCaption
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
                         HoverHandler { id: labelHover }
@@ -81,7 +82,7 @@ Column {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space8
                         anchors.verticalCenter: parent.verticalCenter
-                        visible: !!parameterItem.modelData.required
+                        visible: !!parameterItem.modelData.required && !root.decadeCardLayout
                         text: visible ? "必填" : ""
                         color: Theme.textSecondary
                         font.pixelSize: Theme.fontCaption
@@ -110,6 +111,7 @@ Column {
                     parameterValues: root.parameterValues
                     framed: !root.inlineLabels
                     submitOnEnter: root.submitOnEnter
+                    decadeCardLayout: root.decadeCardLayout
                     onSubmitRequested: root.submitRequested()
                 }
 

@@ -81,6 +81,38 @@ QtObject {
     readonly property color consoleError: "#FF8585"
     readonly property color consoleDivider: outlineVariant
 
+    // Decade card values use the same 440 x 680 design space as card motion.
+    readonly property color decadeCardSurface: "#101118"
+    readonly property color decadeCardArtworkFill: "#7022131F"
+    readonly property color decadeCardArtworkOutline: "#2CF12786"
+    readonly property color decadeCardBackFill: "#22131F"
+    readonly property color decadeCardActionFill: "#251320"
+    readonly property color decadeCardActionBorder: "#B02569"
+    readonly property color decadeCounterFill: "#1C1420"
+    readonly property color decadeCounterBorder: "#8D345F"
+    readonly property color decadeCounterMuted: "#BF95B0"
+    readonly property color decadeCounterLeading: "#72506A"
+    readonly property color decadeCounterEmpty: "#22212B"
+    readonly property color decadeCounterEmptyBorder: "#4C4655"
+    readonly property color decadeCounterGreen: "#7BEA80"
+    readonly property real decadeCardBorderWidth: 2.8
+    readonly property int decadeCardRadius: 7
+    readonly property int decadeCardPadding: 16
+    readonly property int decadeCardHeaderHeight: 66
+    readonly property int decadeCardActionSize: 35
+    readonly property int decadeCardTitleSize: 18
+    readonly property int decadeCardTextSize: 14
+    readonly property int decadeCardMetaSize: 11
+    readonly property int decadeCardFieldActionSize: 28
+    readonly property int decadeCounterHeight: 83
+    readonly property int decadeCounterSquareSize: 17
+    readonly property int decadeCounterSquareGap: 5
+    readonly property color decadePackSurface: "#111017"
+    readonly property color decadePackWell: "#0C0D13"
+    readonly property color decadePackRail: "#352736"
+    readonly property color decadePackText: "#DCC5D8"
+    readonly property int decadePackRadius: 6
+
     property int fontDisplay: 40
     property int fontPageTitle: 30
     property int fontTitleLarge: 22

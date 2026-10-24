@@ -87,6 +87,7 @@ class AppController(QObject):
     customToolsChanged = Signal()
     toolConsoleChanged = Signal(str)
     toolStatusChanged = Signal(str)
+    toolUsageChanged = Signal(str)
     commandSaveFailed = Signal(str)
 
     def __init__(
@@ -786,6 +787,7 @@ class AppController(QObject):
         if tool.section != ToolSection.CUSTOM:
             return
         self.config_store.record_tool_use(tool.id)
+        self.toolUsageChanged.emit(tool.id)
         self.customToolsChanged.emit()
         if self._tool_sort_mode == "usage":
             selected_id = self._selected.id if self._selected is not None else ""

@@ -193,12 +193,12 @@ Item {
                 y: root.controller.drawerTipOffset
                 width: Theme.floatingTipWidth
                 height: Theme.floatingTipHeight
-                topLeftRadius: Theme.radiusMedium
-                bottomLeftRadius: Theme.radiusMedium
-                color: grip.containsMouse || root.controller.expanded
+                topLeftRadius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
+                bottomLeftRadius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
+                color: Theme.decadeMode ? (grip.containsMouse ? Theme.decadeCardActionFill : Theme.decadePackSurface) : grip.containsMouse || root.controller.expanded
                     ? Theme.primaryContainer : Theme.surfaceContainerLow
                 border.width: 1
-                border.color: Theme.outlineVariant
+                border.color: Theme.decadeMode ? Theme.decadePackRail : Theme.outlineVariant
                 opacity: grip.containsMouse || root.controller.dragging || root.controller.expanded
                     ? 1 : Theme.floatingIdleOpacity
                 Behavior on opacity {
@@ -272,12 +272,14 @@ Item {
                 width: drawerSurface.width - Theme.floatingTipWidth
                 height: panel.height
                 enabled: panel.revealRequested
-                radius: Theme.radiusMedium
+                radius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
                 topLeftRadius: tip.y < radius ? 0 : radius
                 bottomLeftRadius: tip.y + tip.height > height - radius ? 0 : radius
-                color: Theme.surfaceContainerLow
-                border.width: 1
+                color: Theme.decadeMode ? Theme.decadePackSurface : Theme.surfaceContainerLow
+                border.width: Theme.decadeMode ? 0 : 1
                 border.color: Theme.outlineVariant
+
+                DecadePackChrome { anchors.fill: parent; visible: Theme.decadeMode }
 
                 // Join the grip to the panel without an internal border or corner gap.
                 Rectangle {
@@ -316,7 +318,7 @@ Item {
                             placeholderText: "搜索脚本..."
                             text: root.searchQuery
                             color: Theme.textPrimary
-                            font.pixelSize: Theme.fontSupporting
+                            font.pixelSize: Theme.decadeMode ? Theme.fontCaption : Theme.fontSupporting
                             onTextChanged: {
                                 if (root.searchQuery !== text) {
                                     root.searchQuery = text;
@@ -324,8 +326,8 @@ Item {
                                 }
                             }
                             background: Rectangle {
-                                radius: Theme.radiusSmall
-                                color: Theme.surfaceContainer
+                                radius: Theme.decadeMode ? Theme.radiusTiny : Theme.radiusSmall
+                                color: Theme.decadeMode ? Theme.decadePackWell : Theme.surfaceContainer
                                 border.width: titleSearch.activeFocus ? 1 : 0
                                 border.color: Theme.primary
                                 MaterialIcon {
@@ -334,7 +336,7 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     icon: "search"
                                     iconSize: 18
-                                    color: Theme.textSecondary
+                                    color: Theme.decadeMode ? Theme.primaryText : Theme.textSecondary
                                 }
                             }
                         }
@@ -347,10 +349,11 @@ Item {
                             text: root.controller.pinned ? "取消置顶" : "置顶卡包"
                             iconName: "push_pin"
                             tonal: true
+                            radius: Theme.decadeMode ? Theme.radiusTiny : Theme.radiusControl
                             border.width: 0
                             color: root.controller.pinned ? Theme.primaryContainer
                                 : hovered ? Theme.surfaceContainer : "transparent"
-                            foregroundColor: root.controller.pinned ? Theme.primary : Theme.textSecondary
+                            foregroundColor: Theme.decadeMode ? Theme.primaryText : root.controller.pinned ? Theme.primary : Theme.textSecondary
                             Accessible.role: Accessible.CheckBox
                             Accessible.name: text
                             Accessible.checked: root.controller.pinned
@@ -366,7 +369,9 @@ Item {
                             text: Theme.decadeMode ? "收回全部卡牌" : "关闭全部脚本弹窗"
                             iconName: "layers_clear"
                             tonal: true
+                            radius: Theme.decadeMode ? Theme.radiusTiny : Theme.radiusControl
                             border.width: 0
+                            disabledOpacity: Theme.decadeMode ? 0.4 : 1
                             enabled: root.controller.openCardCount > 0 || scripts.pendingLaunchCount > 0
                             color: hovered ? Theme.surfaceContainer : "transparent"
                             Accessible.role: Accessible.Button
@@ -387,6 +392,7 @@ Item {
                             text: "收起"
                             iconName: "chevron_right"
                             tonal: true
+                            radius: Theme.decadeMode ? Theme.radiusTiny : Theme.radiusControl
                             border.width: 0
                             color: hovered ? Theme.surfaceContainer : "transparent"
                             onClicked: root.controller.collapse()

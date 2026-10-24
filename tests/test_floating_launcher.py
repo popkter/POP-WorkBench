@@ -854,6 +854,9 @@ RecentToolDialog {
         position = window.position()
         session = window.property("toolController")
         backend.append_tool_console(tool.id, "Preserve existing output\n")
+        # Decade starts with a collapsed console; expose its clear action before
+        # checking that the activation scan leaves the real controls clickable.
+        window.findChild(QObject, "customToolDetailPanel").setProperty("consoleExpanded", True)
         assert QMetaObject.invokeMethod(motion, "play")
         assert QMetaObject.invokeMethod(motion, "startPreparedEntry")
         assert QMetaObject.invokeMethod(entry, "pause")
@@ -2004,6 +2007,188 @@ def test_capacity_confirmation_raises_main_window(launcher, monkeypatch):
     controller.launchTool(tool.id)
     assert main.isVisible()
     assert not dialogs
+
+
+@pytest.mark.parametrize("parameter_count", [0, 3, 18])
+def test_decade_card_live_usage_and_compact_controls(launcher, qtbot, monkeypatch, parameter_count):
+    _, backend, _, _ = launcher
+    QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
+    parameters = " ".join(f"${{value{i}:Default {i}}}" for i in range(parameter_count))
+    tool = create_tool(backend, "批量文件整理与归档", command=f"print('{parameters}')")
+    other = create_tool(backend, "Other card")
+    config = backend.config_store.load_config()
+    config["custom_tools"]["usage_count"] = {tool.id: 37}
+    backend.config_store.save_config(config)
+    running = [False]
+    starts = []
+
+    def start(selected, values, serial):
+        starts.append((selected.id, dict(values)))
+        running[0] = True
+        backend.execution_coordinator.started.emit(selected.id)
+        backend.runningChanged.emit()
+        return True
+
+    def stop(_tool_id):
+        running[0] = False
+        backend.runningChanged.emit()
+
+    monkeypatch.setattr(backend.execution_coordinator, "start", start)
+    monkeypatch.setattr(backend.execution_coordinator, "stop", stop)
+    monkeypatch.setattr(backend.execution_coordinator, "running", lambda _tool_id: running[0])
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda messages: warnings.extend(m.toString() for m in messages))
+    engine.rootContext().setContextProperty("appController", backend)
+    engine.rootContext().setContextProperty("androidBackend", backend.android_controller)
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+RecentToolDialog {
+    deviceController: androidBackend
+    presetUtilities: null
+    jiraFeishuBackend: null
+    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/DecadeDesignHarness.qml")))
+    window = component.create()
+    assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
+    try:
+        assert QMetaObject.invokeMethod(window, "showWithTool", Q_ARG("QVariant", tool.id))
+        assert QTest.qWaitForWindowExposed(window)
+        qtbot.waitUntil(lambda: not window.property("entryAnimationRunning"))
+        assert (window.width(), window.height()) == (314, 486)
+        panel = window.findChild(QObject, "customToolDetailPanel")
+        counter = window.findChild(QObject, "decadeUsageCounter")
+        session = window.property("toolController")
+        assert panel.property("decadeCardLayout")
+        assert not panel.property("consoleExpanded")
+        assert counter.property("usageCount") == session.usageCount == 37
+        assert counter.property("unit") == 10 and counter.property("filledCount") == 3
+        def visual_items(item):
+            yield item
+            for child in item.childItems():
+                yield from visual_items(child)
+
+        counter_items = {item.objectName(): item for item in visual_items(counter)}
+        for index in range(10):
+            block = counter_items[f"decadeUsageBlock_{index}"]
+            bounds = block.mapRectToItem(window.contentItem(), block.boundingRect())
+            assert bounds.width() == pytest.approx(bounds.height())
+            assert bounds.width() == pytest.approx(17 * 5 / 7)
+        camera = window.findChild(QObject, "decadeDeviceCamera")
+        assert camera.isVisible() and camera.property("source").toString().endswith("decade-camera.svg")
+        buttons = [window.findChild(QObject, name) for name in (
+            "recentToolRunButton", "recentToolDeviceSelector", "recentToolCloseButton",
+        )]
+        assert len({round(button.width(), 2) for button in buttons}) == 1
+        assert not window.findChild(QObject, "deviceSelectorLabel").isVisible()
+        if parameter_count:
+            items = {item.objectName(): item for item in visual_items(window.contentItem())}
+            editor = items["customParameterInput_value0"].property("item")
+            editor.setProperty("text", "Edited value")
+        assert QMetaObject.invokeMethod(buttons[0], "clicked")
+        qtbot.waitUntil(lambda: panel.property("consoleExpanded"))
+        assert counter.property("usageCount") == session.usageCount == 38
+        assert ConfigStore(backend.config_store.paths).tool_usage_counts()[tool.id] == 38
+        if parameter_count:
+            assert starts[-1][1]["value0"] == "Edited value"
+        # A different script starting must not change this card's readout.
+        backend.execution_coordinator.started.emit(other.id)
+        assert counter.property("usageCount") == 38
+        assert QMetaObject.invokeMethod(buttons[0], "clicked")
+        assert not session.running
+        backend.append_tool_console(tool.id, "Actual output\n")
+        qtbot.waitUntil(lambda: window.findChild(QObject, "customConsoleText").property("text") == "Actual output\n")
+        qtbot.waitUntil(lambda: panel.property("consoleReveal") == 1)
+        console = window.findChild(QObject, "customConsolePanel")
+        bounds = console.mapRectToItem(window.contentItem(), console.boundingRect())
+        assert bounds.bottom() <= window.height()
+        area = window.findChild(QObject, "customParameterArea")
+        if parameter_count == 18:
+            assert area.property("contentHeight") > area.height()
+        output_dir = Path("build/decade-design")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        assert window.grabWindow().save(str(output_dir / f"card-{parameter_count}-expanded.png"))
+        toggle = window.findChild(QObject, "customConsoleToggle")
+        assert QMetaObject.invokeMethod(toggle, "clicked")
+        qtbot.waitUntil(lambda: panel.property("consoleReveal") == 0)
+        assert window.grabWindow().save(str(output_dir / f"card-{parameter_count}-collapsed.png"))
+        assert not warnings, warnings
+    finally:
+        window.close()
+        window.deleteLater()
+        engine.deleteLater()
+
+
+@pytest.mark.parametrize("count,unit,filled", [
+    (0, 1, 0), (9, 1, 9), (10, 10, 1), (99, 10, 9),
+    (100, 100, 1), (999, 100, 9), (1000, 1000, 1), (10000, 10000, 1),
+])
+def test_decade_usage_counter_changes_scale_at_powers_of_ten(qapp, count, unit, filled):
+    engine = QQmlEngine()
+    component = QQmlComponent(engine, QUrl.fromLocalFile(str(
+        package_root() / "ui/qml/components/DecadeUsageCounter.qml")))
+    counter = component.createWithInitialProperties({"count": count, "width": 408})
+    assert counter is not None, [error.toString() for error in component.errors()]
+    try:
+        assert counter.property("unit") == unit
+        assert counter.property("filledCount") == filled
+    finally:
+        counter.deleteLater()
+        engine.deleteLater()
+
+
+def test_decade_card_back_centers_bright_artwork_and_scales_with_pack(qapp, qtbot):
+    engine = QQmlEngine()
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import QtQuick.Window
+import "components"
+import "theme"
+Window {
+    width: 600; height: 530; visible: true; color: "#F5F6FA"
+    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    MechanicalCardFace {
+        objectName: "smallBack"
+        x: 18; y: 20; width: 220; height: 342
+        cardTitle: "Small card back"
+    }
+    MechanicalCardFace {
+        objectName: "largeBack"
+        x: 260; y: 20; width: 314; height: 486
+        cardTitle: "Large card back"
+    }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/DecadeBackHarness.qml")))
+    window = component.create()
+    assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
+    try:
+        assert QTest.qWaitForWindowExposed(window)
+        small = window.findChild(QObject, "smallBack")
+        large = window.findChild(QObject, "largeBack")
+        for back in (small, large):
+            art = back.findChild(QObject, "decadeCardArtwork")
+            assert art.property("backFace")
+            assert art.property("centerY") == back.height() / 2
+            assert art.property("motifSize") < back.width() / 2
+            divider = back.findChild(QObject, "decadeCardBackTitleDivider")
+            bounds = divider.mapRectToItem(back, divider.boundingRect())
+            assert 0 < bounds.left() < bounds.right() < back.width()
+            assert bounds.top() < back.height() / 4
+            assert back.property("radius") < 6
+        assert small.findChild(QObject, "decadeCardArtwork").property("motifSize") < \
+            large.findChild(QObject, "decadeCardArtwork").property("motifSize")
+        output_dir = Path("build/decade-design")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        assert window.grabWindow().save(str(output_dir / "card-back-sizes.png"))
+    finally:
+        window.close()
+        window.deleteLater()
+        engine.deleteLater()
 
 
 def test_session_reuses_tool_data_until_the_script_changes(launcher, monkeypatch):

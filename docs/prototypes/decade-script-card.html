@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Decade · 脚本卡片</title>
+  <style>
+    :root {
+      --card-width: 314px;
+      --card-height: 486px;
+      --surface: #101118;
+      --input: #17171d;
+      --accent: #f12786;
+      --accent-soft: #ff88be;
+      --text: #f8f2f7;
+      --muted: #b6a9b7;
+      --outline: #51414d;
+      --green: #7bea80;
+      font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+      color: #22232c;
+      background: #f5f6fa;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 338px; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: default; opacity: .45; }
+    button, input { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
+    [hidden] { display: none !important; }
+    .symbols { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .page { max-width: 880px; margin: 0 auto; padding: 40px 12px 24px; }
+    .page-header { text-align: center; margin-bottom: 26px; }
+    h1 { font-size: 24px; margin: 0 0 8px; font-weight: 650; letter-spacing: -.5px; }
+    .page-note { margin: 0; color: #74727e; font-size: 11px; line-height: 1.7; }
+    .gallery { display: grid; grid-template-columns: repeat(2, var(--card-width)); justify-content: center; gap: 42px; }
+    .example { margin: 0; width: var(--card-width); }
+    .card-slot { width: var(--card-width); height: var(--card-height); }
+    figcaption { text-align: center; color: #77727e; font-size: 11px; padding-top: 13px; }
+    .script-card {
+      position: relative; isolation: isolate; display: flex; flex-direction: column;
+      width: var(--card-width); height: var(--card-height); padding: 13px 12px 11px;
+      overflow: hidden; border: 2px solid var(--accent); border-radius: 10px;
+      background: var(--surface); color: var(--text);
+      box-shadow: 0 10px 28px #16101a0b;
+    }
+    .card-art { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+    .diamond {
+      position: absolute; width: 172px; height: 172px; left: 50%; top: 67%;
+      border: 2px solid #f127862c; border-radius: 19px;
+      background: #22131f70; transform: translate(-50%, -50%) rotate(45deg);
+    }
+    .watermark { position: absolute; left: 50%; top: 67%; width: 90px; height: 90px; transform: translate(-50%, -50%); color: #5f3c5d65; }
+    .watermark svg { width: 100%; height: 100%; fill: currentColor; }
+    .card-header { display: flex; align-items: center; gap: 8px; min-height: 28px; flex: none; }
+    .card-title { flex: 1; min-width: 0; margin: 0; font-size: 13px; font-weight: 650; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .actions { display: flex; align-items: center; gap: 5px; flex: none; }
+    .icon-button { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 25px; height: 25px; border: 1px solid #b02569; border-radius: 6px; color: #f7e9f3; background: #251320; transition: background .12s, border-color .12s; }
+    .icon-button:hover { background: #42182e; border-color: var(--accent); }
+    .icon-button:active { background: #60213f; }
+    .run-button { color: #ffb5da; }
+    .run-button .icon { fill: currentColor; stroke-width: 0; width: 15px; height: 15px; }
+    .device-button { width: 25px; }
+    .device-button .icon { width: 19px; height: 21px; stroke-width: 1.1; }
+    .device-menu { position: absolute; z-index: 5; right: 42px; top: 44px; width: 158px; padding: 4px; background: #1d1b23; border: 1px solid var(--outline); border-radius: 7px; box-shadow: 0 5px 20px #0008; }
+    .device-option { display: flex; align-items: center; gap: 7px; width: 100%; border: 0; border-radius: 4px; background: transparent; color: var(--text); text-align: left; font-size: 10px; padding: 8px; }
+    .device-option:hover, .device-option[aria-checked="true"] { background: #42182e; }
+    .device-option .check { margin-left: auto; width: 12px; height: 12px; visibility: hidden; color: var(--accent-soft); }
+    .device-option[aria-checked="true"] .check { visibility: visible; }
+    .title-accent { width: 35px; height: 2px; background: var(--accent); margin: 4px 0 10px; flex: none; }
+    .usage {
+      --counter-cut: 7px;
+      position: relative; isolation: isolate; display: flex; align-items: center;
+      flex: none; gap: 12px; min-height: 59px; margin-bottom: 9px; padding: 8px 10px;
+      background: linear-gradient(110deg, #c13277, #4e3048 48%, #8d345f);
+      clip-path: polygon(0 0, calc(100% - var(--counter-cut)) 0, 100% var(--counter-cut), 100% 100%, var(--counter-cut) 100%, 0 calc(100% - var(--counter-cut)));
+    }
+    .usage::before {
+      content: ""; position: absolute; z-index: -1; inset: 1px;
+      background: linear-gradient(110deg, #241422, #13121a 48%, #1c1420);
+      clip-path: polygon(0 0, calc(100% - var(--counter-cut)) 0, 100% var(--counter-cut), 100% 100%, var(--counter-cut) 100%, 0 calc(100% - var(--counter-cut)));
+    }
+    .usage::after { content: ""; position: absolute; top: 0; left: 10px; width: 31px; height: 2px; background: var(--accent); }
+    .usage-meter { flex: 1; min-width: 0; }
+    .usage-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #c9b5c6; font-size: 8px; line-height: 9px; letter-spacing: 1px; }
+    .usage-barcode { width: 24px; height: 7px; flex: none; background: repeating-linear-gradient(90deg, var(--accent-soft) 0 1px, transparent 1px 3px, var(--accent-soft) 3px 5px, transparent 5px 7px, var(--accent-soft) 7px 8px, transparent 8px 11px); opacity: .7; }
+    .usage-blocks { display: flex; align-items: center; gap: 4px; height: 12px; }
+    .usage-block { position: relative; flex: 0 0 12px; width: 12px; height: 12px; border: 1px solid #4c4655; border-radius: 0; background: #22212b; box-shadow: inset 0 1px #ffffff08; }
+    .usage-block.is-filled { background: var(--green); border-color: #a7f4ab; box-shadow: inset 0 0 0 1px #235c3440, 0 0 5px #7bea8024; }
+    .usage-block.is-filled::after { content: ""; position: absolute; bottom: 1px; left: 2px; right: 2px; height: 1px; background: #184e3555; }
+    .usage-caption { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: #bba5b8; font-size: 8px; line-height: 10px; font-variant-numeric: tabular-nums; }
+    .usage-ruler { flex: 1; height: 3px; background: repeating-linear-gradient(90deg, #765069 0 1px, transparent 1px 4px); opacity: .65; }
+    .usage-readout { position: relative; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; align-self: stretch; flex: 0 0 71px; border-left: 1px solid #63324e; padding-left: 10px; }
+    .usage-readout::before { content: ""; position: absolute; top: 0; left: -1px; width: 1px; height: 8px; background: var(--accent); }
+    .usage-number { display: flex; align-items: baseline; font: 600 21px/24px Consolas, "Cascadia Mono", monospace; font-variant-numeric: tabular-nums; letter-spacing: 1px; color: #fff1f9; white-space: nowrap; }
+    .usage-number.is-long { font-size: 13px; letter-spacing: 0; }
+    .usage-leading { color: #72506a; }
+    .usage-readout-label { display: flex; align-items: center; gap: 4px; color: #bf95b0; font-size: 8px; line-height: 10px; }
+    .usage-readout-label::before { content: ""; width: 3px; height: 3px; background: var(--accent); }
+    .parameters { display: flex; flex-direction: column; gap: 6px; flex: none; margin: 0; }
+    .parameter-row { display: flex; align-items: center; min-width: 0; height: 30px; border: 1px solid var(--outline); border-radius: 6px; background: var(--input); }
+    .parameter-row:focus-within { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .parameter-label { display: flex; align-items: center; width: 30%; flex: none; height: 16px; padding-left: 9px; border-right: 1px solid #51414d; font-size: 10px; font-weight: 600; white-space: nowrap; }
+    .parameter-input { flex: 1; min-width: 0; width: 0; padding: 6px 7px; border: 0; outline: none; color: var(--text); background: transparent; font-size: 10px; line-height: 16px; }
+    .parameter-input:focus-visible { outline: none; }
+    .field-actions { display: flex; gap: 4px; padding-right: 4px; flex: none; }
+    .field-button { width: 20px; height: 20px; border-radius: 4px; color: var(--accent-soft); border-color: #682141; background: #2a1423; }
+    .field-button .icon { width: 13px; height: 13px; }
+    .field-button.is-saved { color: var(--green); }
+    .checkbox-value { display: flex; align-items: center; gap: 7px; padding-left: 9px; font-size: 10px; cursor: pointer; }
+    .checkbox-value input { appearance: none; width: 15px; height: 15px; margin: 0; border: 1px solid #735368; background: #1b1820; border-radius: 3px; display: grid; place-content: center; cursor: pointer; }
+    .checkbox-value input:checked { background: var(--accent); border-color: var(--accent); }
+    .checkbox-value input:checked::after { content: ""; width: 7px; height: 4px; border-left: 2px solid white; border-bottom: 2px solid white; transform: translateY(-1px) rotate(-45deg); }
+    .console { display: flex; flex-direction: column; flex: none; min-height: 31px; margin-top: auto; border: 1px solid var(--outline); border-radius: 7px; overflow: hidden; background: #17151bc9; }
+    .script-card.is-expanded .console { flex: 1; margin-top: 9px; min-height: 85px; }
+    .console-toolbar { display: flex; align-items: center; min-height: 30px; background: #232028e6; flex: none; }
+    .console-toggle { display: flex; align-items: center; gap: 7px; flex: 1; align-self: stretch; border: 0; padding: 0 9px; color: var(--text); background: transparent; font-size: 10px; font-weight: 600; text-align: left; }
+    .console-toggle:hover { background: #ffffff06; }
+    .console-toggle .icon { width: 17px; height: 17px; }
+    .console-actions { display: flex; align-items: center; gap: 2px; padding-right: 3px; }
+    .console-action { width: 25px; height: 25px; border: 0; border-radius: 4px; background: transparent; color: var(--text); display: grid; place-items: center; padding: 0; }
+    .console-action:hover { background: #42182e; }
+    .console-action .icon { width: 14px; height: 14px; }
+    .console-chevron { transform: rotate(0deg); }
+    .script-card.is-expanded .console-chevron { transform: rotate(180deg); }
+    .script-card:not(.is-expanded) .clear-console { display: none; }
+    .console-output { flex: 1; min-height: 0; padding: 9px 7px; overflow: auto; background: #101014df; border-top: 1px solid #40313e; scrollbar-width: thin; scrollbar-color: #56505e transparent; }
+    .log-line { display: flex; gap: 6px; min-width: max-content; font-family: Consolas, "Cascadia Mono", monospace; font-size: 9px; line-height: 18px; white-space: pre; }
+    .log-time { color: #b5aebc; }
+    .log-tag { color: var(--accent-soft); }
+    .log-tag.ok { color: var(--green); }
+    .log-tag.warn { color: #f3c77b; }
+    .log-message { color: #f1eaf2; }
+    .page-footer { margin: 25px auto 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .reset-button { padding: 7px 13px; font-size: 11px; color: #635866; border: 1px solid #ddd4df; background: white; border-radius: 6px; }
+    .reset-button:hover { border-color: #b884a3; }
+    .demo-note { margin: 0; font-size: 10px; color: #88808b; text-align: center; line-height: 1.7; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+    @media (max-width: 710px) { .gallery { grid-template-columns: var(--card-width); gap: 26px; } .page { padding-top: 25px; } h1 { font-size: 21px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5a1 1 0 0 1 1.5-.86l12 7.5a1 1 0 0 1 0 1.72l-12 7.5A1 1 0 0 1 7 19.5Z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M10 5h4m-3 13.5h2"/></symbol>
+    <symbol id="i-decade-camera" viewBox="0 0 24 24">
+      <path d="M7 2h10l2 3v17H5V5Z" fill="#e8d5e3"/>
+      <path d="M7 5h10v15H7Z" fill="var(--accent)" stroke="none"/>
+      <path d="M8 2V1h8v1M8 22v1m8-1v1"/>
+      <circle cx="12" cy="8.5" r="3" fill="#101118"/>
+      <circle cx="12" cy="16" r="3.5" fill="#101118"/>
+      <circle cx="12" cy="8.5" r="1.2" fill="#5f4266" stroke="none"/>
+      <circle cx="12" cy="16" r="1.6" fill="#5f4266" stroke="none"/>
+      <path d="M3.5 7v4M20.5 7v4M8 4h8"/>
+    </symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M4 3h13l4 4v14H3V3Z"/><path d="M7 3v6h9V3M7 21V13h10v8"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5h6l2 3h10v12H3V7Z"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 5 6 6-6 6m10 1h7"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-computer" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="13" rx="1"/><path d="M8 21h8m-4-5v5"/></symbol>
+  </svg>
+  <main class="page">
+    <header class="page-header">
+      <h1>DECADE / 脚本卡片</h1>
+      <p class="page-note">314 × 486 逻辑像素 · 原尺寸交互预览</p>
+    </header>
+    <div class="gallery" id="gallery"></div>
+    <footer class="page-footer">
+      <button class="reset-button" type="button" id="reset-preview">重置预览</button>
+      <p class="demo-note">运行与设备选择为演示交互；不会执行脚本或连接设备。<br>次数刻度：不足 10 次，每格 1 次；10–99 次，每格 10 次；依此类推。</p>
+    </footer>
+    <div class="sr-only" role="status" aria-live="polite" id="announcement"></div>
+  </main>
+  <template id="card-template">
+    <figure class="example">
+      <div class="card-slot">
+        <article class="script-card" aria-label="批量文件整理与归档脚本卡片">
+          <div class="card-art" aria-hidden="true">
+            <div class="diamond"></div>
+            <div class="watermark"><svg viewBox="0 0 100 100"><path d="M15 26 33 9v12h30c10 0 15 5 15 15v10H65V36H33v12Zm70 48L67 91V79H37c-10 0-15-5-15-15V54h13v10h32V52Z"/></svg></div>
+          </div>
+          <header class="card-header">
+            <h2 class="card-title" title="批量文件整理与归档">批量文件整理与归档</h2>
+            <div class="actions">
+              <button class="icon-button run-button" type="button" aria-label="运行脚本" title="运行脚本"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg></button>
+              <button class="icon-button device-button" type="button" aria-label="选择设备，当前为本机" title="选择设备" aria-haspopup="menu" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-decade-camera"/></svg></button>
+              <button class="icon-button close-button" type="button" aria-label="关闭卡片" title="关闭卡片"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+            </div>
+          </header>
+          <div class="device-menu" role="menu" aria-label="演示设备" hidden>
+            <button class="device-option" type="button" role="menuitemradio" aria-checked="true" data-device="本机"><svg class="icon" aria-hidden="true"><use href="#i-computer"/></svg>本机 · Windows<svg class="icon check" aria-hidden="true"><use href="#i-check"/></svg></button>
+            <button class="device-option" type="button" role="menuitemradio" aria-checked="false" data-device="Android（演示）"><svg class="icon" aria-hidden="true"><use href="#i-phone"/></svg>Android（演示）<svg class="icon check" aria-hidden="true"><use href="#i-check"/></svg></button>
+          </div>
+          <div class="title-accent" aria-hidden="true"></div>
+          <div class="usage">
+            <div class="usage-meter">
+              <div class="usage-heading"><span class="usage-barcode" aria-hidden="true"></span><span>使用次数</span></div>
+              <div class="usage-blocks" role="img" aria-label=""></div>
+              <div class="usage-caption"><span class="usage-unit"></span><span class="usage-ruler" aria-hidden="true"></span></div>
+            </div>
+            <div class="usage-readout" aria-hidden="true">
+              <div class="usage-number"><span class="usage-leading"></span><span class="usage-value"></span></div>
+              <div class="usage-readout-label">累计 / 次</div>
+            </div>
+            <span class="usage-count sr-only"></span>
+          </div>
+          <form class="parameters" aria-label="脚本参数" autocomplete="off">
+            <div class="parameter-row">
+              <label class="parameter-label" data-for="source">源文件夹</label>
+              <input class="parameter-input" data-field="source" type="text" value="D:/Downloads/Inbox" spellcheck="false" aria-label="源文件夹">
+              <div class="field-actions">
+                <button class="icon-button field-button save-default" data-field="source" type="button" aria-label="将源文件夹设为默认值" title="设为默认值"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg></button>
+                <button class="icon-button field-button pick-folder" data-field="source" type="button" aria-label="选择源文件夹" title="选择文件夹"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg></button>
+              </div>
+            </div>
+            <div class="parameter-row">
+              <label class="parameter-label" data-for="output">输出目录</label>
+              <input class="parameter-input" data-field="output" type="text" value="D:/Files/Organized" spellcheck="false" aria-label="输出目录">
+              <div class="field-actions">
+                <button class="icon-button field-button save-default" data-field="output" type="button" aria-label="将输出目录设为默认值" title="设为默认值"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg></button>
+                <button class="icon-button field-button pick-folder" data-field="output" type="button" aria-label="选择输出目录" title="选择文件夹"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg></button>
+              </div>
+            </div>
+            <div class="parameter-row">
+              <span class="parameter-label">保留原文件</span>
+              <label class="checkbox-value"><input type="checkbox" checked aria-label="保留原文件"><span>已启用</span></label>
+            </div>
+          </form>
+          <section class="console" aria-label="控制台输出">
+            <div class="console-toolbar">
+              <button class="console-toggle" type="button" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span>控制台输出</span></button>
+              <div class="console-actions">
+                <button class="console-action clear-console" type="button" aria-label="清空控制台" title="清空控制台"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>
+                <button class="console-action console-collapse" type="button" aria-label="展开控制台" aria-expanded="false"><svg class="icon console-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+              </div>
+            </div>
+            <div class="console-output" role="log" aria-label="脚本日志" tabindex="0" hidden></div>
+          </section>
+          <input class="directory-picker" type="file" webkitdirectory multiple hidden>
+        </article>
+      </div>
+      <figcaption></figcaption>
+    </figure>
+  </template>
+  <script>
+    (() => {
+      'use strict';
+      const gallery = document.querySelector('#gallery');
+      const template = document.querySelector('#card-template');
+      const storageKey = 'poptool.decade.prototype.defaults.v1';
+      const examples = [];
+      let usageCount = 37;
+      const sampleLogs = [
+        ['10:21:03', 'INFO', 'Scan started'],
+        ['10:21:03', 'INFO', 'Source: Inbox'],
+        ['10:21:04', 'INFO', '128 files found'],
+        ['10:21:04', 'INFO', 'Documents: 54'],
+        ['10:21:05', 'INFO', 'Images: 48'],
+        ['10:21:05', 'INFO', 'Archives: 26'],
+        ['10:21:06', 'INFO', 'Creating folders'],
+        ['10:21:07', 'INFO', 'Moving files'],
+        ['10:21:08', 'OK', '128 files done'],
+        ['10:21:08', 'OK', 'Completed']
+      ];
+      function announce(message) { document.querySelector('#announcement').textContent = message; }
+      function readDefaults() {
+        try { return JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; }
+        catch { return {}; }
+      }
+      function usageScale(count) {
+        const unit = 10 ** Math.floor(Math.log10(Math.max(1, count)));
+        return { unit, filled: Math.min(10, Math.floor(count / unit)) };
+      }
+      function renderUsage() {
+        const { unit, filled } = usageScale(usageCount);
+        for (const { card } of examples) {
+          const meter = card.querySelector('.usage-blocks');
+          meter.replaceChildren(...Array.from({ length: 10 }, (_, index) => {
+            const block = document.createElement('span');
+            block.className = 'usage-block' + (index < filled ? ' is-filled' : '');
+            return block;
+          }));
+          meter.setAttribute('aria-label', `已使用 ${usageCount} 次，每格 ${unit} 次，点亮 ${filled} 格`);
+          card.querySelector('.usage-count').textContent = `已使用 ${usageCount} 次`;
+          card.querySelector('.usage-unit').textContent = `每格 ${unit.toLocaleString('zh-CN')} 次`;
+          const digits = String(usageCount);
+          card.querySelector('.usage-leading').textContent = '0'.repeat(Math.max(0, 4 - digits.length));
+          card.querySelector('.usage-value').textContent = digits;
+          card.querySelector('.usage-number').classList.toggle('is-long', digits.length > 4);
+        }
+      }
+      function appendLog(state, [time, tag, message]) {
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        for (const [className, text] of [
+          ['log-time', `[${time}]`],
+          ['log-tag' + (tag === 'OK' ? ' ok' : tag === 'WARN' ? ' warn' : ''), `[${tag}]`],
+          ['log-message', message]
+        ]) {
+          const span = document.createElement('span');
+          span.className = className;
+          span.textContent = text;
+          line.append(span);
+        }
+        state.output.append(line);
+        state.output.scrollTop = state.output.scrollHeight;
+      }
+      function setExpanded(state, expanded) {
+        state.card.classList.toggle('is-expanded', expanded);
+        state.output.hidden = !expanded;
+        for (const button of state.card.querySelectorAll('.console-toggle, .console-collapse')) {
+          button.setAttribute('aria-expanded', String(expanded));
+          button.setAttribute('aria-controls', state.output.id);
+        }
+        state.card.querySelector('.console-collapse').setAttribute('aria-label', expanded ? '收起控制台' : '展开控制台');
+      }
+      function closeMenu(state, returnFocus = false) {
+        state.menu.hidden = true;
+        state.deviceButton.setAttribute('aria-expanded', 'false');
+        if (returnFocus) state.deviceButton.focus();
+      }
+      function now() { return new Date().toLocaleTimeString('en-GB', { hour12: false }); }
+      function stopRun(state, cancelled = false) {
+        clearInterval(state.timer);
+        state.timer = null;
+        state.running = false;
+        const button = state.card.querySelector('.run-button');
+        button.setAttribute('aria-label', '运行脚本');
+        button.title = '运行脚本';
+        button.querySelector('use').setAttribute('href', '#i-play');
+        for (const control of state.card.querySelectorAll('.parameters input, .field-button')) control.disabled = false;
+        if (cancelled) appendLog(state, [now(), 'WARN', 'Stopped by user']);
+      }
+      function run(state) {
+        if (state.running) { stopRun(state, true); return; }
+        const fields = [...state.card.querySelectorAll('.parameter-input')];
+        const empty = fields.find(input => !input.value.trim());
+        if (empty) { empty.focus(); empty.setCustomValidity('请填写目录'); empty.reportValidity(); return; }
+        state.running = true;
+        usageCount += 1;
+        renderUsage();
+        setExpanded(state, true);
+        state.output.replaceChildren();
+        const button = state.card.querySelector('.run-button');
+        button.setAttribute('aria-label', '停止演示');
+        button.title = '停止演示';
+        button.querySelector('use').setAttribute('href', '#i-stop');
+        for (const control of state.card.querySelectorAll('.parameters input, .field-button')) control.disabled = true;
+        appendLog(state, [now(), 'INFO', 'Demo run started']);
+        const rows = [
+          ['INFO', `Device: ${state.device}`],
+          ['INFO', 'Scanning source...'], ['INFO', '128 files found'],
+          ['INFO', 'Documents: 54'], ['INFO', 'Images: 48'],
+          ['INFO', 'Archives: 26'], ['INFO', 'Creating folders...'],
+          ['INFO', 'Moving files...'], ['OK', '128 files done'], ['OK', 'Demo completed']
+        ];
+        let index = 0;
+        state.timer = setInterval(() => {
+          appendLog(state, [now(), ...rows[index++]]);
+          if (index === rows.length) { stopRun(state); announce('演示运行完成'); }
+        }, 300);
+      }
+      function createCard(index, expanded) {
+        const figure = template.content.firstElementChild.cloneNode(true);
+        const card = figure.querySelector('.script-card');
+        const state = { card, output: card.querySelector('.console-output'), menu: card.querySelector('.device-menu'), deviceButton: card.querySelector('.device-button'), device: '本机', running: false, timer: null, pickerField: 'source' };
+        state.output.id = `console-output-${index}`;
+        const defaults = readDefaults();
+        for (const input of card.querySelectorAll('.parameter-input')) {
+          const field = input.dataset.field;
+          input.id = `parameter-${index}-${field}`;
+          card.querySelector(`[data-for="${field}"]`).htmlFor = input.id;
+          if (typeof defaults[field] === 'string') input.value = defaults[field];
+          input.title = input.value;
+          input.addEventListener('input', () => { input.title = input.value; input.setCustomValidity(''); });
+        }
+        card.querySelector('.parameters').addEventListener('submit', event => { event.preventDefault(); run(state); });
+        card.querySelector('.run-button').addEventListener('click', () => run(state));
+        for (const button of card.querySelectorAll('.console-toggle, .console-collapse')) button.addEventListener('click', () => setExpanded(state, !card.classList.contains('is-expanded')));
+        card.querySelector('.clear-console').addEventListener('click', () => state.output.replaceChildren());
+        card.querySelector('.close-button').addEventListener('click', () => {
+          stopRun(state);
+          closeMenu(state);
+          card.hidden = true;
+          document.querySelector('#reset-preview').focus();
+          announce('卡片已关闭，可使用重置预览重新打开');
+        });
+        state.deviceButton.addEventListener('click', () => {
+          const opening = state.menu.hidden;
+          examples.forEach(other => closeMenu(other));
+          state.menu.hidden = !opening;
+          state.deviceButton.setAttribute('aria-expanded', String(opening));
+          if (opening) state.menu.querySelector('[aria-checked="true"]').focus();
+        });
+        card.addEventListener('keydown', event => {
+          if (event.key === 'Escape' && !state.menu.hidden) { event.preventDefault(); closeMenu(state, true); }
+          if (event.target.closest('.device-menu') && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault();
+            const options = [...state.menu.querySelectorAll('button')];
+            const current = options.indexOf(document.activeElement);
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+            options[next].focus();
+          }
+        });
+        for (const option of state.menu.querySelectorAll('button')) option.addEventListener('click', () => {
+          state.device = option.dataset.device;
+          state.menu.querySelectorAll('button').forEach(item => item.setAttribute('aria-checked', String(item === option)));
+          state.deviceButton.setAttribute('aria-label', `选择设备，当前为${state.device}`);
+          state.deviceButton.title = `当前设备：${state.device}`;
+          closeMenu(state, true);
+        });
+        card.querySelector('input[type="checkbox"]').addEventListener('change', event => { event.target.nextElementSibling.textContent = event.target.checked ? '已启用' : '未启用'; });
+        for (const button of card.querySelectorAll('.save-default')) button.addEventListener('click', () => {
+          const field = button.dataset.field;
+          const input = card.querySelector(`input[data-field="${field}"]`);
+          try {
+            localStorage.setItem(storageKey, JSON.stringify({ ...readDefaults(), [field]: input.value }));
+            button.classList.add('is-saved');
+            button.querySelector('use').setAttribute('href', '#i-check');
+            announce('已保存默认值');
+            setTimeout(() => { button.classList.remove('is-saved'); button.querySelector('use').setAttribute('href', '#i-save'); }, 1200);
+          } catch { announce('当前浏览器无法保存默认值'); }
+        });
+        const picker = card.querySelector('.directory-picker');
+        for (const button of card.querySelectorAll('.pick-folder')) button.addEventListener('click', () => { state.pickerField = button.dataset.field; picker.value = ''; picker.click(); });
+        picker.addEventListener('change', () => {
+          if (!picker.files.length) return;
+          // Browsers expose a folder name, never its absolute filesystem path.
+          const relative = picker.files[0].webkitRelativePath || picker.files[0].name;
+          const input = card.querySelector(`input[data-field="${state.pickerField}"]`);
+          input.value = relative.split('/')[0];
+          input.dispatchEvent(new Event('input'));
+          input.focus();
+          announce('已选目录。浏览器仅提供目录名，完整路径可手动填写。');
+        });
+        figure.querySelector('figcaption').textContent = `314 × 486 px · ${expanded ? '展开示例' : '收起示例'}`;
+        gallery.append(figure);
+        examples.push(state);
+        setExpanded(state, expanded);
+        if (expanded) sampleLogs.forEach(row => appendLog(state, row));
+        state.output.scrollTop = 0;
+      }
+      createCard(0, false);
+      createCard(1, true);
+      renderUsage();
+      document.addEventListener('click', event => {
+        examples.forEach(state => { if (!state.menu.contains(event.target) && !state.deviceButton.contains(event.target)) closeMenu(state); });
+      });
+      document.querySelector('#reset-preview').addEventListener('click', () => {
+        examples.forEach(state => stopRun(state));
+        examples.length = 0;
+        gallery.replaceChildren();
+        usageCount = 37;
+        createCard(0, false);
+        createCard(1, true);
+        renderUsage();
+        announce('预览已重置');
+      });
+    })();
+  </script>
+</body>
+</html>

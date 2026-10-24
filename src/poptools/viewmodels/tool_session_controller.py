@@ -27,6 +27,7 @@ class ToolSessionController(QObject):
     consoleTextChanged = Signal()
     runningChanged = Signal()
     statusTextChanged = Signal()
+    usageCountChanged = Signal()
 
     def __init__(self, backend: AppController, tool_id: str) -> None:
         super().__init__(backend)
@@ -40,6 +41,7 @@ class ToolSessionController(QObject):
         backend.customToolsChanged.connect(self._refresh_tool)
         backend.toolConsoleChanged.connect(self._on_console)
         backend.toolStatusChanged.connect(self._on_status)
+        backend.toolUsageChanged.connect(self._on_usage)
         backend.runningChanged.connect(self.runningChanged)
 
     @Property(str, constant=True)
@@ -61,6 +63,10 @@ class ToolSessionController(QObject):
     @Property(str, notify=consoleTextChanged)
     def consoleText(self) -> str:
         return self._backend.console_store.text(self._tool_id)
+
+    @Property(int, notify=usageCountChanged)
+    def usageCount(self) -> int:
+        return self._backend.config_store.tool_usage_counts().get(self._tool_id, 0)
 
     @Slot(QObject)
     def attachWindow(self, window: QObject) -> None:
@@ -197,6 +203,10 @@ class ToolSessionController(QObject):
         if tool_id == self._tool_id:
             self.statusTextChanged.emit()
             self.runningChanged.emit()
+
+    def _on_usage(self, tool_id: str) -> None:
+        if tool_id == self._tool_id:
+            self.usageCountChanged.emit()
 
     @Slot()
     def dispose(self) -> None:

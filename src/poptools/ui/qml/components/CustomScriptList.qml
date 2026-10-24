@@ -194,13 +194,27 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 24
             Layout.topMargin: 3
+            Row {
+                visible: root.deckMode
+                spacing: 2
+                Repeater {
+                    model: 7
+                    Rectangle {
+                        required property int index
+                        width: index % 3 === 0 ? 3 : 1
+                        height: 11
+                        color: index % 3 === 0 ? Theme.primary : Theme.primaryText
+                    }
+                }
+            }
             Text {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 Layout.leftMargin: 0
                 text: root.collectionView ? root.collectionView.headingText : ""
-                color: Theme.textSecondary
+                color: root.deckMode ? Theme.decadePackText : Theme.textSecondary
                 font.pixelSize: Theme.fontCaption
+                font.weight: root.deckMode ? Font.DemiBold : Font.Normal
             }
             ToolSortButton {
                 id: sortButton
@@ -209,6 +223,9 @@ Item {
                 glyphSize: 20
                 controller: root.controller
                 objectName: "scriptListSort"
+                backgroundColor: "transparent"
+                border.width: 0
+                radius: root.deckMode ? Theme.radiusTiny : Theme.radiusSmall
             }
         }
 
@@ -218,18 +235,29 @@ Item {
             Layout.fillHeight: true
             sourceComponent: root.deckMode ? decadeView : standardView
         }
-        RowLayout {
+        Rectangle {
             Layout.fillWidth: true
-            Text {
-                Layout.fillWidth: true
-                text: root.visibleCount + (root.collectionView ? root.collectionView.countSuffix : "")
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontCaption
-            }
-            Text {
-                text: root.collectionView ? root.collectionView.actionText : ""
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontCaption
+            Layout.preferredHeight: root.deckMode ? 24 : footerRow.implicitHeight
+            color: "transparent"
+            radius: Theme.radiusTiny
+            RowLayout {
+                id: footerRow
+                anchors.fill: parent
+                Text {
+                    Layout.fillWidth: true
+                    text: root.visibleCount + (root.collectionView ? root.collectionView.countSuffix : "")
+                    color: root.deckMode ? Theme.decadePackText : Theme.textSecondary
+                    font.pixelSize: Theme.fontCaption
+                }
+                MaterialIcon {
+                    visible: root.deckMode
+                    icon: "north_west"; iconSize: 13; color: Theme.primaryText
+                }
+                Text {
+                    text: root.collectionView ? root.collectionView.actionText : ""
+                    color: root.deckMode ? Theme.primaryText : Theme.textSecondary
+                    font.pixelSize: Theme.fontCaption
+                }
             }
         }
     }
