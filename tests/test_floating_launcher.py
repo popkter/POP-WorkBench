@@ -1932,14 +1932,17 @@ RecentToolDialog {
                         round(window.height() * height_fraction * scale)).alpha() >= 250
                 if progress == .5:
                     assert scan.isVisible() and scan.opacity() > .7
-                    # Several rows across the glow must be visibly pink, rather
-                    # than only a one-pixel line at the reveal boundary.
-                    for band_fraction in (.43, .53, .67):
-                        light = scan.mapToItem(window.contentItem(), QPointF(
-                            scan.width() / 2, scan.height() * band_fraction))
-                        color = frame.pixelColor(round(light.x() * scale), round(light.y() * scale))
-                        assert color.red() > color.green() + 20
-                        assert color.blue() > color.green() + 10
+                    # Check the broad glow on both sides of the centered card
+                    # artwork. Its bright icon can overwhelm the translucent
+                    # pink at the center, depending on DPI and font rendering.
+                    for width_fraction in (.15, .85):
+                        for band_fraction in (.43, .53, .67):
+                            light = scan.mapToItem(window.contentItem(), QPointF(
+                                scan.width() * width_fraction, scan.height() * band_fraction))
+                            color = frame.pixelColor(round(light.x() * scale),
+                                                     round(light.y() * scale))
+                            assert color.red() > color.green() + 20
+                            assert color.blue() > color.green() + 10
                 assert frame.save(str(output_dir / f"continuous-reveal-{progress}.png"))
                 if progress == 1:
                     revealed_frame = frame
