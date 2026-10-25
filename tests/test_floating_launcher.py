@@ -2014,7 +2014,11 @@ def test_decade_card_live_usage_and_compact_controls(launcher, qtbot, monkeypatc
     _, backend, _, _ = launcher
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     parameters = " ".join(f"${{value{i}:Default {i}}}" for i in range(parameter_count))
-    tool = create_tool(backend, "批量文件整理与归档", command=f"print('{parameters}')")
+    tool = backend.registry.create_custom(
+        title="批量文件整理与归档", description="", kind="python",
+        command=f"print('{parameters}')", icon="folder",
+    )
+    backend.reloadImportedScripts()
     other = create_tool(backend, "Other card")
     config = backend.config_store.load_config()
     config["custom_tools"]["usage_count"] = {tool.id: 37}
@@ -2060,6 +2064,14 @@ RecentToolDialog {
         assert QTest.qWaitForWindowExposed(window)
         qtbot.waitUntil(lambda: not window.property("entryAnimationRunning"))
         assert (window.width(), window.height()) == (314, 486)
+        content = window.findChild(QObject, "recentToolFormLoader").property("item")
+        art = content.findChild(QObject, "decadeCardArtwork")
+        glyph = art.findChild(QObject, "decadeCardArtworkIcon")
+        assert not art.property("backFace")
+        assert glyph.property("icon") == "folder"
+        bounds = glyph.mapRectToItem(window.contentItem(), glyph.boundingRect())
+        assert bounds.center().x() == pytest.approx(window.width() / 2)
+        assert bounds.center().y() == pytest.approx(window.height() / 2)
         panel = window.findChild(QObject, "customToolDetailPanel")
         counter = window.findChild(QObject, "decadeUsageCounter")
         session = window.property("toolController")
@@ -2142,6 +2154,7 @@ def test_decade_usage_counter_changes_scale_at_powers_of_ten(qapp, count, unit, 
 
 
 def test_decade_card_back_centers_bright_artwork_and_scales_with_pack(qapp, qtbot):
+    QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     engine = QQmlEngine()
     component = QQmlComponent(engine)
     component.setData(b'''
@@ -2156,11 +2169,13 @@ Window {
         objectName: "smallBack"
         x: 18; y: 20; width: 220; height: 342
         cardTitle: "Small card back"
+        cardIcon: "folder"
     }
     MechanicalCardFace {
         objectName: "largeBack"
         x: 260; y: 20; width: 314; height: 486
         cardTitle: "Large card back"
+        cardIcon: "terminal"
     }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/DecadeBackHarness.qml")))
@@ -2173,6 +2188,10 @@ Window {
         for back in (small, large):
             art = back.findChild(QObject, "decadeCardArtwork")
             assert art.property("backFace")
+            glyph = art.findChild(QObject, "decadeCardArtworkIcon")
+            assert glyph.property("icon") == back.property("cardIcon")
+            glyph_bounds = glyph.mapRectToItem(back, glyph.boundingRect())
+            assert glyph_bounds.center() == back.boundingRect().center()
             assert art.property("centerY") == back.height() / 2
             assert art.property("motifSize") < back.width() / 2
             divider = back.findChild(QObject, "decadeCardBackTitleDivider")
@@ -2182,6 +2201,8 @@ Window {
             assert back.property("radius") < 6
         assert small.findChild(QObject, "decadeCardArtwork").property("motifSize") < \
             large.findChild(QObject, "decadeCardArtwork").property("motifSize")
+        small.setProperty("cardIcon", "settings")
+        assert small.findChild(QObject, "decadeCardArtworkIcon").property("icon") == "settings"
         output_dir = Path("build/decade-design")
         output_dir.mkdir(parents=True, exist_ok=True)
         assert window.grabWindow().save(str(output_dir / "card-back-sizes.png"))

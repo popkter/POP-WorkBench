@@ -24,7 +24,7 @@ Rectangle {
         visible = true
     }
 
-    DecadeCardArtwork { anchors.fill: parent; backFace: true }
+    DecadeCardArtwork { anchors.fill: parent; backFace: true; iconName: root.cardIcon }
 
     // One design coordinate system keeps the pack face and flying face identical.
     Item {

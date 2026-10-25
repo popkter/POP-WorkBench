@@ -85,6 +85,7 @@ QtObject {
     readonly property color decadeCardSurface: "#101118"
     readonly property color decadeCardArtworkFill: "#7022131F"
     readonly property color decadeCardArtworkOutline: "#2CF12786"
+    readonly property color decadeCardArtworkIcon: "#5F3C5D"
     readonly property color decadeCardBackFill: "#22131F"
     readonly property color decadeCardActionFill: "#251320"
     readonly property color decadeCardActionBorder: "#B02569"

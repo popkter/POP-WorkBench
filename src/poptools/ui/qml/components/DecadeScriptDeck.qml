@@ -291,6 +291,7 @@ ScriptCollectionView {
         Component.onCompleted: mount()
         Component.onDestruction: root.cardStore.park(toolId, deckFace)
         onTitleChanged: mount()
+        onIconNameChanged: mount()
         objectName: "scriptRow_" + toolId
         onSelectedChanged: if (selected)
             root.positionViewAtIndex(index, ListView.Contain)

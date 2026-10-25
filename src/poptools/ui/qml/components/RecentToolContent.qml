@@ -37,7 +37,12 @@ Item {
         border.color: content.decadeCard ? Theme.primary : Theme.outlineVariant
         clip: true
 
-        DecadeCardArtwork { anchors.fill: parent; visible: content.decadeCard }
+        DecadeCardArtwork {
+            anchors.fill: parent
+            visible: content.decadeCard
+            iconName: dialog.selectedTool.presentation
+                ? dialog.selectedTool.presentation.icon || "terminal" : "terminal"
+        }
 
         ColumnLayout {
             anchors.fill: parent
