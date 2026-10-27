@@ -141,6 +141,9 @@ common_datas = [
     (str(PACKAGE / "resources" / "fonts"), "poptools/resources/fonts"),
     (str(PACKAGE / "resources" / "help"), "poptools/resources/help"),
     (str(PACKAGE / "resources" / "icons" / "app-icon-ui.png"), "poptools/resources/icons"),
+    # QML uses these directly; they must also exist in the frozen application.
+    *[(str(icon), "poptools/resources/icons")
+      for icon in sorted((PACKAGE / "resources" / "icons").glob("*.svg"))],
 ]
 
 vendor = PACKAGE / "resources" / "vendor"
