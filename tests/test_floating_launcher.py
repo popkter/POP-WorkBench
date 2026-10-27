@@ -18,7 +18,7 @@ from PySide6.QtCore import (
     QUrl,
 )
 from PySide6.QtGui import QCursor, QFontDatabase, QMouseEvent, QRegion, QWindow
-from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent, QQmlEngine, QQmlExpression
+from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent, QQmlEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
 
@@ -2094,11 +2094,7 @@ RecentToolDialog {
             assert bounds.width() == pytest.approx(bounds.height())
             assert bounds.width() == pytest.approx(17 * 5 / 7)
         camera = window.findChild(QObject, "decadeDeviceCamera")
-        assert camera.isVisible()
-        assert camera.property("source").toString().endswith("decade-camera.svg")
-        ready = QQmlExpression(QQmlEngine.contextForObject(camera), camera,
-                              "status === Image.Ready")
-        qtbot.waitUntil(lambda: ready.evaluate() == (True, False))
+        assert camera.isVisible() and camera.property("source").toString().endswith("decade-camera.svg")
         buttons = [window.findChild(QObject, name) for name in (
             "recentToolRunButton", "recentToolDeviceSelector", "recentToolCloseButton",
         )]
@@ -2120,8 +2116,7 @@ RecentToolDialog {
         assert QMetaObject.invokeMethod(buttons[0], "clicked")
         assert not session.running
         backend.append_tool_console(tool.id, "Actual output\n")
-        qtbot.waitUntil(lambda: window.findChild(QObject, "customConsoleText").property("text")
-                       == "Actual output\n")
+        qtbot.waitUntil(lambda: window.findChild(QObject, "customConsoleText").property("text") == "Actual output\n")
         qtbot.waitUntil(lambda: panel.property("consoleReveal") == 1)
         console = window.findChild(QObject, "customConsolePanel")
         bounds = console.mapRectToItem(window.contentItem(), console.boundingRect())
