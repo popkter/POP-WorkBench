@@ -427,12 +427,27 @@ Windows 构建：
 .\packaging\build.ps1
 ```
 
+默认打包只运行功能检查，排除标记为 `gui`（窗口、布局、画面与动效）和 `hardware`（真实音频设备）的 pytest 测试，避免桌面焦点、系统动效或声卡启动时序阻断打包。视频解码、数据处理及模拟设备测试仍会运行。
+
+```powershell
+# 按需运行完整测试后打包（需要可交互桌面及可用音频设备）
+.\packaging\build.ps1 -FullTests
+# 跳过 Python 测试，直接打包（原生组件仍编译并运行 CTest）
+.\packaging\build.ps1 -SkipTests
+# 只执行默认打包使用的功能检查
+.\.venv\Scripts\python.exe -m pytest -m "not gui and not hardware"
+```
+
+直接运行 `python -m pytest` 仍执行完整测试；新增界面或真实设备测试时，应添加对应的 `@pytest.mark.gui` 或 `@pytest.mark.hardware` 标记。
+
 macOS 构建：
 
 ```bash
 uv venv --python 3.11 .venv
 ./packaging/build.sh
 ```
+
+macOS 同样默认排除界面与真实设备测试，使用 `--full-tests` 运行完整测试，或使用 `--skip-tests` 跳过 Python 测试。
 
 版本以 `pyproject.toml` 为来源。GitHub Release 使用 `vYYYY-MM-DD_x.x.x` 标签，并构建 Windows x64、macOS arm64 和 macOS x64 资产。
 

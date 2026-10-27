@@ -9,6 +9,7 @@ from PySide6.QtTest import QTest
 from poptools.paths import package_root
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("panel_width", [410, 520, 800])
 def test_console_expands_resizes_and_restores_without_covering_form(qapp, qtbot, panel_width):
     engine = QQmlEngine()

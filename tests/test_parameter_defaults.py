@@ -102,6 +102,7 @@ def test_controller_save_does_not_reset_form():
     assert controller._selected is updated
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("kind", TEXT_KINDS)
 @pytest.mark.parametrize("surface", ["CommandWorkspace", "CustomToolDetailPanel"])
 def test_text_parameter_save_button(qapp, kind, surface):

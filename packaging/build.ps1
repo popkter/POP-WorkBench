@@ -2,6 +2,7 @@
     [ValidateSet("Bundled", "Clean", "Both")]
     [string]$Edition = "Both",
     [switch]$SkipTests,
+    [switch]$FullTests,
     [switch]$SkipInstaller,
     [switch]$KeepRunningApp,
     [string]$VersionOverride = ""
@@ -298,8 +299,13 @@ try {
             Write-Host "No pytest test files found; skipping test stage." -ForegroundColor Yellow
         }
         else {
+            $TestSelection = @()
+            if (-not $FullTests) {
+                $TestSelection = @('-m', 'not gui and not hardware')
+                Write-Host "Running build checks (excluding GUI/animation and real-device tests). Use -FullTests for all tests."
+            }
             & $VenvPython -m pytest "--basetemp=$PytestBaseTemp" -o "cache_dir=$PytestCacheDir" `
-                "--junitxml=$JunitReport" --tb=long -ra
+                "--junitxml=$JunitReport" --tb=long -ra @TestSelection
             $TestExitCode = $LASTEXITCODE
             if ($TestExitCode -ne 0) {
                 throw "Tests failed with exit code $TestExitCode. JUnit report: $JunitReport"

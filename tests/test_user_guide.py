@@ -13,6 +13,7 @@ from poptools.paths import AppPaths, package_root
 from poptools.viewmodels.settings_controller import SettingsController
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("size", [(1362, 1024), (960, 720), (700, 600)])
 def test_native_guide_navigation_theme_close_and_reopen(qapp, qtbot, tmp_path, size):
     paths = AppPaths(tmp_path)

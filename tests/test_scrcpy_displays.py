@@ -215,6 +215,7 @@ def test_old_stop_timer_does_not_kill_new_projection(qapp, monkeypatch):
     controller._process = None
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("titlebar", [False, True])
 def test_selector_typing_waits_for_enter_and_dropdown_commits(screens, qtbot, titlebar):
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))

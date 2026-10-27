@@ -102,7 +102,7 @@ RowLayout {
                     color: hovered ? Theme.popupHover : "transparent"
                     foregroundColor: Theme.textSecondary
                     border.width: 0
-                    enabled: root.backend && !root.backend.loading
+                    enabled: !!root.backend && !root.backend.loading
                     onClicked: root.backend.refresh()
                 }
             }

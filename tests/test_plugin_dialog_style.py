@@ -24,6 +24,7 @@ class PluginBackend(QObject):
         return True
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("dark", [False, True])
 def test_uninstall_dialog_style_and_confirmation(qapp, qtbot, dark):
     QFontDatabase.addApplicationFont(

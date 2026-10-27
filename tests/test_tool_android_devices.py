@@ -278,6 +278,7 @@ def test_external_analysis_refresh_does_not_reset_parameter_form(app_setup, tmp_
     assert data_events and not selection_events
 
 
+@pytest.mark.gui
 def test_device_dropdown_selects_globally_and_shows_disconnect(setup_devices, qapp):
     android, devices, config = setup_devices
     devices.set_devices("A", "B")

@@ -13,6 +13,7 @@ from poptools.viewmodels.settings_controller import SettingsController
 from poptools.viewmodels.update_controller import UpdateController
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("panel_width", [410, 520, 800])
 def test_custom_parameters_share_a_frame_and_elide_long_labels(qapp, qtbot, panel_width):
     kinds = ["text", "file", "directory", "secret", "integer", "number",
@@ -96,6 +97,7 @@ ApplicationWindow {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("panel_width", [410, 520, 800])
 def test_detail_actions_and_console_fit_after_resize(qapp, qtbot, panel_width):
     engine = QQmlEngine()
@@ -169,6 +171,7 @@ ApplicationWindow {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("page_width", [1290, 888, 644])
 def test_settings_frequency_segments_fit_and_save(qapp, qtbot, tmp_path, page_width):
     paths = AppPaths(tmp_path)

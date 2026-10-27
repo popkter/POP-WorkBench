@@ -64,6 +64,7 @@ ApplicationWindow {
         coordinator.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("workspace", [False, True], indirect=True,
                          ids=["manual-expand", "already-running"])
 def test_switching_scripts_preserves_expanded_console(workspace, qtbot):
@@ -118,6 +119,7 @@ def test_switching_scripts_preserves_expanded_console(workspace, qtbot):
     assert notifications.count() == 0
 
 
+@pytest.mark.gui
 def test_output_appends_without_replacing_document_and_handles_clear_and_trim(workspace, qtbot):
     window, backend, tools = workspace
     output = window.findChild(QObject, "customConsoleText")

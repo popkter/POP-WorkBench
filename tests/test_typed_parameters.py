@@ -173,6 +173,7 @@ def test_execution_rejects_invalid_input_before_launch(qapp, tmp_path, monkeypat
     assert not manager.active
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("surface", ["CommandWorkspace", "CustomToolDetailPanel"])
 def test_typed_controls_and_radio_selection(qapp, surface):
     parameters = synchronize_parameters([

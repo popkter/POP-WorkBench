@@ -219,6 +219,7 @@ def test_audio_resume_reuses_device_and_releases_it_after_idle_or_device_change(
     assert not audio._idle_timer.isActive()
 
 
+@pytest.mark.hardware
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows audio lifecycle")
 def test_real_audio_restart_does_not_accumulate_windows_handles(qapp, qtbot):
     import psutil

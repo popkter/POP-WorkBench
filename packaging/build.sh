@@ -2,17 +2,19 @@
 set -euo pipefail
 
 SKIP_TESTS=0
+FULL_TESTS=0
 VERSION_OVERRIDE=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip-tests) SKIP_TESTS=1 ;;
+        --full-tests) FULL_TESTS=1 ;;
         --version)
             [[ $# -ge 2 ]] || { echo "--version requires a value" >&2; exit 2; }
             VERSION_OVERRIDE="$2"
             shift
             ;;
         -h|--help)
-            echo "Usage: packaging/build.sh [--skip-tests] [--version YYYY-MM-DD_x.x.x]"
+            echo "Usage: packaging/build.sh [--skip-tests] [--full-tests] [--version YYYY-MM-DD_x.x.x]"
             exit 0
             ;;
         *) echo "Unknown argument: $1" >&2; exit 2 ;;
@@ -103,11 +105,16 @@ if [[ "$SKIP_TESTS" -eq 0 ]]; then
         echo "No pytest test files found; skipping test stage."
     else
         mkdir -p "$PROJECT_ROOT/build/test-results" "$PROJECT_ROOT/build/pytest-macos"
+        TEST_SELECTION=()
+        if [[ "$FULL_TESTS" -eq 0 ]]; then
+            TEST_SELECTION=(-m 'not gui and not hardware')
+            echo "Running build checks (excluding GUI/animation and real-device tests). Use --full-tests for all tests."
+        fi
         "$VENV_PYTHON" -m pytest \
             --basetemp="$PROJECT_ROOT/build/pytest-macos/tmp" \
             -o cache_dir="$PROJECT_ROOT/build/pytest-macos/cache" \
             --junitxml="$PROJECT_ROOT/build/test-results/pytest-macos-$ARCHITECTURE.xml" \
-            --tb=long -ra
+            --tb=long -ra "${TEST_SELECTION[@]}"
     fi
 fi
 

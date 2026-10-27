@@ -263,6 +263,7 @@ def test_audio_resampling_trims_to_seek_and_stays_bounded(qapp, tmp_path, suffix
         audio.close()
 
 
+@pytest.mark.hardware
 def test_video_with_audio_plays_to_end_and_retains_final_picture(qapp, qtbot, tmp_path):
     clip = make_video(tmp_path / "sound.mp4", audio=True)
     backend = VideoPreviewController()
@@ -291,6 +292,7 @@ def test_packaging_keeps_audio_and_ffmpeg_binaries():
         assert keep((name, "", ""))
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("width", [720, 1100])
 def test_video_workspace_and_titlebar_render_and_actions_work(qapp, qtbot, clip, width):
     QFontDatabase.addApplicationFont(str(
@@ -553,6 +555,7 @@ ApplicationWindow {
             window.deleteLater()
         engine.deleteLater()
 
+@pytest.mark.gui
 @pytest.mark.parametrize("width", [720, 1100])
 def test_dragging_timeline_keeps_player_geometry_stable(qapp, qtbot, clip, monkeypatch, width):
     backend = VideoPreviewController()
@@ -628,6 +631,7 @@ ApplicationWindow {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("width", [720, 1100])
 def test_playlist_stays_inside_offset_workspace_and_switches_files(
         qapp, qtbot, tmp_path, monkeypatch, width):
@@ -844,6 +848,7 @@ def test_cached_drag_restores_native_picture_on_release(qapp, qtbot, tmp_path, m
     finally:
         backend.shutdown()
 
+@pytest.mark.hardware
 @pytest.mark.parametrize('rate', [0.25, 0.5, 1, 1.5, 2])
 def test_real_audio_output_accepts_pcm_at_all_playback_rates(qapp, qtbot, tmp_path, rate):
     from PySide6.QtMultimedia import QMediaDevices

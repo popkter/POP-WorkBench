@@ -73,6 +73,7 @@ def test_directory_picker_starts_at_current_folder(monkeypatch, tmp_path, cancel
     assert calls == [("选择文件夹", str(current))]
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("surface", ["CommandWorkspace", "CustomToolDetailPanel"])
 def test_directory_button_updates_value_and_preserves_it_on_cancel(qapp, surface):
     engine = QQmlEngine()

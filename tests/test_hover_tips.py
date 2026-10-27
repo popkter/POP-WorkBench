@@ -1,3 +1,4 @@
+import pytest
 from PySide6.QtCore import QObject, QUrl
 from PySide6.QtGui import QWindow
 from PySide6.QtQml import QQmlComponent, QQmlEngine
@@ -6,6 +7,7 @@ from PySide6.QtTest import QTest
 from poptools.paths import package_root
 
 
+@pytest.mark.gui
 def test_hover_tips_loads_and_opens_with_custom_component(qapp, qtbot) -> None:
     engine = QQmlEngine()
     component = QQmlComponent(engine)

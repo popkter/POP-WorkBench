@@ -6,6 +6,7 @@ from PySide6.QtTest import QTest
 from poptools.infrastructure import card_window_updates as module
 
 
+@pytest.mark.gui
 def test_updates_coalesce_per_window_and_commit_together(qapp, qtbot, monkeypatch):
     updates = module.CardWindowUpdates(qapp)
     windows = [QWindow(), QWindow()]
@@ -37,6 +38,7 @@ def test_updates_coalesce_per_window_and_commit_together(qapp, qtbot, monkeypatc
         updates.deleteLater()
 
 
+@pytest.mark.gui
 def test_native_batch_updates_qt_geometry_and_preserves_size(qapp, qtbot):
     windows = [QWindow(), QWindow()]
     try:

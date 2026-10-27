@@ -69,6 +69,7 @@ def editor_backend(qapp, tmp_path):
     coordinator.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("editing", [False, True])
 def test_editor_displays_failure_preserves_script_and_allows_retry(editor_backend, editing):
     backend = editor_backend

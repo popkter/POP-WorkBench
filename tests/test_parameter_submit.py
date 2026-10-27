@@ -78,6 +78,7 @@ def editor_for(field, kind):
     return editor
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("kind", ["text", "secret", "integer", "number", "file",
                                   "directory", "multiline"])
 @pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter])
@@ -94,6 +95,7 @@ def test_enter_submits_latest_parameter(form, kind, key):
     assert editor.property("text") == value
 
 
+@pytest.mark.gui
 def test_multiline_shift_enter_and_disabled_submission(form):
     window, field = form
     editor = editor_for(field, "multiline")
@@ -106,6 +108,7 @@ def test_multiline_shift_enter_and_disabled_submission(form):
     assert window.property("executions") == 0
 
 
+@pytest.mark.gui
 def test_running_repeat_and_ime_do_not_submit(form):
     window, field = form
     editor = editor_for(field, "text")
@@ -123,6 +126,7 @@ def test_running_repeat_and_ime_do_not_submit(form):
     assert window.property("executions") == 0
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("kind", ["choice", "radio", "boolean"])
 def test_non_text_controls_do_not_submit(form, kind):
     window, field = form
@@ -132,6 +136,7 @@ def test_non_text_controls_do_not_submit(form, kind):
     assert window.property("executions") == 0
 
 
+@pytest.mark.gui
 def test_enter_uses_existing_confirmation_and_mouse_action(form):
     window, field = form
     editor_for(field, "text")

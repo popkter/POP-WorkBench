@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from PySide6.QtCore import QObject, QPoint, QPointF, Qt, QUrl
 from PySide6.QtGui import QGuiApplication, QWheelEvent, QWindow
 from PySide6.QtQml import QQmlComponent, QQmlEngine
@@ -9,6 +10,7 @@ from PySide6.QtTest import QTest
 from poptools.paths import package_root
 
 
+@pytest.mark.gui
 def test_left_click_focuses_empty_field_through_menu_overlay(qapp) -> None:
     engine = QQmlEngine()
     component = QQmlComponent(engine)
@@ -67,6 +69,7 @@ ApplicationWindow {
     window.close()
 
 
+@pytest.mark.gui
 def test_right_click_opens_app_text_edit_menu(qapp) -> None:
     engine = QQmlEngine()
     component = QQmlComponent(engine)
@@ -108,6 +111,7 @@ ApplicationWindow {
     window.close()
 
 
+@pytest.mark.gui
 def test_left_click_focuses_field_immediately_after_rapid_wheel_events(qapp) -> None:
     engine = QQmlEngine()
     component = QQmlComponent(engine)

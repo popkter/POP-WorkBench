@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from PySide6.QtCore import QObject, QPoint, Qt, QUrl
 from PySide6.QtGui import QGuiApplication, QWindow
 from PySide6.QtQml import QQmlComponent, QQmlEngine
@@ -8,6 +9,7 @@ from PySide6.QtTest import QTest
 from poptools.paths import package_root
 
 
+@pytest.mark.gui
 def test_script_icon_picker_opens_and_selects_an_icon(qapp) -> None:
     engine = QQmlEngine()
     component = QQmlComponent(engine)

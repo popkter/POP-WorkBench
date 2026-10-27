@@ -6,6 +6,7 @@ from PySide6.QtTest import QTest
 from poptools.paths import package_root
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("dark", [False, True])
 @pytest.mark.parametrize("dialog_type,setup,action,expected", [
     ("DeleteToolDialog", "dialog.open()", "删除", "delete"),

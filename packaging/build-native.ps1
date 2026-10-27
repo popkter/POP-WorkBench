@@ -105,6 +105,12 @@ function Initialize-MsvcEnvironment {
     # NMake needs the compiler, linker, Windows SDK and their INCLUDE/LIB paths.
     # Loading VsDevCmd also works with newer/preview VS versions that an older
     # CMake does not yet support through a Visual Studio solution generator.
+    if ($env:VSCMD_ARG_TGT_ARCH -eq "x64" -and $env:INCLUDE -and $env:LIB -and
+        (Get-Command cl.exe -ErrorAction SilentlyContinue) -and
+        (Get-Command nmake.exe -ErrorAction SilentlyContinue)) {
+        Write-Host "Using the existing MSVC x64 environment."
+        return
+    }
     $VsWhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
     $VsRoot = ""
     if (Test-Path -LiteralPath $VsWhere -PathType Leaf) {
@@ -114,10 +120,6 @@ function Initialize-MsvcEnvironment {
         if ($LASTEXITCODE -ne 0) { throw "Visual Studio discovery failed" }
     }
     if (-not $VsRoot) {
-        # Also allow an already initialized developer shell without vswhere.
-        if ((Get-Command cl.exe -ErrorAction SilentlyContinue) -and
-            (Get-Command nmake.exe -ErrorAction SilentlyContinue) -and
-            $env:VSCMD_ARG_TGT_ARCH -eq "x64") { return }
         throw (
             "MSVC x64 build tools were not found. Install the Visual Studio " +
             "Desktop development with C++ workload (MSVC and Windows SDK)."
@@ -128,14 +130,59 @@ function Initialize-MsvcEnvironment {
         throw "Visual Studio developer environment script was not found: $VsDevCmd"
     }
     Write-Host "Loading MSVC x64 environment from: $($VsRoot.Trim())"
-    $EnvironmentLines = & $env:ComSpec /d /c `
-        "call `"$VsDevCmd`" -no_logo -arch=amd64 -host_arch=amd64 >nul && set"
-    if ($LASTEXITCODE -ne 0) { throw "Failed to initialize the MSVC x64 build environment" }
-    foreach ($Line in $EnvironmentLines) {
-        if ($Line -match '^([^=]+)=(.*)$') {
-            [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+    # cmd.exe expands batch lines with an 8191-character limit. Inheriting a
+    # long PATH/INCLUDE/LIB (or an earlier VS environment) can exceed that limit
+    # inside VsDevCmd. Initialize in a clean child and merge its tool paths back
+    # in PowerShell, which also preserves PATH entries cmd.exe would discard.
+    $OriginalPath = $env:Path
+    $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $StartInfo.FileName = $env:ComSpec
+    $StartInfo.Arguments = "/d /u /c call `"$VsDevCmd`" -no_logo -arch=amd64 -host_arch=amd64 >nul && set"
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.CreateNoWindow = $true
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $true
+    $StartInfo.StandardOutputEncoding = [Text.Encoding]::Unicode
+    $StartInfo.StandardErrorEncoding = [Text.Encoding]::Unicode
+    $StartInfo.EnvironmentVariables.Clear()
+    foreach ($Name in @(
+        'SystemRoot', 'SystemDrive', 'windir', 'ComSpec', 'TEMP', 'TMP',
+        'ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432', 'ProgramData',
+        'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'NUMBER_OF_PROCESSORS',
+        'PROCESSOR_ARCHITECTURE'
+    )) {
+        $Value = [Environment]::GetEnvironmentVariable($Name, 'Process')
+        if ($Value) { $StartInfo.EnvironmentVariables[$Name] = $Value }
+    }
+    $StartInfo.EnvironmentVariables['Path'] = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem"
+    $Process = New-Object System.Diagnostics.Process
+    $Process.StartInfo = $StartInfo
+    try {
+        [void]$Process.Start()
+        $OutputTask = $Process.StandardOutput.ReadToEndAsync()
+        $ErrorTask = $Process.StandardError.ReadToEndAsync()
+        $Process.WaitForExit()
+        $EnvironmentOutput = $OutputTask.GetAwaiter().GetResult()
+        $EnvironmentError = $ErrorTask.GetAwaiter().GetResult()
+        if ($Process.ExitCode -ne 0) {
+            throw "Failed to initialize the MSVC x64 build environment: $EnvironmentError"
         }
     }
+    finally { $Process.Dispose() }
+    $EnvironmentLines = $EnvironmentOutput -split '\r?\n'
+    $ToolPath = ""
+    foreach ($Line in $EnvironmentLines) {
+        if ($Line -match '^([^=]+)=(.*)$') {
+            if ($Matches[1] -ieq 'Path') { $ToolPath = $Matches[2] }
+            else { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') }
+        }
+    }
+    $SeenPaths = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $MergedPaths = foreach ($Entry in (($ToolPath + ';' + $OriginalPath) -split ';')) {
+        $Entry = $Entry.Trim()
+        if ($Entry -and $SeenPaths.Add($Entry)) { $Entry }
+    }
+    $env:Path = $MergedPaths -join ';'
     if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue) -or
         -not (Get-Command nmake.exe -ErrorAction SilentlyContinue)) {
         throw "The Visual Studio developer environment did not provide cl.exe and nmake.exe"

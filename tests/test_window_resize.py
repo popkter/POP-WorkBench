@@ -122,6 +122,7 @@ def native_window(qapp):
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_window_has_system_style_and_client_caption(native_window):
     window, _ = native_window
     assert not window.flags() & Qt.WindowType.FramelessWindowHint
@@ -148,6 +149,7 @@ def test_initial_size_accounts_for_native_frame_and_available_desktop(available,
     ) == expected
 
 
+@pytest.mark.gui
 def test_frame_metrics_keep_equal_chrome_bands_after_resize(native_window, qtbot):
     window, _ = native_window
 
@@ -175,6 +177,7 @@ def test_frame_metrics_keep_equal_chrome_bands_after_resize(native_window, qtbot
     assert window.size() == QSize(1000, 680)
 
 
+@pytest.mark.gui
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows title toolbar")
 def test_title_toolbar_labels_clicks_and_hit_testing(native_window, qtbot):
     window, _ = native_window
@@ -218,6 +221,7 @@ def test_title_toolbar_labels_clicks_and_hit_testing(native_window, qtbot):
     assert all(not button.isVisible() for button in buttons)
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("recording", [False, True])
 @pytest.mark.parametrize("window_width", [960, 1100])
 def test_preset_title_actions_start_stop_and_availability(
@@ -306,6 +310,7 @@ def terminal_title_item(window, name):
     return result
 
 
+@pytest.mark.gui
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows device title toolbar")
 @pytest.mark.parametrize("window_width", [960, 1100])
 def test_device_picker_fits_caption_and_selects_devices(native_window, qtbot, tmp_path,
@@ -370,6 +375,7 @@ def test_device_picker_fits_caption_and_selects_devices(native_window, qtbot, tm
         window.setProperty("testScriptActions", False)
 
 
+@pytest.mark.gui
 def test_title_terminal_tabs_add_switch_rename_and_close(terminal_title_window, qtbot):
     window, controller = terminal_title_window
 
@@ -420,6 +426,7 @@ def test_title_terminal_tabs_add_switch_rename_and_close(terminal_title_window, 
     assert len(controller.terminalTabs) == 1
 
 
+@pytest.mark.gui
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows title tab hit testing")
 def test_title_terminal_overflow_preserves_drag_and_caption_controls(terminal_title_window, qtbot):
     window, controller = terminal_title_window
@@ -503,6 +510,7 @@ def test_title_terminal_overflow_preserves_drag_and_caption_controls(terminal_ti
     qtbot.waitUntil(lambda: window.property("titleBarActionsRect").isEmpty())
 
 
+@pytest.mark.gui
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows native frame")
 def test_windows_frame_and_system_commands(native_window, qtbot):
     window, tray = native_window
@@ -533,6 +541,7 @@ def test_windows_frame_and_system_commands(native_window, qtbot):
     assert tray.property("notifications") == 1
 
 
+@pytest.mark.gui
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows caption hit testing")
 def test_caption_hit_targets_states_and_mouse_commands(native_window, qtbot):
     window, tray = native_window
@@ -598,6 +607,7 @@ def test_caption_hit_targets_states_and_mouse_commands(native_window, qtbot):
     assert tray.property("notifications") == 1
 
 
+@pytest.mark.gui
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows DWM frame geometry")
 def test_dwm_has_a_real_border_and_maximized_client_fits_work_area(native_window, qtbot):
     window, _ = native_window
@@ -638,6 +648,7 @@ def test_dwm_has_a_real_border_and_maximized_client_fits_work_area(native_window
     assert origin.x == monitor.work.left and origin.y == monitor.work.top
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("dark_mode", [False, True])
 def test_caption_paints_pressed_hover_inactive_and_disabled_states(native_window, dark_mode, qtbot):
     window, _ = native_window
@@ -659,6 +670,7 @@ def test_caption_paints_pressed_hover_inactive_and_disabled_states(native_window
     assert close.property("foreground").alpha() == 51
 
 
+@pytest.mark.gui
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows DWM theme")
 @pytest.mark.parametrize("dark_mode", [False, True])
 def test_native_title_bar_theme(native_window, dark_mode, monkeypatch):
@@ -710,6 +722,7 @@ def test_native_title_bar_theme(native_window, dark_mode, monkeypatch):
         assert applied[attribute] == (expected, 0)
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("available,quitting,hidden", [
     (False, False, 0), (True, False, 1), (True, True, 0),
 ])

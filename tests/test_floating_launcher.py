@@ -18,7 +18,7 @@ from PySide6.QtCore import (
     QUrl,
 )
 from PySide6.QtGui import QCursor, QFontDatabase, QMouseEvent, QRegion, QWindow
-from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent, QQmlEngine
+from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent, QQmlEngine, QQmlExpression
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
 
@@ -101,6 +101,7 @@ def test_geometry_keeps_both_windows_visible_and_adjacent(available, ratio):
     assert panel.right() + 1 == notch.left()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("ratio", [0, 0.5, 1])
 @pytest.mark.parametrize("available", [QRect(0, 0, 1920, 1040), QRect(-1280, -100, 1280, 720),
                                        QRect(50, 20, 300, 250)])
@@ -168,6 +169,7 @@ def test_preferences_default_malformed_and_persist(tmp_path):
     assert store.floating_launcher_position() == ("", 0.5)
 
 
+@pytest.mark.gui
 def test_foreground_setting_and_shutdown_collapse(launcher, monkeypatch):
     controller, _, settings, _ = launcher
     assert controller.visible
@@ -187,6 +189,7 @@ def test_foreground_setting_and_shutdown_collapse(launcher, monkeypatch):
     assert not controller.visible and not controller.expanded
 
 
+@pytest.mark.gui
 def test_startup_without_click_recovers_missing_focus_notification(launcher, qtbot, monkeypatch):
     controller, _, settings, main = launcher
     monkeypatch.setattr(controller, "_ordinary_window_active", lambda:
@@ -222,6 +225,7 @@ def test_startup_without_click_recovers_missing_focus_notification(launcher, qtb
     assert not controller._foreground_timer.isActive()
 
 
+@pytest.mark.gui
 def test_native_foreground_preserves_cards_and_owned_dialogs(launcher, monkeypatch):
     controller, _, _, main = launcher
     card = QWindow()
@@ -251,6 +255,7 @@ def test_native_foreground_preserves_cards_and_owned_dialogs(launcher, monkeypat
         card.deleteLater()
 
 
+@pytest.mark.gui
 def test_mouse_leave_delay_menu_and_drag(launcher, qtbot, monkeypatch):
     controller, _, settings, _ = launcher
     monkeypatch.setattr(controller, "_pointer_inside", lambda: False)
@@ -278,6 +283,7 @@ def test_mouse_leave_delay_menu_and_drag(launcher, qtbot, monkeypatch):
     assert settings.config_store.floating_launcher_position()[1] == 1
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("theme", ["light", "dark", "decade"])
 def test_pin_and_script_focus_keep_pack_open(launcher, monkeypatch, theme):
     controller, _, settings, _ = launcher
@@ -309,6 +315,7 @@ def test_pin_and_script_focus_keep_pack_open(launcher, monkeypatch, theme):
     assert not controller.expanded
 
 
+@pytest.mark.gui
 def test_independent_all_scripts_filter_sort_and_updates(launcher, qtbot):
     controller, backend, _, _ = launcher
     beta = create_tool(backend, "Beta")
@@ -334,6 +341,7 @@ def test_independent_all_scripts_filter_sort_and_updates(launcher, qtbot):
     assert controller.toolsModel.totalCount == 1
 
 
+@pytest.mark.gui
 def test_settings_click_collapses_and_requests_navigation(launcher, qtbot):
     controller, _, _, _ = launcher
     controller.toggleExpanded()
@@ -342,6 +350,7 @@ def test_settings_click_collapses_and_requests_navigation(launcher, qtbot):
     assert not controller.expanded
 
 
+@pytest.mark.gui
 def test_saved_screen_geometry_changes_and_disconnection(launcher, qapp, monkeypatch):
     controller, _, settings, _ = launcher
 
@@ -379,6 +388,7 @@ def test_saved_screen_geometry_changes_and_disconnection(launcher, qapp, monkeyp
     assert settings.config_store.floating_launcher_position() == ("primary", 0.8)
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("expanded", [False, True])
 def test_grip_drag_uses_screen_coordinates_after_leaving_window(
     launcher, qapp, qtbot, monkeypatch, expanded,
@@ -451,6 +461,7 @@ def test_grip_drag_uses_screen_coordinates_after_leaving_window(
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_script_panel_ignores_repeated_clicks_and_slides_closed(launcher, qtbot, monkeypatch):
     controller, _, _, _ = launcher
     monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
@@ -523,6 +534,7 @@ def test_script_panel_ignores_repeated_clicks_and_slides_closed(launcher, qtbot,
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_panel_animation_reverses_without_restarting_on_window_show(launcher, qtbot, monkeypatch):
     controller, _, _, _ = launcher
     monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
@@ -568,6 +580,7 @@ def test_panel_animation_reverses_without_restarting_on_window_show(launcher, qt
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_slide_does_not_reposition_or_rebuild_the_list_per_frame(launcher, qtbot, monkeypatch):
     controller, backend, _, _ = launcher
     create_tool(backend, "Animation sample")
@@ -611,6 +624,7 @@ def test_slide_does_not_reposition_or_rebuild_the_list_per_frame(launcher, qtbot
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_main_window_run_state_refreshes_the_cached_floating_list(launcher, monkeypatch, qtbot):
     controller, backend, _, _ = launcher
     tool = create_tool(backend, "Run from main window")
@@ -628,6 +642,7 @@ def test_main_window_run_state_refreshes_the_cached_floating_list(launcher, monk
     assert not model.data(model.index(0, 0), model.RunningRole)
 
 
+@pytest.mark.gui
 def test_floating_updates_coalesce_within_one_event_turn(launcher, qtbot, monkeypatch):
     controller, backend, _, _ = launcher
     create_tool(backend, "Coalesced")
@@ -647,6 +662,7 @@ def test_floating_updates_coalesce_within_one_event_turn(launcher, qtbot, monkey
     assert len(updates) == 1
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("command", [
     "print('hello')", "print('${文本}')", "import os; os.system('adb devices')",
 ])
@@ -669,6 +685,7 @@ def test_shortcut_launch_and_failure_feedback(launcher, monkeypatch, command):
         assert dialogs == [tool.id]
 
 
+@pytest.mark.gui
 def test_running_shortcuts_open_card_without_rerun_and_async_errors_are_visible(
     launcher, monkeypatch,
 ):
@@ -693,6 +710,7 @@ def test_running_shortcuts_open_card_without_rerun_and_async_errors_are_visible(
     assert dialogs == [tool.id]
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("dark,window_width", [(False, 440), (True, 480)])
 def test_recent_script_window_uses_shared_form_and_console(launcher, qapp, qtbot, monkeypatch,
                                                          dark, window_width):
@@ -810,6 +828,7 @@ RecentToolDialog {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("dark,size", [(False, (440, 680)), (True, (440, 680)),
                                       (True, (340, 440))])
 def test_mechanical_card_entry_activation_and_close(launcher, qtbot, dark, size):
@@ -982,6 +1001,7 @@ RecentToolDialog {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("mode", ["light", "dark", "system"])
 def test_card_theme_fades_and_live_theme_switch(launcher, qtbot, mode):
     _, backend, settings, _ = launcher
@@ -1070,6 +1090,7 @@ RecentToolDialog {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_card_origin_is_scoped_to_the_clicked_script(launcher):
     controller, backend, _, _ = launcher
     tool = create_tool(backend, "Flight", command="print('${message}')")
@@ -1083,6 +1104,7 @@ def test_card_origin_is_scoped_to_the_clicked_script(launcher):
     assert controller.cardLaunchOrigin(tool.id).isEmpty()
 
 
+@pytest.mark.gui
 def test_decade_pack_tracks_open_cards_across_refresh_filter_and_theme(launcher, monkeypatch):
     controller, backend, settings, _ = launcher
     alpha = create_tool(backend, "Pack Alpha")
@@ -1116,6 +1138,7 @@ def test_decade_pack_tracks_open_cards_across_refresh_filter_and_theme(launcher,
     assert controller.openCardCount == 0 and not controller.returningCardIds
 
 
+@pytest.mark.gui
 def test_decade_pack_dispatches_after_mouse_event_without_raising_the_face(
     launcher, qtbot, monkeypatch,
 ):
@@ -1196,6 +1219,7 @@ Item {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("source_x,source_y,clip_offset", [
     (1000, 200, 0), (-1200, -350, 25), (850, 620, 60),
 ])
@@ -1315,6 +1339,7 @@ Window {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("row_y", [200, 500, 800])
 @pytest.mark.parametrize("offset", [QPoint(0, 0), QPoint(-1920, -400)])
 @pytest.mark.parametrize("uses_port,compact_face", [(False, False), (True, False), (True, True)])
@@ -1414,6 +1439,7 @@ MechanicalCardMotion {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_loading_one_card_never_holds_another_card_animation(qapp, qtbot):
     engine = QQmlEngine()
     component = QQmlComponent(engine)
@@ -1468,6 +1494,7 @@ Window {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("manual_first", [False, True])
 def test_recall_queue_overlaps_flights_and_skips_closed_cards(qapp, qtbot, manual_first):
     engine = QQmlEngine()
@@ -1530,6 +1557,7 @@ Item {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_recall_queue_starts_all_cards_without_waiting_for_earlier_landings(qapp, qtbot):
     engine = QQmlEngine()
     component = QQmlComponent(engine)
@@ -1577,6 +1605,7 @@ Item {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_swapping_pack_presentations_preserves_borrowed_and_docked_faces(launcher, qtbot):
     controller, backend, settings, _ = launcher
     tools = [create_tool(backend, f"Theme card {i}") for i in range(3)]
@@ -1678,6 +1707,7 @@ Item {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_decade_pack_last_card_stays_rendered_at_scroll_end(launcher, qtbot):
     controller, backend, settings, _ = launcher
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
@@ -1751,6 +1781,7 @@ Item {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("interrupt", ["none", "activate", "close", "recycle", "reopen"])
 def test_card_flies_from_row_to_window_and_can_be_reactivated(
     launcher, qapp, qtbot, monkeypatch, interrupt,
@@ -1962,6 +1993,7 @@ RecentToolDialog {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_flight_rotation_fits_small_desktop_surface(qapp):
     from poptools.infrastructure.window_placement import card_flight_geometry
 
@@ -1996,6 +2028,7 @@ MechanicalCardMotion { Component.onCompleted: Theme.decadeMode = true }
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_capacity_confirmation_raises_main_window(launcher, monkeypatch):
     controller, backend, _, main = launcher
     tool = create_tool(backend, "容量测试")
@@ -2012,6 +2045,7 @@ def test_capacity_confirmation_raises_main_window(launcher, monkeypatch):
     assert not dialogs
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("parameter_count", [0, 3, 18])
 def test_decade_card_live_usage_and_compact_controls(launcher, qtbot, monkeypatch, parameter_count):
     _, backend, _, _ = launcher
@@ -2094,7 +2128,11 @@ RecentToolDialog {
             assert bounds.width() == pytest.approx(bounds.height())
             assert bounds.width() == pytest.approx(17 * 5 / 7)
         camera = window.findChild(QObject, "decadeDeviceCamera")
-        assert camera.isVisible() and camera.property("source").toString().endswith("decade-camera.svg")
+        assert camera.isVisible()
+        assert camera.property("source").toString().endswith("decade-camera.svg")
+        ready = QQmlExpression(QQmlEngine.contextForObject(camera), camera,
+                              "status === Image.Ready")
+        qtbot.waitUntil(lambda: ready.evaluate() == (True, False))
         buttons = [window.findChild(QObject, name) for name in (
             "recentToolRunButton", "recentToolDeviceSelector", "recentToolCloseButton",
         )]
@@ -2116,7 +2154,8 @@ RecentToolDialog {
         assert QMetaObject.invokeMethod(buttons[0], "clicked")
         assert not session.running
         backend.append_tool_console(tool.id, "Actual output\n")
-        qtbot.waitUntil(lambda: window.findChild(QObject, "customConsoleText").property("text") == "Actual output\n")
+        qtbot.waitUntil(lambda: window.findChild(QObject, "customConsoleText").property("text")
+                       == "Actual output\n")
         qtbot.waitUntil(lambda: panel.property("consoleReveal") == 1)
         console = window.findChild(QObject, "customConsolePanel")
         bounds = console.mapRectToItem(window.contentItem(), console.boundingRect())
@@ -2138,6 +2177,7 @@ RecentToolDialog {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("count,unit,filled", [
     (0, 1, 0), (9, 1, 9), (10, 10, 1), (99, 10, 9),
     (100, 100, 1), (999, 100, 9), (1000, 1000, 1), (10000, 10000, 1),
@@ -2156,6 +2196,7 @@ def test_decade_usage_counter_changes_scale_at_powers_of_ten(qapp, count, unit, 
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_decade_card_back_centers_bright_artwork_and_scales_with_pack(qapp, qtbot):
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     engine = QQmlEngine()
@@ -2215,6 +2256,7 @@ Window {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 def test_session_reuses_tool_data_until_the_script_changes(launcher, monkeypatch):
     _, backend, _, _ = launcher
     tool = create_tool(backend, "Cached metadata", command="print('${value:before}')")
@@ -2239,6 +2281,7 @@ def test_session_reuses_tool_data_until_the_script_changes(launcher, monkeypatch
         session.dispose()
 
 
+@pytest.mark.gui
 def test_independent_sessions_execute_concurrently_and_keep_separate_output(launcher, qtbot):
     _, backend, _, _ = launcher
     alpha = create_tool(backend, "Concurrent A", command=(
@@ -2271,6 +2314,7 @@ def test_independent_sessions_execute_concurrently_and_keep_separate_output(laun
             session_b.stopExecution()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("dark", [False, True])
 def test_qml_windows_search_theme_sort_menu_escape_and_render(
     launcher, qapp, qtbot, dark, monkeypatch,
@@ -2383,6 +2427,7 @@ Item {
         engine.deleteLater()
 
 
+@pytest.mark.gui
 @pytest.mark.parametrize("multiple", [False, True, "burst", "bottom"])
 def test_main_window_settings_navigation_and_close_to_tray(
     launcher, qapp, qtbot, monkeypatch, multiple,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 
+import pytest
 from PySide6.QtCore import Q_ARG, QMetaObject, QObject, Qt, QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlComponent, QQmlEngine
@@ -11,6 +12,7 @@ from poptools.native_terminal import register_terminal_type
 from poptools.paths import package_root
 
 
+@pytest.mark.gui
 def test_terminal_selection_opens_prefilled_script_editor(qapp) -> None:
     register_terminal_type()
     engine = QQmlEngine()
