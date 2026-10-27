@@ -634,7 +634,7 @@ class ConfigStore:
         self._validate_transfer_source(source, destination)
         entries = self._configuration_entries(source)
         if not entries:
-            raise ValueError("所选目录不包含 PopTools 本地脚本")
+            raise ValueError("所选目录不包含泡泡的工作台本地脚本")
 
         backup = self.paths.backups_dir / (
             "import-before-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f")
@@ -664,7 +664,7 @@ class ConfigStore:
         documents = documents_directory.resolve()
         documents.mkdir(parents=True, exist_ok=True)
         destination = documents / (
-            "PopTools本地脚本-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+            "泡泡的工作台本地脚本-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         )
         destination.mkdir(parents=False, exist_ok=False)
         for entry in entries:

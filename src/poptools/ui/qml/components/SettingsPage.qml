@@ -503,14 +503,15 @@ Rectangle {
                             spacing: Theme.space4
                             Text {
                                 Layout.fillWidth: true
-                                text: "泡泡工具箱"
+                                text: "泡泡的工作台 · Pop’s Workbench"
                                 color: Theme.textPrimary
                                 font.pixelSize: Theme.fontComponentTitle
                                 font.weight: Font.DemiBold
+                                wrapMode: Text.Wrap
                             }
                             Text {
                                 Layout.fillWidth: true
-                                text: "Android 开发者工具 · v" + root.controller.appVersion
+                                text: "脚本、设备与日常工具 · v" + root.controller.appVersion
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontCaption
                                 wrapMode: Text.Wrap

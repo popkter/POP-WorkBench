@@ -156,7 +156,7 @@ jobs:
       - name: Prepare stable asset names
         run: |
           mkdir -p dist/release-assets
-          cp "dist/泡泡工具箱-macos-${{ matrix.arch }}.zip" \
+          cp "dist/泡泡的工作台-macos-${{ matrix.arch }}.zip" \
              "dist/release-assets/PopTools-macos-${{ matrix.arch }}.zip"
           shasum -a 256 "dist/release-assets/PopTools-macos-${{ matrix.arch }}.zip" \
             | awk '{print $1 "  PopTools-macos-${{ matrix.arch }}.zip"}' \
@@ -214,24 +214,24 @@ jobs:
           arguments=(
             release create "$RELEASE_TAG"
             --repo "$GH_REPO" --target "$RELEASE_TARGET"
-            --title "泡泡工具箱 $RELEASE_VERSION" --generate-notes
+            --title "泡泡的工作台 · Pop’s Workbench $RELEASE_VERSION" --generate-notes
           )
           if [[ "$BUILD_WINDOWS" == "true" ]]; then
             arguments+=(
               "release-assets/PopTools.exe#旧版本OTA兼容升级程序.exe"
               "release-assets/PopTools.exe.sha256#旧版本OTA兼容升级程序.exe.sha256"
-              "release-assets/PopTools-Setup.exe#泡泡工具箱-完整版-推荐-Setup.exe"
-              "release-assets/PopTools-Setup.exe.sha256#泡泡工具箱-完整版-推荐-Setup.exe.sha256"
-              "release-assets/PopTools-Clean-Setup.exe#泡泡工具箱-纯净版-Setup.exe"
-              "release-assets/PopTools-Clean-Setup.exe.sha256#泡泡工具箱-纯净版-Setup.exe.sha256"
+              "release-assets/PopTools-Setup.exe#泡泡的工作台-完整版-推荐-Setup.exe"
+              "release-assets/PopTools-Setup.exe.sha256#泡泡的工作台-完整版-推荐-Setup.exe.sha256"
+              "release-assets/PopTools-Clean-Setup.exe#泡泡的工作台-纯净版-Setup.exe"
+              "release-assets/PopTools-Clean-Setup.exe.sha256#泡泡的工作台-纯净版-Setup.exe.sha256"
             )
           fi
           if [[ "$BUILD_MACOS" == "true" ]]; then
             arguments+=(
-              "release-assets/PopTools-macos-arm64.zip#泡泡工具箱-macOS-Apple-Silicon.zip"
-              "release-assets/PopTools-macos-arm64.zip.sha256#泡泡工具箱-macOS-Apple-Silicon.zip.sha256"
-              "release-assets/PopTools-macos-x64.zip#泡泡工具箱-macOS-Intel.zip"
-              "release-assets/PopTools-macos-x64.zip.sha256#泡泡工具箱-macOS-Intel.zip.sha256"
+              "release-assets/PopTools-macos-arm64.zip#泡泡的工作台-macOS-Apple-Silicon.zip"
+              "release-assets/PopTools-macos-arm64.zip.sha256#泡泡的工作台-macOS-Apple-Silicon.zip.sha256"
+              "release-assets/PopTools-macos-x64.zip#泡泡的工作台-macOS-Intel.zip"
+              "release-assets/PopTools-macos-x64.zip.sha256#泡泡的工作台-macOS-Intel.zip.sha256"
             )
           fi
           [[ "$IS_PRERELEASE" == "true" ]] && arguments+=(--prerelease)

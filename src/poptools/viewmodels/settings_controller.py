@@ -220,7 +220,7 @@ class SettingsController(QObject):
     def importConfiguration(self) -> bool:
         source = QFileDialog.getExistingDirectory(
             None,
-            "选择要导入的泡泡工具箱本地脚本目录",
+            "选择要导入的泡泡的工作台本地脚本目录",
             str(self._documents_directory()),
             QFileDialog.Option.ShowDirsOnly,
         )

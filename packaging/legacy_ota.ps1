@@ -42,7 +42,7 @@ try {
     $message | Out-File -LiteralPath $log -Encoding utf8 -Append
     if ($env:POPTOOLS_OTA_TEST_NO_DIALOG -ne '1') {
         Add-Type -AssemblyName System.Windows.Forms
-        [System.Windows.Forms.MessageBox]::Show($message, '泡泡工具箱更新失败') | Out-Null
+        [System.Windows.Forms.MessageBox]::Show($message, '泡泡的工作台更新失败') | Out-Null
     }
     exit 1
 }

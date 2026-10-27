@@ -5,7 +5,7 @@
   "origin": "builtin",
   "section": "preset",
   "title": "Android 设备投屏",
-  "description": "使用内置 scrcpy 和 ADB 将当前设备画面投射到泡泡工具箱",
+  "description": "使用内置 scrcpy 和 ADB 将当前设备画面投射到泡泡的工作台",
   "tags": [
     "ADB",
     "投屏",

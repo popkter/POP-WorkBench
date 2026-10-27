@@ -162,7 +162,7 @@ def main() -> int:
             UpdateRelease(
                 version="99.0.0",
                 tag="v99.0.0",
-                name="泡泡工具箱 99.0.0（界面预览）",
+                name="泡泡的工作台 99.0.0（界面预览）",
                 notes="新增应用内自动更新功能。\n\n修复已知问题并优化启动性能。",
                 page_url="https://github.com/popkter/PopToolProject/releases/tag/v0.2.0",
                 asset_url="https://example.test/app.exe",
@@ -382,7 +382,7 @@ def main() -> int:
                     UpdateRelease(
                         version="99.0.0",
                         tag="v99.0.0",
-                        name="泡泡工具箱 99.0.0",
+                        name="泡泡的工作台 99.0.0",
                         notes="用于界面验证的更新说明。",
                         page_url="https://example.test/release",
                         asset_url="https://example.test/PopTools.exe",

@@ -47,6 +47,11 @@ ColumnLayout {
         reload.restart()
     }
     function fit() { pixelsPerSecond = minimumScale; viewStart = 0; reload.restart() }
+    function locatePlayhead() {
+        endHover()
+        pan(playheadTime - viewSpan / 2)
+        followPlayback = true
+    }
     function updateHover(x) {
         hoverX = Math.max(0, Math.min(track.width, x))
         hoverTime = Math.max(0, Math.min(Math.max(0, duration - 0.000001),
@@ -120,7 +125,11 @@ ColumnLayout {
             color: Theme.textSecondary
             font.pixelSize: Theme.fontMicro
         }
-        VideoToolbar { controller: root.controller; mode: "timeline" }
+        VideoToolbar {
+            controller: root.controller
+            mode: "timeline"
+            onLocateRequested: root.locatePlayhead()
+        }
     }
     Item {
         id: track

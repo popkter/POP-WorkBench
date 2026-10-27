@@ -21,6 +21,38 @@ BUNDLE_VERSION = (
     "".join(BUILD_VERSION_MATCH.groups()) if BUILD_VERSION_MATCH else "1"
 )
 
+windows_version_info = None
+if sys.platform == "win32":
+    from PyInstaller.utils.win32.versioninfo import (
+        FixedFileInfo,
+        StringFileInfo,
+        StringStruct,
+        StringTable,
+        VarFileInfo,
+        VarStruct,
+        VSVersionInfo,
+    )
+
+    # Windows may use EXE metadata for the sender name of tray notifications.
+    # Keep the legacy filename for OTA compatibility, but give it the new brand.
+    windows_version = tuple(int(part) for part in APP_VERSION.split("."))
+    windows_version = (windows_version + (0, 0, 0, 0))[:4]
+    windows_version_info = VSVersionInfo(
+        ffi=FixedFileInfo(filevers=windows_version, prodvers=windows_version),
+        kids=[
+            StringFileInfo([
+                StringTable("080404B0", [
+                    StringStruct("FileDescription", "泡泡的工作台 · Pop’s Workbench"),
+                    StringStruct("ProductName", "泡泡的工作台 · Pop’s Workbench"),
+                    StringStruct("FileVersion", APP_VERSION),
+                    StringStruct("ProductVersion", APP_VERSION),
+                    StringStruct("OriginalFilename", "泡泡工具箱.exe"),
+                ]),
+            ]),
+            VarFileInfo([VarStruct("Translation", [0x0804, 1200])]),
+        ],
+    )
+
 
 UNUSED_QT_QML_PREFIXES = (
     "pyside6/qml/qt3d/",
@@ -196,6 +228,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="泡泡工具箱",
+    version=windows_version_info,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -217,11 +250,11 @@ collected = COLLECT(
 if sys.platform == "darwin":
     app = BUNDLE(
         collected,
-        name="泡泡工具箱.app",
+        name="泡泡的工作台.app",
         icon=str(icon_file),
         bundle_identifier="com.poptools.toolbox",
         info_plist={
-            "CFBundleDisplayName": "泡泡工具箱",
+            "CFBundleDisplayName": "泡泡的工作台 · Pop’s Workbench",
             "CFBundleShortVersionString": APP_VERSION,
             "CFBundleVersion": BUNDLE_VERSION,
             "NSHighResolutionCapable": True,

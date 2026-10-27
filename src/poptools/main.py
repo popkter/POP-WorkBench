@@ -124,7 +124,7 @@ def main() -> int:
     os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
     configure_windows_app_identity()
     QCoreApplication.setOrganizationName("PopTools")
-    QCoreApplication.setApplicationName("泡泡工具箱")
+    QCoreApplication.setApplicationName("泡泡的工作台 · Pop’s Workbench")
     QCoreApplication.setApplicationVersion(__version__)
     paths = AppPaths.from_environment()
     logging_session = configure_application_logging(paths)

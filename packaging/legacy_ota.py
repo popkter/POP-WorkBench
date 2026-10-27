@@ -81,7 +81,7 @@ def main() -> int:
             message += f"\n更新文件和日志：{staging}"
         if sys.platform == "win32":
             ctypes.windll.user32.MessageBoxW(
-                None, message, "泡泡工具箱更新失败", 0x10
+                None, message, "泡泡的工作台更新失败", 0x10
             )
         return 1
 

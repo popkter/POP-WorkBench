@@ -3,9 +3,9 @@ requires = ["setuptools>=79", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "poptools"
+name = "pops-workbench"
 version = "1.1.8"
-description = "A self-contained Material 3 desktop toolbox for Android development and log analysis."
+description = "Pop’s Workbench: a desktop workspace for parameterized scripts, Android devices, recording, terminals, and everyday tools."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -35,6 +35,7 @@ dev = [
 ]
 
 [project.scripts]
+pops-workbench = "poptools.main:main"
 poptools = "poptools.main:main"
 
 [tool.setuptools]

@@ -11,5 +11,5 @@ Item {
         smooth: true
         mipmap: true
     }
-    Accessible.name: "泡泡工具箱"
+    Accessible.name: "泡泡的工作台"
 }

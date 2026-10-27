@@ -101,7 +101,7 @@ Item {
                     anchors.right: titleButtons.left
                     anchors.rightMargin: Theme.space12
                     anchors.verticalCenter: parent.verticalCenter
-                    text: content.decadeCard ? dialog.selectedTool.title || "运行脚本" : dialog.customScriptMode ? "泡泡工具箱"
+                    text: content.decadeCard ? dialog.selectedTool.title || "运行脚本" : dialog.customScriptMode ? "泡泡的工作台"
                         : dialog.selectedTool.title || "运行工具"
                     color: dialog.customScriptMode ? Theme.chromeForeground : Theme.textPrimary
                     font.pixelSize: content.decadeCard ? Theme.decadeCardTitleSize : dialog.customScriptMode ? Theme.fontSupporting : Theme.fontSectionTitle

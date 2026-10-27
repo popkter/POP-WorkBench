@@ -8,6 +8,7 @@ RowLayout {
     property var controller: null
     property bool chrome: false
     property string mode: "file"
+    signal locateRequested()
     spacing: root.chrome ? Theme.space12 : Theme.space4
     readonly property bool ready: controller !== null && controller.loaded
 
@@ -81,6 +82,15 @@ RowLayout {
         enabled: root.ready
         Accessible.name: "播放速度（声音音调随速度变化）"
         onActivated: root.controller.setRate([0.25, 0.5, 1, 1.5, 2][currentIndex])
+    }
+    Action {
+        objectName: "videoLocatePlayheadButton"
+        text: "定位播放头"; iconName: "my_location"
+        // This glyph fills its em square; match the neighboring zoom icons optically.
+        glyphSize: 16
+        visible: root.mode === "timeline"
+        enabled: root.ready
+        onClicked: root.locateRequested()
     }
     Action {
         text: "缩小时间轴"; iconName: "zoom_out"

@@ -45,7 +45,7 @@ def decode_custom_tool(text: str) -> ToolDefinition:
         raise ValueError("剪贴板内容不是单个客制脚本")
     if "format" in payload:
         if payload.get("format") != TRANSFER_FORMAT:
-            raise ValueError("剪贴板内容不是泡泡工具箱客制脚本")
+            raise ValueError("剪贴板内容不是泡泡的工作台客制脚本")
         if payload.get("format_version") != TRANSFER_FORMAT_VERSION:
             raise ValueError("此脚本分享格式版本暂不支持")
         payload = payload.get("tool")

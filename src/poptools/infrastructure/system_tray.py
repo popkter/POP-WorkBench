@@ -37,7 +37,7 @@ class SystemTrayController(QObject):
         self._available = QSystemTrayIcon.isSystemTrayAvailable()
         self.icon = create_app_icon()
         self._tray = QSystemTrayIcon(self.icon, self)
-        self._tray.setToolTip("泡泡工具箱")
+        self._tray.setToolTip("泡泡的工作台")
         self._menu = QMenu()
         self._show_action = self._menu.addAction("显示主界面")
         self._show_action.triggered.connect(self.show_window)
@@ -76,7 +76,7 @@ class SystemTrayController(QObject):
             return
         self._notified = True
         self._tray.showMessage(
-            "泡泡工具箱 已最小化到托盘",
+            "泡泡的工作台 已最小化到托盘",
             "右键托盘图标可直接使用预置功能，也可显示主界面或退出。",
             QSystemTrayIcon.MessageIcon.Information,
             3000,

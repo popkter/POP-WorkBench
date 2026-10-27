@@ -1,4 +1,4 @@
-# PopTools 界面规范
+# 泡泡的工作台 · Pop’s Workbench 界面规范
 
 ## 设计来源与范围
 

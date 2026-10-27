@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
+from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtWidgets import QFileDialog
 
 from poptools.infrastructure.video_audio import AudioPlayback
@@ -221,6 +222,9 @@ class VideoPreviewController(QObject):
         if self._detailed:
             for row in self._thumbnails:
                 if row["start"] <= target < row["end"]:
+                    # A cached frame can replace a queued clearPreview cleanup.
+                    # It does not need to keep any source container open.
+                    self._preview_worker.submit(self._close_preview_reader)
                     self._preview_source = row["source"]
                     self._preview_time = row["time"]
                     self._preview_busy = False
@@ -263,9 +267,18 @@ class VideoPreviewController(QObject):
     def clearPreview(self):
         self._preview_worker.cancel()
         self._preview_token = -1
+        # Cancellation only discards work/results; the idle hover reader still
+        # owns the source file. Close it on the same worker that decodes it.
+        self._preview_worker.submit(self._close_preview_reader)
         self._preview_source = ""
         self._preview_busy = False
         self.previewChanged.emit()
+
+    def _close_preview_reader(self, check):
+        reader, self._preview_reader = self._preview_reader, None
+        self._preview_key = None
+        if reader is not None:
+            reader.close()
 
     @Slot()
     def chooseFiles(self):
@@ -353,6 +366,8 @@ class VideoPreviewController(QObject):
             if self._playlist:
                 self.selectVideo(min(index, len(self._playlist) - 1))
             else:
+                self._metadata_worker.cancel()
+                self._metadata_token = -1
                 self._proxy_worker.cancel()
                 self._proxy_token = -1
                 self._proxy_busy = False
@@ -394,6 +409,13 @@ class VideoPreviewController(QObject):
     @Slot()
     def fit(self):
         self.fitRequested.emit()
+
+    @Slot(QImage, result=bool)
+    def copyViewportImage(self, image):
+        if image.isNull():
+            return False
+        QGuiApplication.clipboard().setImage(image)
+        return True
 
     @Slot(float)
     def setRate(self, rate):
@@ -741,9 +763,10 @@ class VideoPreviewController(QObject):
         preview_done = threading.Event()
 
         def close_preview(check):
-            if self._preview_reader:
-                self._preview_reader.close()
-            preview_done.set()
+            try:
+                self._close_preview_reader(check)
+            finally:
+                preview_done.set()
 
         self._preview_worker.submit(close_preview)
         preview_done.wait(3)

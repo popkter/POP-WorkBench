@@ -12,7 +12,7 @@ ApplicationWindow {
     width: Theme.windowDefaultWidth
     height: Theme.windowDefaultHeight
     visible: false
-    title: "泡泡工具箱"
+    title: "泡泡的工作台 · Pop’s Workbench"
     flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint
         | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint
     readonly property bool customTitleBar: Qt.platform.os === "windows"

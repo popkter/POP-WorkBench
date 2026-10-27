@@ -1,4 +1,7 @@
-#define MyAppName "泡泡工具箱"
+#define MyAppName "泡泡的工作台"
+#define MyAppDisplayName "泡泡的工作台 · Pop’s Workbench"
+; Keep build paths and executable names compatible with existing OTA clients.
+#define MyAppBuildName "泡泡工具箱"
 #ifndef Edition
 #define Edition "Bundled"
 #endif
@@ -23,7 +26,7 @@ CreateUninstallRegKey=no
 #else
 AppId={{2D39A497-EC7D-4A4E-A09F-5CC3768725B4}
 #endif
-AppName={#MyAppName}
+AppName={#MyAppDisplayName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={localappdata}\Programs\{#MyAppName}
@@ -61,15 +64,15 @@ UsePreviousAppDir=yes
 ChangesEnvironment=no
 VersionInfoVersion={#MyAppVersionInfoVersion}
 VersionInfoCompany={#MyAppPublisher}
-VersionInfoDescription={#MyAppName} 安装程序
-VersionInfoProductName={#MyAppName}
+VersionInfoDescription={#MyAppDisplayName} 安装程序
+VersionInfoProductName={#MyAppDisplayName}
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: unchecked
 
 [Files]
-Source: "..\dist\{#MyAppName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\dist\{#MyAppName}\*"; DestDir: "{tmp}\plugin-migration"; Flags: dontcopy recursesubdirs createallsubdirs
+Source: "..\dist\{#MyAppBuildName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\{#MyAppBuildName}\*"; DestDir: "{tmp}\plugin-migration"; Flags: dontcopy recursesubdirs createallsubdirs
 Source: "..\build\edition-{#Edition}.json"; DestDir: "{app}"; DestName: "edition.json"; Flags: ignoreversion
 #if Edition == "Bundled"
 Source: "..\build\plugin-seeds\python\*"; DestDir: "{code:PluginDataDirectory}\plugins\python\seed\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
@@ -83,6 +86,12 @@ Source: "..\build\plugin-seeds\powershell-package.json"; DestDir: "{code:PluginD
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\_internal"
 Type: filesandordirs; Name: "{app}\runtime"
+#ifndef InstallerTest
+; Old and new shortcuts must not compete for the same notification identity.
+Type: files; Name: "{group}\泡泡工具箱.lnk"
+Type: files; Name: "{userprograms}\泡泡工具箱\泡泡工具箱.lnk"
+Type: files; Name: "{autodesktop}\泡泡工具箱.lnk"
+#endif
 
 #ifndef InstallerTest
 [Icons]
@@ -91,9 +100,11 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserMo
 
 [Registry]
 ; Per-user Explorer entries do not require administrator privileges.
-Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\PoTerminal"; ValueType: string; ValueName: ""; ValueData: "在此打开 PoTerminal"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\AppUserModelId\{#MyAppUserModelId}"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppDisplayName}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\AppUserModelId\{#MyAppUserModelId}"; ValueType: string; ValueName: "IconUri"; ValueData: "{app}\_internal\poptools\resources\icons\app-icon.ico"
+Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\PoTerminal"; ValueType: string; ValueName: ""; ValueData: "在此打开泡泡的工作台终端"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\PoTerminal\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --terminal --cwd ""%V"""
-Root: HKCU; Subkey: "Software\Classes\Directory\shell\PoTerminal"; ValueType: string; ValueName: ""; ValueData: "在此打开 PoTerminal"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\PoTerminal"; ValueType: string; ValueName: ""; ValueData: "在此打开泡泡的工作台终端"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\PoTerminal\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --terminal --cwd ""%1"""
 
 #endif
@@ -142,7 +153,11 @@ begin
 #ifdef InstallerTest
   Exit;
 #endif
-  AppWindow := FindWindowByWindowName('{#MyAppName}');
+  AppWindow := FindWindowByWindowName('{#MyAppDisplayName}');
+  if AppWindow = 0 then
+    AppWindow := FindWindowByWindowName('{#MyAppName}');
+  if AppWindow = 0 then
+    AppWindow := FindWindowByWindowName('{#MyAppBuildName}');
   if AppWindow = 0 then
     Exit;
 

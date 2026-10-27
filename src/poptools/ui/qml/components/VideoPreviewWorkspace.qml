@@ -8,6 +8,22 @@ Item {
     property var controller: null
     property bool actionsInTitleBar: false
     property bool shortcutsEnabled: true
+    property bool captureBusy: false
+    function captureViewport() {
+        if (!controller || !controller.loaded || captureBusy) return
+        captureBusy = true
+        // Capture only this clipped viewport. Toolbar, timeline and popups
+        // live outside its visual subtree and must not enter the screenshot.
+        const accepted = videoSurface.grabToImage(function(result) {
+            root.captureBusy = false
+            const copied = root.controller && root.controller.copyViewportImage(result.image)
+            captureToast.showMessage(copied ? "截图已复制到剪贴板" : "截图失败，请重试", !copied)
+        })
+        if (!accepted) {
+            captureBusy = false
+            captureToast.showMessage("截图失败，请重试", true)
+        }
+    }
     onVisibleChanged: {
         if (!visible && controller) { controller.pause(); controller.closeList(); controller.clearPreview() }
     }
@@ -144,6 +160,8 @@ Item {
             PrimaryButton {
                 objectName: "videoFitPictureButton"
                 Layout.preferredHeight: 30
+                Layout.preferredWidth: root.width < 600 ? 32 : -1
+                compact: root.width < 600
                 text: videoSurface.zoomFactor > 1 ? Math.round(videoSurface.zoomFactor * 100) + "% · 复位" : "适应画面"
                 iconName: "fit_screen"
                 glyphSize: 20
@@ -154,6 +172,21 @@ Item {
                 enabled: videoSurface.ready
                 Accessible.name: "恢复完整画面；画面上滚轮缩放，放大后拖动平移"
                 onClicked: videoSurface.fitPicture()
+            }
+            PrimaryButton {
+                objectName: "videoScreenshotButton"
+                Layout.preferredHeight: 30
+                Layout.preferredWidth: root.width < 600 ? 32 : -1
+                compact: root.width < 600
+                text: "截图"; iconName: "photo_camera"
+                glyphSize: 18
+                labelFontSize: Theme.fontSupporting
+                color: hovered ? Theme.navigationHover : "transparent"
+                foregroundColor: Theme.textPrimary
+                border.width: 0
+                enabled: videoSurface.ready && !root.captureBusy
+                Accessible.name: "截取当前可见视频画面并复制到剪贴板"
+                onClicked: root.captureViewport()
             }
         }
         Text {
@@ -186,6 +219,51 @@ Item {
             border.width: 2
             border.color: Theme.primary
             radius: Theme.radiusSmall
+        }
+    }
+    Popup {
+        id: captureToast
+        objectName: "videoCaptureToast"
+        parent: Overlay.overlay
+        property string message: ""
+        property bool error: false
+        function showMessage(value, isError) {
+            message = value
+            error = isError
+            open()
+            captureToastTimer.restart()
+        }
+        x: Math.round((parent.width - width) / 2)
+        y: 18
+        width: Math.min(320, parent.width - 24)
+        height: 54
+        padding: Theme.space16
+        modal: false
+        focus: false
+        closePolicy: Popup.NoAutoClose
+        background: AppPopupSurface {
+            fillColor: captureToast.error ? Theme.errorContainer : Theme.popupSurface
+            outlineColor: captureToast.error ? Theme.errorColor : Theme.outlineVariant
+        }
+        contentItem: RowLayout {
+            spacing: Theme.space12
+            MaterialIcon {
+                icon: captureToast.error ? "error" : "check_circle"
+                iconSize: 22
+                color: captureToast.error ? Theme.errorColor : Theme.success
+            }
+            Text {
+                Layout.fillWidth: true
+                text: captureToast.message
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontBody
+                elide: Text.ElideRight
+            }
+        }
+        Timer {
+            id: captureToastTimer
+            interval: 2400
+            onTriggered: captureToast.close()
         }
     }
     Popup {

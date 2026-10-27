@@ -162,6 +162,92 @@ def test_corrupt_file_is_recoverable_and_removing_current_clears_media(qapp, qtb
         backend.shutdown()
 
 
+@pytest.mark.parametrize("removal", ["last", "current", "previous"])
+@pytest.mark.parametrize("hover_running", [False, True])
+def test_removed_video_releases_hover_reader_and_can_be_deleted(
+    qapp, qtbot, clip, tmp_path, monkeypatch, removal, hover_running
+):
+    other = make_video(tmp_path / "remaining.mp4")
+    backend = VideoPreviewController()
+    try:
+        backend.addFiles([str(clip)] if removal == "last" else [str(clip), str(other)])
+        qtbot.waitUntil(lambda: backend.loaded and not backend.busy)
+        backend.requestPreview(0.4)
+        qtbot.waitUntil(lambda: not backend.previewBusy)
+        assert backend.previewSource
+        if hover_running:
+            started = threading.Event()
+
+            def slow_preview(target, check):
+                started.set()
+                while True:
+                    check()
+                    time.sleep(0.005)
+
+            monkeypatch.setattr(backend._preview_reader, "seek_raw", slow_preview)
+            backend.requestPreview(0.8)
+            qtbot.waitUntil(started.is_set)
+        if removal == "previous":
+            backend.selectVideo(1)
+            qtbot.waitUntil(lambda: backend.loaded and not backend.busy)
+        backend.removeVideo(0)
+
+        # Do not shut down the controller: removing the item must release it
+        # while the application remains open, including the idle hover reader.
+        qtbot.waitUntil(lambda: backend._preview_reader is None, timeout=3000)
+
+        def deleted():
+            try:
+                clip.unlink(missing_ok=True)
+                return True
+            except PermissionError:
+                return False
+
+        qtbot.waitUntil(deleted, timeout=3000)
+        if removal != "last":
+            qtbot.waitUntil(lambda: backend.loaded and not backend.busy)
+            assert backend.fileName == other.name
+            backend.seek(0.8)
+            qtbot.waitUntil(lambda: not backend.busy)
+            assert backend.position == pytest.approx(0.8)
+    finally:
+        backend.shutdown()
+
+
+def test_removing_last_video_cancels_duration_probe(qapp, qtbot, clip, monkeypatch):
+    started = threading.Event()
+    finished = threading.Event()
+
+    def slow_probe(reader, check):
+        started.set()
+        try:
+            while True:
+                check()
+                time.sleep(0.005)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(VideoReader, "probe_end", slow_probe)
+    backend = VideoPreviewController()
+    try:
+        backend.addFiles([str(clip)])
+        qtbot.waitUntil(lambda: backend.loaded and not backend.busy and started.is_set())
+        backend.removeVideo(0)
+        qtbot.waitUntil(finished.is_set, timeout=3000)
+        assert backend._metadata_token == -1
+
+        def deleted():
+            try:
+                clip.unlink(missing_ok=True)
+                return True
+            except PermissionError:
+                return False
+
+        qtbot.waitUntil(deleted, timeout=3000)
+    finally:
+        backend.shutdown()
+
+
 @pytest.mark.parametrize('suffix', ['mp4', 'mkv'])
 def test_audio_resampling_trims_to_seek_and_stays_bounded(qapp, tmp_path, suffix):
     clip = make_video(tmp_path / f"with-audio.{suffix}", audio=True)
@@ -305,6 +391,50 @@ ApplicationWindow {
         QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=anchor + QPoint(40, 25))
         assert surface.property("panX") == pytest.approx(offset[0] + 40, abs=1)
         assert surface.property("panY") == pytest.approx(offset[1] + 25, abs=1)
+        # Capture the rendered viewport, including its current zoom and pan,
+        # rather than copying the uncropped source frame from the decoder.
+        with qtbot.waitSignal(window.frameSwapped):
+            window.update()
+        expected = window.grabWindow()
+        screenshot_button = window.findChild(QObject, "videoScreenshotButton")
+        fit_button = window.findChild(QObject, "videoFitPictureButton")
+        screenshot_bounds = screenshot_button.mapRectToItem(
+            window.contentItem(), screenshot_button.boundingRect())
+        fit_bounds = fit_button.mapRectToItem(window.contentItem(), fit_button.boundingRect())
+        assert screenshot_bounds.left() >= fit_bounds.right()
+        assert screenshot_bounds.right() <= width
+        qapp.clipboard().clear()
+        QTest.mouseClick(window, Qt.MouseButton.LeftButton,
+                         pos=screenshot_bounds.center().toPoint())
+        qtbot.waitUntil(lambda: not qapp.clipboard().image().isNull())
+        captured = qapp.clipboard().image()
+        dpr = window.devicePixelRatio()
+        assert captured.width() == pytest.approx(surface.width() * dpr, abs=1)
+        assert captured.height() == pytest.approx(surface.height() * dpr, abs=1)
+        for fx, fy in ((0.1, 0.1), (0.25, 0.5), (0.5, 0.5), (0.75, 0.5), (0.9, 0.9)):
+            actual_color = captured.pixelColor(
+                int(captured.width() * fx), int(captured.height() * fy))
+            expected_color = expected.pixelColor(
+                int((surface_bounds.x() + surface.width() * fx) * dpr),
+                int((surface_bounds.y() + surface.height() * fy) * dpr))
+            assert actual_color.getRgb() == expected_color.getRgb()
+        capture_toast = window.findChild(QObject, "videoCaptureToast")
+        qtbot.waitUntil(lambda: capture_toast.property("opened"))
+        assert capture_toast.property("message") == "截图已复制到剪贴板"
+        assert not capture_toast.property("error")
+        assert not backend.playing
+        QMetaObject.invokeMethod(capture_toast, "close")
+        # Popup overlays (including the playlist) are not part of the video.
+        backend.toggleList()
+        capture_drawer = window.findChild(QObject, "videoPlaylistDrawer")
+        qtbot.waitUntil(lambda: capture_drawer.property("opened"))
+        qapp.clipboard().clear()
+        assert QMetaObject.invokeMethod(screenshot_button, "clicked")
+        qtbot.waitUntil(lambda: not qapp.clipboard().image().isNull())
+        assert qapp.clipboard().image() == captured
+        backend.closeList()
+        QMetaObject.invokeMethod(capture_toast, "close")
+        qtbot.waitUntil(lambda: not capture_drawer.property("visible"))
         backend.seek(0.8)
         qtbot.waitUntil(lambda: not backend.busy)
         assert surface.property("zoomFactor") == zoom
@@ -324,6 +454,23 @@ ApplicationWindow {
         qtbot.waitUntil(lambda: bool(backend.thumbnails) and not backend.detailed
                         and not backend.thumbnailBusy, timeout=10000)
         assert_thumbnail_track_visible()
+        # Locating the playhead scrolls the timeline without seeking or fitting.
+        timeline_root = window.findChild(QObject, "videoTimeline")
+        backend.seek(0.8)
+        qtbot.waitUntil(lambda: not backend.busy)
+        backend.zoom(20)
+        qtbot.waitUntil(lambda: timeline_root.property("viewSpan") < 0.4)
+        scale = timeline_root.property("pixelsPerSecond")
+        timeline_root.setProperty("viewStart", 0)
+        timeline_root.setProperty("followPlayback", False)
+        locate = timeline_root.findChild(QObject, "videoLocatePlayheadButton")
+        assert QMetaObject.invokeMethod(locate, "clicked")
+        assert timeline_root.property("viewStart") == pytest.approx(
+            backend.position - timeline_root.property("viewSpan") / 2)
+        assert timeline_root.property("pixelsPerSecond") == scale
+        assert timeline_root.property("followPlayback")
+        assert backend.position == pytest.approx(0.8) and not backend.playing
+        backend.fit()
         timeline = window.findChild(QObject, "videoTimelineTrack")
         bounds = timeline.mapRectToItem(window.contentItem(), timeline.boundingRect())
 

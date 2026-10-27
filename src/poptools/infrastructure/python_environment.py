@@ -77,7 +77,7 @@ class PythonEnvironment:
         managed = self.managed_executable
         if managed.is_file():
             return PythonEnvironmentState(
-                provider, str(managed.resolve()), True, "PopTools 专用 Python 环境已就绪"
+                provider, str(managed.resolve()), True, "泡泡的工作台专用 Python 环境已就绪"
             )
         if not getattr(sys, "frozen", False) and Path(sys.executable).is_file():
             return PythonEnvironmentState(
@@ -87,7 +87,7 @@ class PythonEnvironment:
                 "开发模式：正在使用项目 Python 环境",
             )
         return PythonEnvironmentState(
-            provider, str(managed), False, "PopTools 专用 Python 环境尚未就绪"
+            provider, str(managed), False, "泡泡的工作台专用 Python 环境尚未就绪"
         )
 
     def executable(self) -> str | None:

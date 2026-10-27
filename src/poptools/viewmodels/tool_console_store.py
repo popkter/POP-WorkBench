@@ -9,7 +9,7 @@ class ToolConsoleStore(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._texts = {"": "泡泡工具箱 已就绪\n"}
+        self._texts = {"": "泡泡的工作台 已就绪\n"}
         self._pending: dict[str, list[str]] = {}
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
