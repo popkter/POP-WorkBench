@@ -260,6 +260,7 @@ Rectangle {
 
                 PrimaryButton {
                     id: editButton
+                    showHoverTips: !root.decadeCardLayout && compact
                     objectName: "customEditButton"
                     visible: root.allowManagement
                     width: root.narrowManagementLayout
@@ -282,6 +283,7 @@ Rectangle {
 
                 PrimaryButton {
                     objectName: "customDeleteButton"
+                    showHoverTips: !root.decadeCardLayout && compact
                     visible: root.allowManagement
                     width: root.narrowManagementLayout
                         ? actionFlow.halfButtonWidth : Theme.detailActionWidth
@@ -311,6 +313,7 @@ Rectangle {
 
                 PrimaryButton {
                     id: runButton
+                    showHoverTips: !root.decadeCardLayout && compact
                     objectName: "customRunButton"
                     width: root.allowManagement
                         ? (root.narrowManagementLayout
@@ -462,6 +465,7 @@ Rectangle {
                 Item { Layout.fillWidth: true }
                 PrimaryButton {
                     objectName: "customConsoleRunButton"
+                    showHoverTips: !root.decadeCardLayout && compact
                     visible: root.splitConsole
                     enabled: !!root.displayedTool.id
                     implicitWidth: root.compactConsoleActions ? 30 : 90
@@ -483,6 +487,7 @@ Rectangle {
                 }
                 PrimaryButton {
                     objectName: "customConsoleCopyButton"
+                    showHoverTips: !root.decadeCardLayout && compact
                     visible: !root.decadeCardLayout
                     implicitWidth: root.compactConsoleActions ? 30 : 82
                     implicitHeight: 30
@@ -504,6 +509,7 @@ Rectangle {
                 Item { visible: !root.compactConsoleActions; Layout.preferredWidth: 8 }
                 PrimaryButton {
                     objectName: "customConsoleClearButton"
+                    showHoverTips: !root.decadeCardLayout && compact
                     visible: !root.decadeCardLayout || root.consoleExpanded
                     implicitWidth: root.compactConsoleActions ? 30 : 62
                     implicitHeight: 30
@@ -524,6 +530,7 @@ Rectangle {
                 }
                 PrimaryButton {
                     objectName: "customConsoleToggle"
+                    showHoverTips: !root.decadeCardLayout && compact
                     implicitWidth: root.compactConsoleActions ? 30 : 66
                     implicitHeight: 30
                     radius: Theme.radiusTiny

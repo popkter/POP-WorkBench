@@ -33,6 +33,7 @@ Loader {
         border.color: root.item && root.item.activeFocus ? Theme.primary : Theme.outline
     }
     component ParameterDefaultButton: PrimaryButton {
+        showHoverTips: !root.decadeCardLayout
         enabled: !root.controller.running
         width: root.decadeCardLayout ? Theme.decadeCardFieldActionSize : 30
         height: width
@@ -101,6 +102,7 @@ Loader {
             }
 
             PrimaryButton {
+                showHoverTips: !root.decadeCardLayout
                 anchors.right: parent.right
                 anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter

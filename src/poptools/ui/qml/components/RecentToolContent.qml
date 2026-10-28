@@ -11,6 +11,12 @@ Item {
     required property var dialog
     property alias workspace: workspaceLoader
     readonly property bool decadeCard: dialog.customScriptMode && Theme.decadeMode
+    Keys.onEscapePressed: function(event) {
+        if (titleDevicePicker.inlineExpanded)
+            titleDevicePicker.closeDeviceMenu()
+        else
+            event.accepted = false
+    }
     MultiEffect {
         id: dialogShadow
         visible: !dialog.customScriptMode
@@ -126,6 +132,7 @@ Item {
                         height: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? Theme.captionActionHeight : 32
                         anchors.verticalCenter: parent.verticalCenter
                         compact: content.decadeCard || !dialog.customScriptMode
+                        showHoverTips: !content.decadeCard && compact
                         text: dialog.operationRunning ? "停止运行"
                             : dialog.customScriptMode ? "运行脚本" : "运行工具"
                         iconName: dialog.operationRunning ? "stop" : "play_arrow"
@@ -150,12 +157,15 @@ Item {
                     }
 
                     DeviceSelector {
+                        id: titleDevicePicker
                         objectName: "recentToolDeviceSelector"
                         visible: dialog.customScriptMode && !!dialog.deviceController
                         width: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? 148 : 160
                         anchors.verticalCenter: parent.verticalCenter
                         compact: true
                         iconOnly: content.decadeCard
+                        showHoverTips: !content.decadeCard
+                        inlineMode: content.decadeCard
                         controller: dialog.deviceController
                         toolId: dialog.toolId
                         requiredDevice: !!dialog.selectedTool.requires_android_device
@@ -229,6 +239,42 @@ Item {
                     anchors.bottomMargin: Theme.space8
                     width: 49; height: Theme.borderWidthMedium
                     color: Theme.primary
+                }
+            }
+
+            Item {
+                id: inlineDeviceSection
+                objectName: "decadeInlineDeviceSection"
+                Layout.fillWidth: true
+                Layout.preferredHeight: (inlineDevicePanel.height + Theme.space12) * reveal
+                Layout.minimumHeight: 0
+                property real reveal: content.decadeCard && titleDevicePicker.inlineExpanded ? 1 : 0
+                visible: reveal > 0
+                enabled: titleDevicePicker.inlineExpanded
+                clip: true
+                Behavior on reveal {
+                    NumberAnimation { duration: Theme.motionStandard; easing.type: Easing.InOutCubic }
+                }
+                Rectangle {
+                    id: inlineDevicePanel
+                    x: Theme.decadeCardPadding
+                    width: parent.width - x * 2
+                    height: inlineDeviceChoices.implicitHeight + Theme.space16
+                    color: Theme.surfaceContainerLow
+                    border.color: Theme.outlineVariant
+                    radius: Theme.radiusSmall
+                    AndroidDevicePicker {
+                        id: inlineDeviceChoices
+                        objectName: "decadeInlineDeviceChoices"
+                        x: Theme.space8; y: Theme.space8
+                        width: parent.width - x * 2
+                        controller: dialog.deviceController
+                        deviceState: titleDevicePicker.deviceState
+                        explicitTarget: titleDevicePicker.explicitTarget
+                        showHoverTips: false
+                        maximumListHeight: Math.max(52, Math.min(208, contentRect.height * .3))
+                        onDeviceSelected: titleDevicePicker.closeDeviceMenu()
+                    }
                 }
             }
 

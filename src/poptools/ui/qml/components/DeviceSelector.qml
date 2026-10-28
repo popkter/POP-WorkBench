@@ -12,7 +12,10 @@ Column {
     property bool explicitTarget: false
     property bool compact: false
     property bool iconOnly: false
-    readonly property bool popupVisible: devicePopup.opened
+    property bool showHoverTips: true
+    property bool inlineMode: false
+    property bool inlineExpanded: false
+    readonly property bool popupVisible: inlineMode ? inlineExpanded : devicePopup.opened
     property int stateRevision: 0
     readonly property var deviceState: {
         const revision = stateRevision
@@ -25,8 +28,14 @@ Column {
         target: root.controller
         function onStateChanged() { root.stateRevision += 1 }
     }
-    onToolIdChanged: devicePopup.close()
-    onVisibleChanged: { if (!visible) devicePopup.close() }
+    onToolIdChanged: closeDeviceMenu()
+    onVisibleChanged: { if (!visible) closeDeviceMenu() }
+    onInlineModeChanged: closeDeviceMenu()
+
+    function closeDeviceMenu() {
+        inlineExpanded = false
+        devicePopup.close()
+    }
 
     function positionDeviceMenu() {
         const point = selector.mapToItem(Overlay.overlay, 0, selector.height)
@@ -37,9 +46,17 @@ Column {
             ? point.y + 6 : Math.max(8, point.y - selector.height - devicePopup.height - 6)
     }
     function openDeviceMenu() {
+        if (root.inlineMode && root.inlineExpanded) {
+            closeDeviceMenu()
+            return
+        }
         if (!root.controller) return
         root.controller.refreshAndroidDevices()
         if (!root.visible || root.deviceState.pluginMissing) return
+        if (root.inlineMode) {
+            inlineExpanded = true
+            return
+        }
         positionDeviceMenu()
         devicePopup.open()
         Qt.callLater(positionDeviceMenu)
@@ -57,8 +74,8 @@ Column {
         width: parent.width
         height: root.iconOnly ? Theme.decadeCardActionSize : root.compact ? Theme.captionActionHeight : 41
         radius: root.iconOnly ? Theme.radiusSmall : root.compact ? Theme.radiusTiny : Theme.radiusConsole
-        color: root.iconOnly ? (selectorMouse.containsMouse || devicePopup.opened ? Theme.primaryContainer : Theme.decadeCardActionFill) : root.compact
-            ? (selectorMouse.containsMouse || devicePopup.opened ? Theme.navigationHover : "transparent")
+        color: root.iconOnly ? (selectorMouse.containsMouse || root.popupVisible ? Theme.primaryContainer : Theme.decadeCardActionFill) : root.compact
+            ? (selectorMouse.containsMouse || root.popupVisible ? Theme.navigationHover : "transparent")
             : selectorMouse.containsMouse ? Theme.surfaceContainer : Theme.surfaceContainerLow
         border.width: root.iconOnly ? Theme.borderWidthThin : root.compact ? 0 : 1
         border.color: root.iconOnly ? Theme.decadeCardActionBorder : Theme.outlineVariant
@@ -99,7 +116,7 @@ Column {
                 font.pixelSize: Theme.fontSmall
             }
             MaterialIcon {
-                icon: devicePopup.opened ? "expand_less" : "expand_more"
+                icon: root.popupVisible ? "expand_less" : "expand_more"
                 iconSize: root.compact ? 14 : 18
                 color: root.compact ? Theme.chromeForeground : Theme.textSecondary
             }
@@ -121,7 +138,7 @@ Column {
             onClicked: root.openDeviceMenu()
         }
         HoverTips {
-            visible: root.compact && selectorMouse.containsMouse && !devicePopup.opened
+            visible: root.showHoverTips && root.compact && selectorMouse.containsMouse && !root.popupVisible
             text: root.deviceState.label
         }
     }
@@ -152,158 +169,11 @@ Column {
             cornerRadius: Theme.radiusMedium
         }
         onHeightChanged: { if (opened) root.positionDeviceMenu() }
-        contentItem: ColumnLayout {
-            spacing: Theme.space4
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: Theme.space4
-                spacing: Theme.space8
-                Text {
-                    Layout.fillWidth: true
-                    text: "Android 设备"
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontSupporting
-                    font.weight: Font.DemiBold
-                }
-                PrimaryButton {
-                    objectName: "devicePopupRefresh"
-                    text: "刷新设备"
-                    iconName: "refresh"
-                    compact: true
-                    Layout.preferredWidth: 28
-                    Layout.preferredHeight: 28
-                    glyphSize: 18
-                    radius: Theme.radiusTiny
-                    color: hovered ? Theme.surfaceContainerHigh : "transparent"
-                    foregroundColor: Theme.textSecondary
-                    border.width: 0
-                    enabled: root.controller && !root.controller.androidDeviceRefreshing
-                    iconSpinning: root.controller && root.controller.androidDeviceRefreshing
-                    Accessible.role: Accessible.Button
-                    Accessible.name: text
-                    Accessible.onPressAction: if (enabled) clicked()
-                    onClicked: root.controller.refreshAndroidDevices()
-                }
-            }
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: Theme.outlineVariant
-            }
-            Text {
-                Layout.fillWidth: true
-                visible: root.compact && root.explicitTarget
-                text: "脚本已指定目标，界面选择仅作用于未指定目标的调用。"
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontSmall
-                wrapMode: Text.WordWrap
-            }
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 64
-                visible: deviceList.count === 0
-                radius: Theme.radiusSmall
-                color: Theme.surfaceContainer
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: Theme.space12
-                    spacing: Theme.space12
-                    MaterialIcon {
-                        icon: "smartphone"
-                        iconSize: 24
-                        color: Theme.textSecondary
-                    }
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        spacing: Theme.space4
-                        Text {
-                            Layout.fillWidth: true
-                            text: root.controller && root.controller.androidDeviceRefreshing
-                                ? "正在查找设备…" : "未连接设备"
-                            color: Theme.textPrimary
-                            font.pixelSize: Theme.fontSupporting
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "检查连接与 USB 调试授权"
-                            color: Theme.textSecondary
-                            font.pixelSize: Theme.fontSmall
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-                }
-            }
-            ListView {
-                id: deviceList
-                Layout.fillWidth: true
-                Layout.preferredHeight: Math.min(count, 4) * 52
-                clip: true
-                model: root.controller ? root.controller.androidDevices : []
-                ScrollBar.vertical: ScrollBar { }
-                delegate: Rectangle {
-                    id: deviceRow
-                    required property var modelData
-                    objectName: "deviceRow_" + modelData.serial
-                    width: deviceList.width
-                    height: 52
-                    radius: Theme.radiusSmall
-                    color: modelData.serial === root.deviceState.serial
-                        ? Theme.primaryContainer
-                        : rowMouse.containsMouse ? Theme.surfaceContainerHigh : "transparent"
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: Theme.space8
-                        spacing: Theme.space8
-                        MaterialIcon {
-                            icon: "smartphone"
-                            iconSize: 18
-                            color: deviceRow.modelData.serial === root.deviceState.serial
-                                ? Theme.primary : Theme.textSecondary
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.minimumWidth: 0
-                            spacing: 2
-                            Text {
-                                Layout.fillWidth: true
-                                Layout.minimumWidth: 0
-                                text: deviceRow.modelData.model
-                                    ? deviceRow.modelData.model.replace(/_/g, " ")
-                                    : deviceRow.modelData.serial
-                                elide: Text.ElideRight
-                                color: deviceRow.modelData.serial === root.deviceState.serial
-                                    ? Theme.primary : Theme.textPrimary
-                                font.pixelSize: Theme.fontSupporting
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                Layout.minimumWidth: 0
-                                visible: !!deviceRow.modelData.model
-                                text: deviceRow.modelData.serial
-                                elide: Text.ElideMiddle
-                                color: Theme.textSecondary
-                                font.pixelSize: Theme.fontSmall
-                            }
-                        }
-                        MaterialIcon {
-                            visible: modelData.serial === root.deviceState.serial
-                            icon: "check"; iconSize: 18; color: Theme.primary
-                        }
-                    }
-                    MouseArea {
-                        id: rowMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            root.controller.selectAndroidDevice(modelData.serial)
-                            devicePopup.close()
-                        }
-                    }
-                }
-            }
+        contentItem: AndroidDevicePicker {
+            controller: root.controller
+            deviceState: root.deviceState
+            explicitTarget: root.compact && root.explicitTarget
+            onDeviceSelected: root.closeDeviceMenu()
         }
     }
 }

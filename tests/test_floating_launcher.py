@@ -22,6 +22,7 @@ from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent, QQmlEngine, QQml
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
 
+from poptools.infrastructure.android_device_service import AndroidDevice
 from poptools.infrastructure.config_store import ConfigStore
 from poptools.infrastructure.foreground_window import ForegroundWindow
 from poptools.infrastructure.json_tool_repository import JsonToolRepository
@@ -2049,6 +2050,9 @@ def test_capacity_confirmation_raises_main_window(launcher, monkeypatch):
 @pytest.mark.parametrize("parameter_count", [0, 3, 18])
 def test_decade_card_live_usage_and_compact_controls(launcher, qtbot, monkeypatch, parameter_count):
     _, backend, _, _ = launcher
+    android = backend.android_controller
+    monkeypatch.setattr(android, "_managed_discovery", False)
+    monkeypatch.setattr(android._device_service, "refresh", lambda: None)
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     parameters = " ".join(f"${{value{i}:Default {i}}}" for i in range(parameter_count))
     tool = backend.registry.create_custom(
@@ -2142,6 +2146,50 @@ RecentToolDialog {
             items = {item.objectName(): item for item in visual_items(window.contentItem())}
             editor = items["customParameterInput_value0"].property("item")
             editor.setProperty("text", "Edited value")
+        section = window.findChild(QObject, "decadeInlineDeviceSection")
+        choices = window.findChild(QObject, "decadeInlineDeviceChoices")
+        popup = buttons[1].findChild(QObject, "toolDevicePopup")
+        original_y = counter.mapToItem(window.contentItem(), QPointF()).y()
+        original_panel_y = panel.mapToItem(window.contentItem(), QPointF()).y()
+        samples = []
+        sampler = QTimer(window)
+        sampler.setInterval(10)
+        sampler.timeout.connect(lambda: samples.append(
+            counter.mapToItem(window.contentItem(), QPointF()).y()))
+        sampler.start()
+        def toggle_devices():
+            point = buttons[1].mapToItem(window.contentItem(), buttons[1].boundingRect().center())
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point.toPoint())
+        toggle_devices()
+        qtbot.waitUntil(lambda: section.property("reveal") == 1)
+        assert section.isVisible() and not popup.property("opened")
+        assert counter.mapToItem(window.contentItem(), QPointF()).y() > original_y + 50
+        assert panel.mapToItem(window.contentItem(), QPointF()).y() > original_panel_y + 50
+        output_dir = Path("build/decade-design")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        assert window.grabWindow().save(
+            str(output_dir / f"card-{parameter_count}-devices-empty.png"))
+        android._device_service._set_devices([AndroidDevice("A", model="Phone_A"),
+                                             AndroidDevice("B", model="Phone_B")])
+        qtbot.wait(50)
+        row = next(item for item in visual_items(choices) if item.objectName() == "deviceRow_B")
+        point = row.mapToItem(window.contentItem(), row.boundingRect().center())
+        QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point.toPoint())
+        qtbot.waitUntil(lambda: section.property("reveal") == 0)
+        assert not section.isVisible() and not popup.property("opened")
+        assert android.selectedAndroidDevice["serial"] == "B"
+        assert counter.mapToItem(window.contentItem(), QPointF()).y() == pytest.approx(
+            original_y, abs=1)
+        assert panel.mapToItem(window.contentItem(), QPointF()).y() == pytest.approx(
+            original_panel_y, abs=1)
+        toggle_devices()
+        qtbot.waitUntil(lambda: section.property("reveal") == 1)
+        assert window.grabWindow().save(str(output_dir / f"card-{parameter_count}-devices.png"))
+        toggle_devices()
+        qtbot.waitUntil(lambda: section.property("reveal") == 0)
+        sampler.stop()
+        sampler.deleteLater()
+        assert len({round(y, 1) for y in samples}) > 4
         assert QMetaObject.invokeMethod(buttons[0], "clicked")
         qtbot.waitUntil(lambda: panel.property("consoleExpanded"))
         assert counter.property("usageCount") == session.usageCount == 38
