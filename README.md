@@ -29,27 +29,45 @@
 
 用于即时执行命令和验证操作。Windows 使用 PowerShell 7，macOS 使用系统 Shell；终端可使用应用中配置的 Python、pip 和 ADB 环境。
 
-![终端页面功能标注](docs/screenshots/terminal-overview.png)
-
-| 图中编号 | 功能说明 |
-| --- | --- |
-| **1 · 会话标签** | 新建、切换和关闭独立终端会话；切换页面不会结束会话，关闭标签页会停止对应会话 |
-| **2 · 命令与输出** | 在终端内输入命令并查看结果；支持文本选择、复制和粘贴。`Ctrl+C` 有选区时复制，无选区时中断命令 |
-| **3 · 终端操作** | 右键菜单集中提供粘贴、全选、清屏、重启终端和停止命令等操作 |
-| **4 · 转为脚本** | 选中可复用的命令，右键“添加到自定义脚本”，将临时调试结果保存下来 |
+<table width="100%">
+<tr>
+<td width="55%" valign="top">
+<a href="docs/screenshots/terminal-overview.png"><img src="docs/screenshots/terminal-overview.png" alt="终端页面功能标注" width="560"></a>
+</td>
+<td valign="top">
+<p><strong>1 · 会话标签</strong><br>
+新建、切换和关闭独立终端会话；切换页面不会结束会话，关闭标签页会停止对应会话</p>
+<p><strong>2 · 命令与输出</strong><br>
+在终端内输入命令并查看结果；支持文本选择、复制和粘贴。<code>Ctrl+C</code> 有选区时复制，无选区时中断命令</p>
+<p><strong>3 · 终端操作</strong><br>
+右键菜单集中提供粘贴、全选、清屏、重启终端和停止命令等操作</p>
+<p><strong>4 · 转为脚本</strong><br>
+选中可复用的命令，右键“添加到自定义脚本”，将临时调试结果保存下来</p>
+</td>
+</tr>
+</table>
 
 ### 自定义脚本
 
 用于管理 PowerShell、Bash、Batch 和 Python 脚本。把每次执行前需要修改的内容声明成参数，就可以通过表单运行，减少反复编辑脚本。
 
-![自定义脚本页面功能标注](docs/screenshots/scripts-annotated.png)
-
-| 图中编号 | 功能说明 |
-| --- | --- |
-| **1 · 脚本列表** | 搜索名称或说明，按脚本类型筛选，调整排序并选择要使用的脚本 |
-| **2 · 创建与管理** | 新建、编辑、删除脚本，通过剪贴板导入或分享单个脚本；分享时会移除参数默认值，接收方自行填写 |
-| **3 · 参数配置** | 自动生成文本、数字、选项、文件、目录、密码等输入控件；保存常用默认值，下次直接使用 |
-| **4 · 运行与结果** | 运行或停止脚本，展开控制台查看、复制或清空输出 |
+<table width="100%">
+<tr>
+<td width="55%" valign="top">
+<a href="docs/screenshots/scripts-annotated.png"><img src="docs/screenshots/scripts-annotated.png" alt="自定义脚本页面功能标注" width="560"></a>
+</td>
+<td valign="top">
+<p><strong>1 · 脚本列表</strong><br>
+搜索名称或说明，按脚本类型筛选，调整排序并选择要使用的脚本</p>
+<p><strong>2 · 创建与管理</strong><br>
+新建、编辑、删除脚本，通过剪贴板导入或分享单个脚本；分享时会移除参数默认值，接收方自行填写</p>
+<p><strong>3 · 参数配置</strong><br>
+自动生成文本、数字、选项、文件、目录、密码等输入控件；保存常用默认值，下次直接使用</p>
+<p><strong>4 · 运行与结果</strong><br>
+运行或停止脚本，展开控制台查看、复制或清空输出</p>
+</td>
+</tr>
+</table>
 
 例如，将下面的内容保存为 Python 脚本后，会自动出现“姓名”和“重复次数”两个参数：
 
@@ -66,27 +84,45 @@ for i in range(count):
 
 用于直接完成常见操作，无需先编写脚本。当前默认开放以下四项工具，左侧选择工具，右侧进行操作：
 
-![预设工具页面功能标注，右侧展示调色盘](docs/screenshots/presets-annotated.png)
-
-| 图中编号 | 工具与用途 |
-| --- | --- |
-| **1 · 记录日志与视频** | 同时录制 Android 设备画面、系统声音和麦克风，并保存 Logcat；结束后选择目录，得到 `recording.mp4` 和 `logcat.txt` |
-| **2 · Android 设备投屏** | 在应用内查看和操作设备画面，支持选择设备的不同屏幕 |
-| **3 · 视频预览** | 管理本地视频、逐帧检查、放大画面和时间轴，并截取当前可见画面；操作见下图 |
-| **4 · 调色盘** | 输入和预览 `#RRGGBB`、`#AARRGGBB`，调整颜色与透明度，或使用系统屏幕取色 |
+<table width="100%">
+<tr>
+<td width="55%" valign="top">
+<a href="docs/screenshots/presets-annotated.png"><img src="docs/screenshots/presets-annotated.png" alt="预设工具页面功能标注，右侧展示调色盘" width="560"></a>
+</td>
+<td valign="top">
+<p><strong>1 · 记录日志与视频</strong><br>
+同时录制 Android 设备画面、系统声音和麦克风，并保存 Logcat；结束后选择目录，得到 <code>recording.mp4</code> 和 <code>logcat.txt</code></p>
+<p><strong>2 · Android 设备投屏</strong><br>
+在应用内查看和操作设备画面，支持选择设备的不同屏幕</p>
+<p><strong>3 · 视频预览</strong><br>
+管理本地视频、逐帧检查、放大画面和时间轴，并截取当前可见画面；操作见下图</p>
+<p><strong>4 · 调色盘</strong><br>
+输入和预览 <code>#RRGGBB</code>、<code>#AARRGGBB</code>，调整颜色与透明度，或使用系统屏幕取色</p>
+</td>
+</tr>
+</table>
 
 投屏和录制需要可用的 ADB 与 scrcpy。联合录制需要 Android 11 或更高版本及相应音源支持，部分应用会限制内部音频采集；开始录制前会清空设备 Logcat。
 
 #### 视频预览的主要操作
 
-![视频预览功能标注](docs/screenshots/video-preview-annotated.png)
-
-| 图中编号 | 功能说明 |
-| --- | --- |
-| **1 · 打开与列表** | 打开或拖入本地视频，支持一次添加多个文件；在播放列表中切换，保留各自的观看位置。移出列表不会删除源文件 |
-| **2 · 画面检查** | 滚轮放大画面，放大后拖动平移；“复位”恢复完整画面 |
-| **3 · 播放与截图** | 播放、暂停、前后逐帧、调整倍速、声音和预览分辨率；“截图”将当前缩放、平移后可见的视频区域复制到剪贴板，完成后显示提示，不包含控制栏、时间轴或播放列表 |
-| **4 · 时间轴定位** | 点击或拖动播放头定位，悬停预览画面；缩放时间轴检查细节，“定位播放头”将当前播放位置带回视野，保持时间轴缩放比例 |
+<table width="100%">
+<tr>
+<td width="55%" valign="top">
+<a href="docs/screenshots/video-preview-annotated.png"><img src="docs/screenshots/video-preview-annotated.png" alt="视频预览功能标注" width="560"></a>
+</td>
+<td valign="top">
+<p><strong>1 · 打开与列表</strong><br>
+打开或拖入本地视频，支持一次添加多个文件；在播放列表中切换，保留各自的观看位置。移出列表不会删除源文件</p>
+<p><strong>2 · 画面检查</strong><br>
+滚轮放大画面，放大后拖动平移；“复位”恢复完整画面</p>
+<p><strong>3 · 播放与截图</strong><br>
+播放、暂停、前后逐帧、调整倍速、声音和预览分辨率；“截图”将当前缩放、平移后可见的视频区域复制到剪贴板，完成后显示提示，不包含控制栏、时间轴或播放列表</p>
+<p><strong>4 · 时间轴定位</strong><br>
+点击或拖动播放头定位，悬停预览画面；缩放时间轴检查细节，“定位播放头”将当前播放位置带回视野，保持时间轴缩放比例</p>
+</td>
+</tr>
+</table>
 
 常用快捷键：`Ctrl+O` 打开视频，空格播放或暂停，左右方向键逐帧查看，`Ctrl+滚轮` 缩放时间轴。当前声音音调会随倍速变化。
 
@@ -94,28 +130,47 @@ for i in range(count):
 
 把外观、运行环境、数据迁移和应用维护集中在同一页面：
 
-![设置页面功能标注](docs/screenshots/settings-annotated.png)
-
-| 图中编号 | 功能说明 |
-| --- | --- |
-| **1 · 外观与交互** | 选择浅色、深色、跟随系统或 Decade 主题，开启或关闭后台悬浮入口 |
-| **2 · 脚本与数据** | 打开存储目录，导出脚本作为完整备份，或导入已有脚本迁移到当前电脑 |
-| **3 · 应用更新** | 开启或关闭自动检查，选择检查频率、是否接收测试版本，也可手动检查和查看更新说明 |
-| **4 · 运行环境** | Windows 下为 Python、Android 工具和 PowerShell 选择应用管理的插件或本地环境；可安装、更新应用管理的插件。本地环境由用户自行维护，Python Doctor 可检查脚本缺失的依赖 |
-| **5 · 关于与帮助** | 查看当前版本，打开项目页面、反馈问题或阅读应用内用户手册 |
+<table width="100%">
+<tr>
+<td width="55%" valign="top">
+<a href="docs/screenshots/settings-annotated.png"><img src="docs/screenshots/settings-annotated.png" alt="设置页面功能标注" width="560"></a>
+</td>
+<td valign="top">
+<p><strong>1 · 外观与交互</strong><br>
+选择浅色、深色、跟随系统或 Decade 主题，开启或关闭后台悬浮入口</p>
+<p><strong>2 · 脚本与数据</strong><br>
+打开存储目录，导出脚本作为完整备份，或导入已有脚本迁移到当前电脑</p>
+<p><strong>3 · 应用更新</strong><br>
+开启或关闭自动检查，选择检查频率、是否接收测试版本，也可手动检查和查看更新说明</p>
+<p><strong>4 · 运行环境</strong><br>
+Windows 下为 Python、Android 工具和 PowerShell 选择应用管理的插件或本地环境；可安装、更新应用管理的插件。本地环境由用户自行维护，Python Doctor 可检查脚本缺失的依赖</p>
+<p><strong>5 · 关于与帮助</strong><br>
+查看当前版本，打开项目页面、反馈问题或阅读应用内用户手册</p>
+</td>
+</tr>
+</table>
 
 ## 悬浮窗：在其他应用中快捷调用脚本
 
 主窗口隐藏或切换到其他应用后，屏幕右侧会出现悬浮入口，使用与主页面相同的自定义脚本列表。
 
-![悬浮窗功能标注](docs/screenshots/floating-launcher-annotated.png)
-
-| 图中编号 | 功能说明 |
-| --- | --- |
-| **1 · 头像入口** | 点击展开或收起脚本列表，拖动调整垂直位置，程序会记住位置 |
-| **2 · 查找脚本** | 搜索、筛选和排序脚本，快速找到要执行的操作 |
-| **3 · 窗口管理** | 图钉保持列表展开；收回按钮关闭全部脚本运行窗口；箭头收起列表，也可在悬浮窗中按 `Esc`。未置顶时，离开列表且未操作脚本窗口会自动收起 |
-| **4 · 快捷运行** | 普通主题下，无参数且不使用 Android 设备的脚本可直接运行；其他脚本先打开独立窗口配置参数和设备。Decade 主题使用卡包展示，所有脚本都先打开运行卡片，再点击运行 |
+<table width="100%">
+<tr>
+<td width="32%" valign="top">
+<a href="docs/screenshots/floating-launcher-annotated.png"><img src="docs/screenshots/floating-launcher-annotated.png" alt="悬浮窗功能标注" width="300"></a>
+</td>
+<td valign="top">
+<p><strong>1 · 头像入口</strong><br>
+点击展开或收起脚本列表，拖动调整垂直位置，程序会记住位置</p>
+<p><strong>2 · 查找脚本</strong><br>
+搜索、筛选和排序脚本，快速找到要执行的操作</p>
+<p><strong>3 · 窗口管理</strong><br>
+图钉保持列表展开；收回按钮关闭全部脚本运行窗口；箭头收起列表，也可在悬浮窗中按 <code>Esc</code>。未置顶时，离开列表且未操作脚本窗口会自动收起</p>
+<p><strong>4 · 快捷运行</strong><br>
+普通主题下，无参数且不使用 Android 设备的脚本可直接运行；其他脚本先打开独立窗口配置参数和设备。Decade 主题使用卡包展示，所有脚本都先打开运行卡片，再点击运行</p>
+</td>
+</tr>
+</table>
 
 不同脚本可分别打开运行窗口，各自保留参数、状态和输出；再次打开同一脚本会激活已有窗口。关闭或收回运行窗口不会停止后台任务，需要停止时使用窗口内的停止按钮。
 
