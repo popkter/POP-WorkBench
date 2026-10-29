@@ -4,13 +4,32 @@ import ctypes
 import sys
 from collections.abc import Sequence
 from ctypes import wintypes
+from math import floor
 
 from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import QCursor, QGuiApplication, QRegion, QWindow
 
 
+def zio_card_geometry(available: QRect, size: QSize, source: QRectF, dock: QRectF) -> QRect:
+    """Align a card above its Dock slot, keeping the whole card in the work area."""
+    margin = min(16, max(0, (min(available.width(), available.height()) - 1) // 2))
+    bounds = available.adjusted(margin, margin, -margin, -margin)
+    dock_top = dock.top() if not dock.isEmpty() else source.top() - 20
+    bottom = min(bounds.bottom() + 1, floor(dock_top) - 16)
+    width = min(size.width(), max(1, bounds.width()))
+    height = min(size.height(), max(1, bottom - bounds.top()))
+    x = max(bounds.left(), min(bounds.right() + 1 - width,
+                               round(source.center().x() - width / 2)))
+    y = max(bounds.top(), bottom - height)
+    return QRect(x, y, width, height)
+
+
 def set_card_flight_layer(window: QWindow, flying: bool) -> None:
     """Keep a flying card above the topmost pack without replacing its HWND."""
+    if not flying and window.flags() & Qt.WindowStaysOnTopHint:
+        # ZIO cards keep their topmost layer after landing. Reapplying HWND_TOPMOST
+        # would also raise this older card over a newer card that is still scanning.
+        return
     if sys.platform != "win32":
         if flying:
             window.raise_()

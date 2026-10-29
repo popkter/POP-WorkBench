@@ -5,7 +5,22 @@ from poptools.infrastructure.window_placement import (
     card_flight_geometry,
     card_pack_mask,
     staggered_position,
+    zio_card_geometry,
 )
+
+
+@pytest.mark.parametrize("available", [QRect(0, 0, 1920, 1040),
+                                       QRect(-1920, -300, 1920, 1040), QRect(20, 10, 600, 500)])
+@pytest.mark.parametrize("slot", [0.05, 0.5, 0.95])
+def test_zio_cards_align_with_slot_and_stay_above_dock(available, slot):
+    dock = QRectF(available.x() + 16, available.bottom() - 223, available.width() - 32, 208)
+    source = QRectF(available.x() + available.width() * slot - 36, dock.y() + 58, 72, 104)
+    card = zio_card_geometry(available, QSize(314, 486), source, dock)
+    assert available.contains(card)
+    assert card.bottom() < dock.top() - 15
+    expected_x = round(source.center().x() - card.width() / 2)
+    assert card.x() == max(available.x() + 16,
+                           min(available.right() - 15 - card.width(), expected_x))
 
 
 @pytest.mark.parametrize("offset", [QPoint(0, 0), QPoint(-1920, -400)])

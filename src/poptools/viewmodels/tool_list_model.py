@@ -174,6 +174,7 @@ class ToolListModel(QAbstractListModel):
                 self.endInsertRows()
         self.countChanged.emit()
 
+    @Slot(str)
     def select(self, tool_id: str) -> None:
         if tool_id == self._selected_id:
             return

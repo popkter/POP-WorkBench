@@ -8,6 +8,8 @@ Loader {
     required property var parameter
     required property var controller
     required property var parameterValues
+    readonly property var initialValue: root.parameterValues[root.parameter.id] !== undefined
+        ? root.parameterValues[root.parameter.id] : root.parameter.default
     property bool framed: false
     property bool submitOnEnter: false
     property bool decadeCardLayout: false
@@ -65,7 +67,7 @@ Loader {
             readonly property bool pathPickerVisible:
                 root.parameter.kind === "file"
                 || root.parameter.kind === "directory"
-            text: String(root.parameter.default ?? "")
+            text: String(root.initialValue ?? "")
             placeholderText: root.parameter.placeholder || ""
             color: Theme.textPrimary
             font.pixelSize: Theme.fontBody
@@ -142,7 +144,7 @@ Loader {
         TextArea {
             id: parameterTextArea
             Accessible.name: root.parameter.label
-            text: String(root.parameter.default ?? "")
+            text: String(root.initialValue ?? "")
             placeholderText: root.parameter.placeholder || ""
             color: Theme.textPrimary
             font.pixelSize: Theme.fontBody
@@ -181,7 +183,7 @@ Loader {
             }
             model: choiceOptions
             currentIndex: {
-                const expected = String(root.parameter.default ?? "")
+                const expected = String(root.initialValue ?? "")
                 for (let index = 0; index < choiceOptions.length; index++) {
                     if (String(choiceControl.optionValue(index)) === expected)
                         return index
@@ -202,7 +204,7 @@ Loader {
         id: radioField
         ParameterRadioGroup {
             options: root.parameter.options || []
-            currentValue: String(root.parameter.default ?? "")
+            currentValue: String(root.initialValue ?? "")
             onValueChanged: function(value) {
                 root.parameterValues[root.parameter.id] = value
             }
@@ -214,8 +216,8 @@ Loader {
         AppCheckBox {
             text: root.framed || root.decadeCardLayout ? (checked ? "已启用" : "未启用") : ""
             Accessible.name: root.parameter.label
-            checked: root.parameter.default === true
-                || String(root.parameter.default).toLowerCase() === "true"
+            checked: root.initialValue === true
+                || String(root.initialValue).toLowerCase() === "true"
             onToggled: root.parameterValues[root.parameter.id] = checked
             Component.onCompleted: root.parameterValues[root.parameter.id] = checked
         }

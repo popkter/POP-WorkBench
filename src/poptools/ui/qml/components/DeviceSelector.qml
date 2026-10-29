@@ -123,12 +123,19 @@ Column {
         }
         Image {
             objectName: "decadeDeviceCamera"
-            visible: root.iconOnly
+            visible: root.iconOnly && !Theme.zioMode
             anchors.centerIn: parent
             width: 27; height: 29
             source: "../../../resources/icons/decade-camera.svg"
             sourceSize: Qt.size(width, height)
             smooth: true
+        }
+        ZioDial {
+            objectName: "zioDeviceDial"
+            visible: root.iconOnly && Theme.zioMode
+            anchors.centerIn: parent
+            width: 27; height: 27
+            highlighted: selectorMouse.containsMouse || root.popupVisible
         }
         MouseArea {
             id: selectorMouse

@@ -192,7 +192,7 @@ class SettingsController(QObject):
 
     @Property(bool, notify=themeChanged)
     def darkTheme(self) -> bool:
-        if self._theme_mode in ("dark", "decade"):
+        if self._theme_mode in ("dark", "decade", "zio"):
             return True
         if self._theme_mode == "light":
             return False

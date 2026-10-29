@@ -11,10 +11,10 @@ Rectangle {
     property rect packPort: Qt.rect(0, 0, 0, 0)
     property rect packPortOrigin: Qt.rect(0, 0, 0, 0)
     readonly property color accent: Theme.primary
-    radius: Theme.decadeCardRadius * width / 440
-    color: Theme.decadeCardSurface
+    radius: Theme.zioMode ? Math.max(4, Theme.decadeCardRadius * width / 440) : Theme.decadeCardRadius * width / 440
+    color: Theme.zioMode && width < 120 ? Theme.decadeCardBackFill : Theme.decadeCardSurface
     border.color: root.accent
-    border.width: Theme.decadeCardBorderWidth * width / 440
+    border.width: Theme.zioMode ? Math.max(1.2, Theme.decadeCardBorderWidth * width / 440) : Theme.decadeCardBorderWidth * width / 440
     clip: true
     function attachTo(host) {
         parent = host
@@ -28,6 +28,7 @@ Rectangle {
 
     // One design coordinate system keeps the pack face and flying face identical.
     Item {
+        visible: !Theme.zioMode
         width: 432
         height: root.height / scale
         scale: root.width > 0 ? root.width / width : 1
@@ -57,5 +58,20 @@ Rectangle {
             height: Theme.borderWidthThin
             color: Theme.decadeCounterBorder
         }
+    }
+    Text {
+        visible: Theme.zioMode
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: parent.width * 0.08
+        text: root.cardTitle
+        color: Theme.textPrimary
+        font.pixelSize: Math.max(10, 18 * parent.width / 440)
+        font.weight: Font.DemiBold
+        horizontalAlignment: Text.AlignHCenter
+        maximumLineCount: 2
+        wrapMode: Text.Wrap
+        elide: Text.ElideRight
     }
 }

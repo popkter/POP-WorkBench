@@ -6,6 +6,7 @@ Rectangle {
     id: root
     property string text: "运行"
     property string iconName: "play_arrow"
+    property Component iconComponent: null
     property bool tonal: false
     property bool compact: false
     property bool showHoverTips: compact
@@ -56,10 +57,17 @@ Rectangle {
         spacing: root.contentSpacing
         MaterialIcon {
             id: buttonIcon
-            visible: root.iconName.length > 0
+            visible: root.iconName.length > 0 && !root.iconComponent
             icon: root.iconName
             iconSize: root.glyphSize
             color: root.contentColor
+        }
+        Loader {
+            Layout.preferredWidth: root.glyphSize
+            Layout.preferredHeight: root.glyphSize
+            visible: root.iconComponent !== null
+            active: visible
+            sourceComponent: root.iconComponent
         }
         Text {
             id: buttonLabel

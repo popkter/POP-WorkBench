@@ -7,6 +7,7 @@ Item {
     visible: false
     property var faces: ({})
     property var borrowed: ({})
+    property int revision: 0
     Component {
         id: faceComponent
         MechanicalCardFace {}
@@ -31,10 +32,14 @@ Item {
         return faces[id] || null;
     }
     function lend(id) {
+        if (borrowed[id]) return;
         borrowed[id] = true;
+        revision++;
     }
     function unlend(id) {
+        if (!borrowed[id]) return;
         delete borrowed[id];
+        revision++;
     }
     function borrow(id) {
         lend(id);

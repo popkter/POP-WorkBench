@@ -14,20 +14,25 @@ Window {
     readonly property var selectedTool: toolController.selectedTool
     property bool ownsController: false
     property rect launchOrigin: Qt.rect(0, 0, 0, 0)
+    property rect launchDockBounds: Qt.rect(0, 0, 0, 0)
     property var prepareReturn: null
     property var dockReturn: null
     property alias cardFace: cardMotion.cardFace
+    property bool zioManaged: false
+    property bool handoffBlocked: false
+    property bool outgoing: false
     property bool returnPending: false
     property bool recallQueued: false
     property bool presented: false
     property bool closing: false
     signal cardPresented(string presentedToolId)
+    signal cardActivated(string activatedToolId)
     readonly property bool keepsFloatingLauncherVisible: true
     readonly property bool entryAnimationRunning: cardMotion.entering
     readonly property bool activationAnimationRunning: cardMotion.activating
     readonly property bool focusScanRunning: cardMotion.focusing
     readonly property bool recycleAnimationRunning: cardMotion.recycling
-    readonly property bool nativeFlightActive: Theme.decadeMode && cardMotion.desktopFlight
+    readonly property bool nativeFlightActive: Theme.mechanicalMode && cardMotion.desktopFlight
     onNativeFlightActiveChanged: if (ownsController && toolController)
         toolController.setCardFlightLayer(nativeFlightActive)
     readonly property rect cardPlacementRect: cardMotion.desktopFlight
@@ -38,6 +43,7 @@ Window {
     signal dismissed(string dismissedToolId)
 
     onClosing: {
+        if (closing) return
         closing = true
         // Hide with the docking mask intact. finish() restores the normal
         // surface/mask and must not expose a closing full-size native window.
@@ -58,11 +64,15 @@ Window {
     function notifyPresented() {
         if (visible && !closing) cardPresented(toolId)
     }
-    onActiveChanged: if (active) Qt.callLater(showFocusFeedback)
+    onActiveChanged: if (active) {
+        Qt.callLater(showFocusFeedback)
+        if (toolId.length > 0 && !outgoing && !closing) cardActivated(toolId)
+    }
     Component.onDestruction: {
         if (ownsController && toolController)
             toolController.dispose()
     }
+    property var initialParameterValues: null
     property var parameterValues: ({})
     property var presetUtilities
     property var deviceController
@@ -85,9 +95,19 @@ Window {
                                     : presetMode ? 560 : 600, Screen.height - 48)
     visible: false
     flags: Qt.Window | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
+        | (Theme.zioMode && customScriptMode ? Qt.WindowStaysOnTopHint : 0)
     color: "transparent"
     onVisibleChanged: if (!visible) cardMotion.finish()
     onVisibilityChanged: if (root.visibility === Window.Minimized) cardMotion.finish()
+
+    function settleCard() {
+        returnPending = false
+        cardMotion.finish()
+    }
+    function placeZioCard(origin, dockBounds) {
+        cardMotion.finish()
+        if (ownsController && customScriptMode) toolController.placeZioCard(origin, dockBounds)
+    }
 
     function centerOnScreen() {
         x = Screen.virtualX + Math.round((Screen.width - width) / 2)
@@ -95,6 +115,7 @@ Window {
     }
 
     function showWithTool(tid) {
+        const initialValues = initialParameterValues
         closing = false
         presented = false
         formLoader.active = true
@@ -111,17 +132,20 @@ Window {
         var tool = root.selectedTool
         var parameters = tool.parameters || []
         for (var i = 0; i < parameters.length; i++)
-            values[parameters[i].id] = parameters[i].default
+            values[parameters[i].id] = initialValues && initialValues[parameters[i].id] !== undefined
+                ? initialValues[parameters[i].id] : parameters[i].default
         parameterValues = values
         formLoader.setSource(Qt.resolvedUrl("RecentToolContent.qml"), {dialog: root})
-        if (customScriptMode && Theme.decadeMode
+        if (customScriptMode && Theme.mechanicalMode
                 && launchOrigin.width > 0 && launchOrigin.height > 0) {
-            var geometry = session.prepareCardFlight(launchOrigin, cardFace !== null)
+            var geometry = session.prepareCardFlight(launchOrigin, cardFace !== null,
+                Theme.zioMode ? "zio" : "decade", launchDockBounds)
             if (geometry.width > 0) {
                 // Move this execution window itself. Its size, native surface and
                 // live form stay unchanged from the first frame through the scan.
                 cardMotion.prepareFlight(geometry)
                 visible = true
+                if (Theme.zioMode) raise()
                 requestActivate()
                 return
             }
@@ -140,7 +164,7 @@ Window {
     }
 
     function activateFromTitle() {
-        if (Theme.decadeMode && customScriptMode && visible && !closing
+        if (Theme.mechanicalMode && customScriptMode && visible && !closing
                 && !cardMotion.recycling)
             activateCard()
     }
@@ -171,7 +195,7 @@ Window {
             dismissCard()
             return
         }
-        if (!Theme.decadeMode) {
+        if (!Theme.mechanicalMode) {
             cardMotion.fadeOut()
             return
         }
@@ -190,11 +214,11 @@ Window {
 
     function startCardReturn(origin) {
         returnPending = false
-        if (!Theme.decadeMode) {
+        if (!Theme.mechanicalMode) {
             cardMotion.fadeOut()
             return
         }
-        const geometry = toolController.prepareCardReturn(origin, dockReturn !== null)
+        const geometry = toolController.prepareCardReturn(origin, dockReturn !== null, Theme.zioMode ? "zio" : "decade")
         if (geometry.width > 0)
             cardMotion.recycle(geometry)
         else
@@ -202,6 +226,7 @@ Window {
     }
 
     function dismissCard() {
+        if (closing) return
         if (visible) {
             close()
         } else {
@@ -248,9 +273,9 @@ Window {
             root.toolController.moveCard(globalX, globalY, packBounds, packOpening)
         }
         onRecycled: {
-            if (Theme.decadeMode && root.dockReturn && cardFace) {
+            if (Theme.mechanicalMode && root.dockReturn && cardFace) {
                 const face = releaseFace()
-                root.dockReturn(root.toolId, face, function() { if (root) root.close() })
+                root.dockReturn(root.toolId, face, function() { if (root && !root.closing) root.close() })
             } else {
                 root.close()
             }
@@ -261,7 +286,7 @@ Window {
     MouseArea {
         anchors.fill: parent
         z: 1
-        visible: root.returnPending || cardMotion.entering || cardMotion.activating || cardMotion.recycling
+        visible: root.handoffBlocked || root.outgoing || root.returnPending || cardMotion.entering || cardMotion.activating || cardMotion.recycling
         acceptedButtons: Qt.AllButtons
         onWheel: function(wheel) { wheel.accepted = true }
     }
@@ -270,7 +295,7 @@ Window {
         id: scaledForm
         // Warm the form shortly before the scan, rather than redraw it behind
         // an opaque, rotating card in every window throughout the flight.
-        visible: !Theme.decadeMode || (!cardMotion.entering && !cardMotion.recycling)
+        visible: !Theme.mechanicalMode || (!cardMotion.entering && !cardMotion.recycling)
             || cardMotion.scan > 0
             || (cardMotion.entering && cardMotion.progress
                 >= cardMotion.scanStartDuration / cardMotion.flightDuration - .05)
@@ -285,6 +310,6 @@ Window {
         objectName: "recentToolFormLoader"
         parent: scaledForm
         anchors.fill: parent
-        asynchronous: Theme.decadeMode && root.customScriptMode
+        asynchronous: Theme.mechanicalMode && root.customScriptMode
     }
 }

@@ -48,6 +48,7 @@ Item {
     readonly property int scanStartDuration: travelDuration + entrySpinDuration
     readonly property int flightDuration: scanStartDuration + scanDuration
     property var flightGeometry: null
+    readonly property bool dockFlight: desktopFlight && flightGeometry.layout === "zio"
     property bool prepared: false
     property bool contentReady: true
     property bool waitingForContent: false
@@ -64,19 +65,19 @@ Item {
     property rect portSource: Qt.rect(0, 0, 0, 0)
     readonly property bool portFlight: desktopFlight && flightGeometry.preserveSource && portBounds.height > 0
     readonly property bool sleeveFlight: desktopFlight && flightGeometry.preserveSource && isFinite(packTop)
-    readonly property bool mechanicalEnabled: Theme.decadeMode
+    readonly property bool mechanicalEnabled: Theme.mechanicalMode
     property real fadeOpacity: 1
     readonly property bool desktopFlight: flightGeometry !== null
     readonly property bool entering: prepared || entry.running || fadeEntry.running
     readonly property bool activating: activation.running
     readonly property bool focusing: focusScanAnimation.running
     readonly property bool recycling: returning
-    readonly property real displayedSpinAngle: entering && entrySpinEnabled
+    readonly property real displayedSpinAngle: Theme.zioMode ? 0 : entering && entrySpinEnabled
         ? 360 * easeInOut(phase(travelDuration / flightDuration, scanStartDuration / flightDuration))
         : spinAngle
     readonly property bool activationBack: (activating || entering)
         && displayedSpinAngle > 90 && displayedSpinAngle < 270
-    readonly property color accent: "#F12786"
+    readonly property color accent: Theme.primary
     readonly property real draw: easeOut(phase(0, 0.38))
     readonly property real turn: easeOut(phase(0.12, 0.62))
     readonly property real flightProgress: returning ? 1 - returnProgress
@@ -90,20 +91,22 @@ Item {
         : phase(scanStartDuration / flightDuration, 1)
     readonly property real initialScale: desktopFlight
         ? Math.min(flightGeometry.sourceWidth / width, flightGeometry.sourceHeight / height) : 1
-    readonly property real initialScaleX: portFlight ? flightGeometry.sourceWidth / width : initialScale
-    readonly property real initialScaleY: portFlight ? flightGeometry.sourceHeight / height : initialScale
+    readonly property real initialScaleX: portFlight || dockFlight ? flightGeometry.sourceWidth / width : initialScale
+    readonly property real initialScaleY: portFlight || dockFlight ? flightGeometry.sourceHeight / height : initialScale
     readonly property real portScale: portFlight && portSource.width > 0
         ? Math.min(portSource.width / width, portSource.height / height) : initialScale
     readonly property real portAlignment: Math.min(1, travel / .2)
-    readonly property real flightScaleX: portFlight
+    readonly property real flightScaleX: dockFlight
+        ? initialScaleX + (1 - initialScaleX) * travel : portFlight
         ? initialScaleX + (portScale - initialScaleX) * portAlignment + (1 - portScale) * freeTravel
         : initialScale + (1 - initialScale) * freeTravel
-    readonly property real flightScale: portFlight
+    readonly property real flightScale: dockFlight
+        ? initialScaleY + (1 - initialScaleY) * travel : portFlight
         ? initialScaleY + (portScale - initialScaleY) * portAlignment + (1 - portScale) * freeTravel
         : initialScale + (1 - initialScale) * freeTravel
     readonly property real faceAspectCompensation: desktopFlight && flightScale > 0
         ? flightScaleX / flightScale : 1
-    readonly property real flightTilt: desktopFlight
+    readonly property real flightTilt: !Theme.zioMode && desktopFlight
         ? (flightGeometry.preserveSource || flightGeometry.targetX < flightGeometry.sourceX ? -1 : 1)
             * 8 * Math.sin(Math.PI * (sleeveFlight ? freeTravel : flightProgress)) : 0
     readonly property real radians: flightTilt * Math.PI / 180
@@ -228,16 +231,18 @@ Item {
         const tick = returning ? 1 - returnProgress : phase(0, travelDuration / flightDuration)
         const eased = travelAt(tick)
         const free = sleeveFlight ? Math.max(0, (eased - .5) * 2) : eased
-        const angle = 8 * Math.sin(Math.PI * (sleeveFlight ? free : tick)) * Math.PI / 180
+        const angle = (Theme.zioMode ? 0 : 8) * Math.sin(Math.PI * (sleeveFlight ? free : tick)) * Math.PI / 180
         const startScale = Math.min(g.sourceWidth / width, g.sourceHeight / height)
         const gateScale = portFlight && portSource.width > 0
             ? Math.min(portSource.width / width, portSource.height / height) : startScale
         const alignment = Math.min(1, eased / .2)
-        const scale = portFlight
+        const scale = dockFlight
+            ? g.sourceHeight / height + (1 - g.sourceHeight / height) * eased : portFlight
             ? g.sourceHeight / height + (gateScale - g.sourceHeight / height) * alignment
                 + (1 - gateScale) * free
             : startScale + (1 - startScale) * free
-        const scaleX = portFlight
+        const scaleX = dockFlight
+            ? g.sourceWidth / width + (1 - g.sourceWidth / width) * eased : portFlight
             ? g.sourceWidth / width + (gateScale - g.sourceWidth / width) * alignment
                 + (1 - gateScale) * free : scale
         const rotatedWidth = scaleX * width * Math.abs(Math.cos(angle))
@@ -248,6 +253,13 @@ Item {
         const bounce = 1 - 0.008 * Math.sin(Math.PI * Math.max(0, (tick - .85) / .15))
         const footprintWidth = rotatedWidth * fitting * bounce
         const footprintHeight = rotatedHeight * fitting * bounce
+        if (dockFlight) {
+            const centerX = fromX + (toX - fromX) * eased
+            const centerY = fromY + (toY - fromY) * eased - 24 * Math.sin(Math.PI * tick)
+            positionRequested(g.x + centerX - width / 2, g.y + centerY - height / 2,
+                              Qt.rect(0, 0, 0, 0), Qt.rect(0, 0, 0, 0))
+            return
+        }
         if (g.preserveSource) {
             const point = packFlightPoint(eased)
             if (sleeveFlight && eased > .5) {
@@ -290,7 +302,7 @@ Item {
         portBounds = cardFace ? cardFace.packPort : Qt.rect(0, 0, 0, 0)
         portSource = cardFace ? cardFace.packPortOrigin : Qt.rect(0, 0, 0, 0)
         ensureFace()
-        entrySpinEnabled = true
+        entrySpinEnabled = !Theme.zioMode
         flightGeometry = geometry
         progress = 0
         prepared = true
@@ -358,7 +370,9 @@ Item {
         if (activating)
             return
         finish()
-        if (mechanicalEnabled) {
+        if (Theme.zioMode) {
+            focusScanAnimation.start()
+        } else if (mechanicalEnabled) {
             // The entry already mounted the face. A flip changes only visual
             // properties; it must not create or reparent the active card.
             activation.start()
@@ -475,11 +489,11 @@ Item {
             Rotation {
                 origin.x: card.width / 2; origin.y: card.height / 2
                 axis { x: 0; y: 1; z: 0 }
-                angle: root.desktopFlight ? 0 : -72 * (1 - root.turn)
+                angle: root.desktopFlight || Theme.zioMode ? 0 : -72 * (1 - root.turn)
             },
             Rotation {
                 origin.x: card.width / 2; origin.y: card.height / 2
-                angle: root.desktopFlight ? root.flightTilt : -6 * (1 - root.draw)
+                angle: Theme.zioMode ? 0 : root.desktopFlight ? root.flightTilt : -6 * (1 - root.draw)
             },
             Translate {
                 x: root.desktopFlight ? 0 : card.width * 0.10 * (1 - root.draw)
@@ -541,13 +555,13 @@ Item {
                         || (root.activating && root.spinAngle >= 360)
                         ? Math.sin(Math.PI * root.scan) * 0.95 : 0
                     gradient: Gradient {
-                        GradientStop { position: 0; color: "#00F12786" }
-                        GradientStop { position: 0.18; color: "#04F12786" }
-                        GradientStop { position: 0.38; color: "#20F12786" }
-                        GradientStop { position: 0.52; color: "#65F12786" }
-                        GradientStop { position: 0.62; color: "#55FA9AC5" }
-                        GradientStop { position: 0.78; color: "#20F12786" }
-                        GradientStop { position: 1; color: "#00F12786" }
+                        GradientStop { position: 0; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0) }
+                        GradientStop { position: 0.18; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.016) }
+                        GradientStop { position: 0.38; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.125) }
+                        GradientStop { position: 0.52; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.396) }
+                        GradientStop { position: 0.62; color: Qt.rgba(Theme.primaryText.r, Theme.primaryText.g, Theme.primaryText.b, 0.333) }
+                        GradientStop { position: 0.78; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.125) }
+                        GradientStop { position: 1; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0) }
                     }
                 }
                 Rectangle {

@@ -1682,7 +1682,12 @@ Item {
         title_search.setProperty("text", "Theme card 1")
         qtbot.waitUntil(lambda: controller.toolsModel.count == 1)
         assert scripts.property("searchQuery") == "Theme card 1"
-        title_search.setProperty("text", "")
+        clear = title_search.findChild(QObject, "floatingTitleSearchClearButton")
+        assert clear.isVisible()
+        point = clear.mapToItem(panel.contentItem(), clear.boundingRect().center()).toPoint()
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point)
+        assert title_search.property("text") == "" and not clear.isVisible()
+        assert title_search.hasActiveFocus()
         qtbot.waitUntil(lambda: controller.toolsModel.count == 2)
         QMetaObject.invokeMethod(root, "dock", Q_ARG("QVariant", tools[0].id))
         assert faces[tools[0].id].window() is panel
@@ -2409,10 +2414,17 @@ Item {
         script_list = root.findChild(QObject, "floatingScriptList")
         assert script_list.property("visibleCount") == 18
         search = root.findChild(QObject, "scriptListSearch")
+        clear = search.findChild(QObject, "scriptListSearchClearButton")
+        assert not clear.isVisible()
         search.setProperty("text", "脚本 01")
         qtbot.waitUntil(lambda: controller.toolsModel.count == 1)
         assert script_list.property("visibleCount") == 1
-        search.setProperty("text", "")
+        assert clear.isVisible()
+        point = clear.mapToItem(panel.contentItem(), clear.boundingRect().center()).toPoint()
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point)
+        qtbot.waitUntil(lambda: controller.toolsModel.count == 18)
+        assert search.property("text") == "" and not clear.isVisible()
+        assert search.hasActiveFocus()
         # Mouse coordinates come from the actual delegate before drawer collapse.
         def visual_items(item):
             yield item

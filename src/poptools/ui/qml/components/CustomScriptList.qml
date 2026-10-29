@@ -13,6 +13,7 @@ Item {
     property bool quickLaunch: false
     property bool showSearchAndFilters: true
     onShowSearchAndFiltersChanged: if (!showSearchAndFilters) kindFilter = "all"
+    property alias cardStore: sharedCards
     property bool continuousRecall: false
     property string keyboardToolId: ""
     readonly property bool deckMode: quickLaunch && Theme.decadeMode
@@ -40,14 +41,14 @@ Item {
         sharedCards.unlend(id);
     }
     function returnCardRect(id) {
-        return collectionView.returnCardRect(id);
+        return collectionView ? collectionView.returnCardRect(id) : Qt.rect(0, 0, 0, 0);
     }
     function dockCardFace(id, face) {
         if (!face)
             return;
         sharedCards.accept(id, face);
         controller.setCardOpen(id, false);
-        collectionView.dockCardFace(id, face);
+        if (collectionView) collectionView.dockCardFace(id, face);
     }
     function activateTool(id, row) {
         collectionView.activateTool(id, row);
@@ -120,7 +121,8 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 36
             leftPadding: 42
-            rightPadding: 14
+            baseRightPadding: 14
+            clearButtonEnabled: root.quickLaunch
             placeholderText: "搜索名称、说明或标签..."
             text: root.searchQuery
             color: Theme.textPrimary

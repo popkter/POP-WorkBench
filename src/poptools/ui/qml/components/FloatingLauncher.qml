@@ -13,18 +13,23 @@ Item {
     property bool continuousRecall: false
     property var pendingReturns: []
     property var pendingDocks: []
+    readonly property var zioDock: zioDockLoader.item
     function takeCardFace(toolId) { return scripts.takeCardFace(toolId) }
     function cancelCardLaunch(toolId) { scripts.cancelCardLaunch(toolId) }
     function dockCardFace(toolId, face, callback) {
-        scripts.dockCardFace(toolId, face)
-        if (!Theme.decadeMode || !panel.visible) {
+        if (Theme.zioMode && zioDock)
+            zioDock.dockCardFace(toolId, face)
+        else
+            scripts.dockCardFace(toolId, face)
+        if (!Theme.mechanicalMode || !(Theme.zioMode ? zioDock && zioDock.dockWindow.visible : panel.visible)) {
             callback()
             return
         }
         // Close the old surface only after the pack has presented the same item.
         pendingDocks.push(callback)
         dockDeadline.restart()
-        panel.update()
+        if (Theme.zioMode && zioDock) zioDock.dockWindow.update()
+        else panel.update()
     }
     function finishCardDocks() {
         dockDeadline.stop()
@@ -54,10 +59,11 @@ Item {
             root.pendingReturns = []
             for (let request of pending) {
                 request.attempts++
-                if ((panel.revealProgress === 1 && panel.visible
-                        && (root.continuousRecall || !scripts.layoutSettling))
+                if (((Theme.zioMode ? zioDock && zioDock.dockWindow.revealProgress === 1 && zioDock.dockWindow.visible
+                        : panel.revealProgress === 1 && panel.visible
+                        && (root.continuousRecall || !scripts.layoutSettling)))
                         || request.attempts > 30)
-                    request.callback(scripts.returnCardRect(request.toolId))
+                    request.callback(Theme.zioMode && zioDock ? zioDock.cardRect(request.toolId) : scripts.returnCardRect(request.toolId))
                 else
                     root.pendingReturns.push(request)
             }
@@ -66,23 +72,52 @@ Item {
         }
     }
 
+    function cardOrigin(toolId) {
+        return Theme.zioMode && zioDock ? zioDock.cardRect(toolId) : controller.cardLaunchOrigin(toolId)
+    }
+    function dockBounds() {
+        if (!zioDock) return Qt.rect(0, 0, 0, 0)
+        const dock = zioDock.dockWindow
+        return Qt.rect(dock.x, dock.y, dock.width, dock.height)
+    }
+    function attachThemeWindow() {
+        if (Theme.zioMode) {
+            if (!zioDock) return
+            panelSlide.stop()
+            controller.attachDockWindow(zioDock.dockWindow, zioDock.preferredWidth, zioDock.preferredHeight)
+            zioDock.syncProgress()
+        } else {
+            controller.attachDrawerWindow(panel, Theme.floatingTipWidth, Theme.floatingTipHeight,
+                Theme.floatingPanelWidth, Theme.floatingPanelHeight)
+            panel.updateReveal()
+            controller.setDrawerProgress(panel.revealProgress)
+        }
+    }
     Component.onCompleted: {
-        controller.attachDrawerWindow(panel, Theme.floatingTipWidth, Theme.floatingTipHeight,
-            Theme.floatingPanelWidth, Theme.floatingPanelHeight);
-        attached = true;
-        panel.updateReveal();
+        attached = true
+        attachThemeWindow()
     }
     Connections {
         target: Theme
-        function onFloatingPanelWidthChanged() {
-            if (root.attached)
-                root.controller.attachDrawerWindow(panel, Theme.floatingTipWidth,
-                    Theme.floatingTipHeight, Theme.floatingPanelWidth, Theme.floatingPanelHeight)
-        }
-        function onFloatingPanelHeightChanged() {
-            if (root.attached)
-                root.controller.attachDrawerWindow(panel, Theme.floatingTipWidth,
-                    Theme.floatingTipHeight, Theme.floatingPanelWidth, Theme.floatingPanelHeight)
+        function onZioModeChanged() { if (root.attached) root.attachThemeWindow() }
+        function onFloatingPanelWidthChanged() { if (root.attached && !Theme.zioMode) root.attachThemeWindow() }
+        function onFloatingPanelHeightChanged() { if (root.attached && !Theme.zioMode) root.attachThemeWindow() }
+    }
+    Loader {
+        id: zioDockLoader
+        active: Theme.zioMode
+        onLoaded: if (root.attached) root.attachThemeWindow()
+        sourceComponent: ZioDock {
+            controller: root.controller
+            cardStore: scripts.cardStore
+            searchQuery: root.searchQuery
+            onSearchEdited: function(query) {
+                root.searchQuery = query
+                root.controller.setToolSearchQuery(query)
+            }
+            onPreferredWidthChanged: if (root.attached && Theme.zioMode) root.attachThemeWindow()
+            onFramePresented: if (root.pendingDocks.length > 0) root.finishCardDocks()
+            onRecallRequested: root.controller.recallAllCards()
         }
     }
 
@@ -97,7 +132,7 @@ Item {
         property real revealProgress: 0
         property bool pendingMaskSettlement: false
         property bool dragMaskActive: false
-        visible: root.attached && root.controller.visible
+        visible: root.attached && root.controller.visible && !Theme.zioMode
         flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
         color: "transparent"
         palette.text: Theme.textPrimary
@@ -117,7 +152,7 @@ Item {
         }
 
         function updateReveal() {
-            if (!root.attached)
+            if (!root.attached || Theme.zioMode)
                 return;
             const requested = root.controller.visible && root.controller.expanded;
             if (!requested)
@@ -144,6 +179,7 @@ Item {
         Connections {
             target: root.controller
             function onStateChanged() {
+                if (Theme.zioMode) return;
                 if (root.controller.dragging) {
                     panel.dragMaskActive = true;
                     panel.pendingMaskSettlement = false;
@@ -165,6 +201,7 @@ Item {
             property: "revealProgress"
             duration: Theme.motionStandard
             onRunningChanged: {
+                if (Theme.zioMode) return;
                 if (running) {
                     panel.pendingMaskSettlement = false;
                     root.controller.setDrawerAnimating(true);
@@ -314,7 +351,8 @@ Item {
                             Layout.minimumWidth: 0
                             Layout.preferredHeight: Theme.controlHeightSmall
                             leftPadding: 30
-                            rightPadding: Theme.space8
+                            baseRightPadding: Theme.space8
+                            clearButtonEnabled: true
                             placeholderText: "搜索脚本..."
                             text: root.searchQuery
                             color: Theme.textPrimary

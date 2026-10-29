@@ -49,7 +49,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 TOOL_SORT_MODES = ("added_time", "name", "usage", "custom")
-THEME_MODES = ("system", "light", "dark", "decade")
+THEME_MODES = ("system", "light", "dark", "decade", "zio")
 THEME_STYLE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 LOCAL_SCRIPT_ENTRIES = ("tools", "scripts")
 
@@ -369,6 +369,18 @@ class ConfigStore:
         config["app"]["floating_launcher_position"] = {
             "screen": screen, "vertical_ratio": vertical_ratio,
         }
+        self.save_config(config)
+
+    def floating_dock_screen(self) -> str:
+        app = self.load_config().get("app", {})
+        value = app.get("floating_dock_screen", "") if isinstance(app, dict) else ""
+        return value if isinstance(value, str) else ""
+
+    def set_floating_dock_screen(self, screen: str) -> None:
+        config = self.load_config()
+        if not isinstance(config.get("app"), dict):
+            config["app"] = {}
+        config["app"]["floating_dock_screen"] = screen
         self.save_config(config)
 
     def terminal_enabled(self) -> bool:

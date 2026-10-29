@@ -31,12 +31,22 @@ def edge_geometry(
     return notch, QRect(notch.x() - panel_width, panel_y, panel_width, panel_height)
 
 
+def dock_geometry(available: QRect, size: tuple[int, int]) -> QRect:
+    """A centered bottom Dock inside the work area, in logical coordinates."""
+    margin = min(16, max(0, (min(available.width(), available.height()) - 1) // 2))
+    width = min(size[0], max(1, available.width() - margin * 2))
+    height = min(size[1], max(1, available.height() - margin * 2))
+    return QRect(available.x() + (available.width() - width) // 2,
+                 available.y() + available.height() - margin - height, width, height)
+
+
 class FloatingLauncherController(QObject):
     stateChanged = Signal()
     settingsRequested = Signal()
     toolSortModeChanged = Signal()
     drawerGeometryChanged = Signal()
     cardsChanged = Signal()
+    dockScreenChanged = Signal()
     recallAllCardsRequested = Signal()
 
     def __init__(
@@ -50,12 +60,15 @@ class FloatingLauncherController(QObject):
         self._main_window: QWindow | None = None
         self._notch: QWindow | None = None
         self._panel: QWindow | None = None
+        self._dock_mode = False
+        self._dock_screen_geometry: tuple[str, QRect] | None = None
         self._drawer_mode = False
         self._drawer_progress = 0.0
         self._drawer_animating = False
         self._drawer_tip_offset = 0
         self._screen: QScreen | None = None
         self._screen_name, self._ratio = settings.config_store.floating_launcher_position()
+        self._dock_screen_name = settings.config_store.floating_dock_screen()
         self._notch_size = (44, 108)
         self._panel_size = (360, 480)
         self._visible = False
@@ -96,6 +109,7 @@ class FloatingLauncherController(QObject):
         self._tools_refresh_timer = QTimer(self)
         self._tools_refresh_timer.setSingleShot(True)
         self._tools_refresh_timer.timeout.connect(self.refreshTools)
+        self._model.countChanged.connect(self.reposition)
         app_controller.customToolsChanged.connect(self._schedule_tools_refresh)
         app_controller.toolSortModeChanged.connect(self.toolSortModeChanged)
         coordinator = app_controller.execution_coordinator
@@ -112,6 +126,10 @@ class FloatingLauncherController(QObject):
     @Property("QStringList", notify=cardsChanged)
     def returningCardIds(self) -> list[str]:
         return sorted(self._returning_cards)
+
+    @Property("QStringList", notify=cardsChanged)
+    def openCardIds(self) -> list[str]:
+        return sorted(self._open_cards)
 
     @Property(int, notify=cardsChanged)
     def openCardCount(self) -> int:
@@ -135,7 +153,7 @@ class FloatingLauncherController(QObject):
 
     @Slot(str, result=bool)
     def beginCardReturn(self, tool_id: str) -> bool:
-        if (self._settings.themeMode != "decade" or not self._visible
+        if (self._settings.themeMode not in ("decade", "zio") or not self._visible
                 or tool_id not in self._open_cards):
             return False
         self._returning_cards.add(tool_id)
@@ -205,7 +223,8 @@ class FloatingLauncherController(QObject):
         running = {tool.id for tool in tools
                    if self._backend.execution_coordinator.running(tool.id)
                    or tool.id in self._shortcut_tools}
-        tools.sort(key=lambda tool: tool.id not in running)
+        if self._settings.themeMode != "zio":
+            tools.sort(key=lambda tool: tool.id not in running)
         self._model.set_tools(tools, running_ids=running)
 
     def attach_main_window(self, window: QWindow) -> None:
@@ -220,6 +239,7 @@ class FloatingLauncherController(QObject):
         self, notch: QObject, panel: QObject, width: int, height: int,
         panel_width: int, panel_height: int,
     ) -> None:
+        self._dock_mode = False
         self._drawer_mode = False
         self._notch = cast(QWindow, notch)
         self._panel = cast(QWindow, panel)
@@ -232,16 +252,39 @@ class FloatingLauncherController(QObject):
         self, window: QObject, tip_width: int, tip_height: int,
         panel_width: int, panel_height: int,
     ) -> None:
+        if self._dock_mode:
+            self._drawer_animating = False
+        self._dock_mode = False
+        self._screen = None
         self._drawer_mode = True
         self._notch = self._panel = cast(QWindow, window)
         self._notch_size = (tip_width, tip_height)
         self._panel_size = (panel_width, panel_height)
         self.reposition()
 
+    @Slot(QObject, int, int)
+    def attachDockWindow(self, window: QObject, width: int, height: int) -> None:
+        self._dock_mode = True
+        self._drawer_animating = False
+        self._drawer_mode = False
+        self._notch = self._panel = cast(QWindow, window)
+        self._panel_size = (width, height)
+        self._screen = next((screen for screen in self._app.screens()
+                             if screen.name() == (self._dock_screen_name or self._screen_name)),
+                            self._screen)
+        self.reposition()
+
+    @Slot(result=QRectF)
+    def dockLaunchOrigin(self) -> QRectF:
+        if self._panel is None or not self._dock_mode:
+            return QRectF()
+        geometry = self._panel.geometry()
+        return QRectF(geometry.center().x() - 36, geometry.top() + 20, 72, 104)
+
     @Slot(float)
     def setDrawerProgress(self, progress: float) -> None:
         self._drawer_progress = max(0.0, min(1.0, progress))
-        if self._drawer_mode and not self._drawer_animating:
+        if (self._drawer_mode or self._dock_mode) and not self._drawer_animating:
             self.reposition()
 
     @Slot(bool)
@@ -249,7 +292,7 @@ class FloatingLauncherController(QObject):
         if self._drawer_animating == animating:
             return
         self._drawer_animating = animating
-        if self._drawer_mode:
+        if self._drawer_mode or self._dock_mode:
             self.reposition()
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
@@ -351,7 +394,7 @@ class FloatingLauncherController(QObject):
 
     def _pointer_inside(self) -> bool:
         point = QCursor.pos()
-        if self._drawer_mode and self._panel is not None:
+        if (self._drawer_mode or self._dock_mode) and self._panel is not None:
             return (self._panel.isVisible()
                     and self._panel.mask().contains(point - self._panel.position()))
         return any(window is not None and window.isVisible() and window.geometry().contains(point)
@@ -368,7 +411,7 @@ class FloatingLauncherController(QObject):
     def _collapse_if_outside(self) -> None:
         if self._pinned or self._script_window_active():
             return
-        if self._returning_cards and self._settings.themeMode == "decade":
+        if self._returning_cards and self._settings.themeMode in ("decade", "zio"):
             return
         if not self._dragging and not self._menu_open and not self._pointer_inside():
             self.collapse()
@@ -390,6 +433,12 @@ class FloatingLauncherController(QObject):
 
     @Slot()
     def updateDrag(self) -> None:
+        if self._dragging and self._dock_mode:
+            screen = self._app.screenAt(QCursor.pos())
+            if screen is not None and screen is not self._screen:
+                self._screen = screen
+                self.reposition()
+            return
         if self._dragging and self._notch is not None:
             # Window moves can generate MouseArea events whose local positions
             # still refer to the old geometry. Read an independent screen position.
@@ -411,6 +460,14 @@ class FloatingLauncherController(QObject):
     def endDrag(self) -> None:
         self.updateDrag()
         self._dragging = False
+        if self._dock_mode:
+            self._dock_screen_name = self._screen.name() if self._screen else ""
+            try:
+                self._settings.config_store.set_floating_dock_screen(self._dock_screen_name)
+            except OSError:
+                logger.exception("无法保存腰带 Dock 所在屏幕")
+            self.stateChanged.emit()
+            return
         self._screen_name = self._screen.name() if self._screen else ""
         try:
             self._settings.config_store.set_floating_launcher_position(
@@ -446,7 +503,7 @@ class FloatingLauncherController(QObject):
         if tool is None or tool.section != ToolSection.CUSTOM:
             return
         self._collapse_timer.stop()
-        if self._settings.themeMode == "decade":
+        if self._settings.themeMode in ("decade", "zio"):
             # Every pack card opens its live form, including parameterless scripts.
             # Running remains an explicit action on that form.
             self._backend.recentToolDialogRequested.emit(tool_id)
@@ -500,10 +557,34 @@ class FloatingLauncherController(QObject):
             return
         screens = self._app.screens()
         if self._screen not in screens:
-            self._screen = next((s for s in screens if s.name() == self._screen_name), None)
+            screen_name = (self._dock_screen_name or self._screen_name
+                           if self._dock_mode else self._screen_name)
+            self._screen = next((s for s in screens if s.name() == screen_name), None)
             if self._screen is None:
                 self._screen = self._app.primaryScreen()
         if self._screen is None or self._notch is None or self._panel is None:
+            return
+        if self._dock_mode:
+            screen_geometry = (self._screen.name(), self._screen.availableGeometry())
+            screen_changed = screen_geometry != self._dock_screen_geometry
+            self._dock_screen_geometry = screen_geometry
+            geometry = dock_geometry(screen_geometry[1], self._panel_size)
+            changed = self._panel.geometry() != geometry
+            if changed:
+                self._panel.setGeometry(geometry)
+            # The transparent space above the collapsed buckle must pass input through.
+            diameter = min(48, geometry.width(), geometry.height())
+            mask = QRegion(QRect((geometry.width() - diameter) // 2,
+                                 geometry.height() - diameter, diameter, diameter), QRegion.Ellipse)
+            if self._drawer_progress > 0 or self._drawer_animating:
+                card_width = min(max(88, (geometry.width() - 68) // 84 * 84 + 4),
+                                 max(88, self._model.count * 84 + 4))
+                mask |= QRegion(QRect((geometry.width() - card_width) // 2, 0, card_width, 126))
+                mask |= QRegion(QRect(0, 132, geometry.width(), 40))
+            if self._panel.mask() != mask:
+                self._panel.setMask(mask)
+            if screen_changed:
+                self.dockScreenChanged.emit()
             return
         notch, panel = edge_geometry(
             self._screen.availableGeometry(), self._notch_size, self._panel_size, self._ratio,

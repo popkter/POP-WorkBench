@@ -8,6 +8,7 @@ PrimaryButton {
     required property var controller
     property color backgroundColor: "transparent"
     property color hoverColor: Theme.primaryContainerHover
+    property bool popupAbove: false
     readonly property bool menuOpen: sortPopup.visible
     readonly property var options: [
         { "label": "按添加时间", "value": "added_time", "icon": "schedule" },
@@ -36,13 +37,15 @@ PrimaryButton {
         var point = root.mapToItem(Overlay.overlay, 0, root.height)
         sortPopup.x = Math.max(12, Math.min(point.x + root.width - sortPopup.width,
                                            Overlay.overlay.width - sortPopup.width - 12))
-        sortPopup.y = Math.max(12, Math.min(point.y + 6,
-                                           Overlay.overlay.height - sortPopup.height - 12))
+        sortPopup.y = root.popupAbove ? point.y - root.height - sortPopup.height - 6
+            : Math.max(12, Math.min(point.y + 6,
+                                   Overlay.overlay.height - sortPopup.height - 12))
         sortPopup.open()
     }
 
     Popup {
         id: sortPopup
+        popupType: root.popupAbove ? Popup.Window : Popup.Item
         parent: Overlay.overlay
         width: 188
         height: contentColumn.implicitHeight + 16

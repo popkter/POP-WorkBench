@@ -194,6 +194,13 @@ class AppController(QObject):
         )
         return data
 
+    @Slot(str, result=bool)
+    def isCustomScript(self, tool_id: str) -> bool:
+        tool = self.registry.get(tool_id)
+        return bool(tool is not None and tool.section == ToolSection.CUSTOM
+                    and tool.executor.kind != ExecutorKind.INTERNAL
+                    and not self.execution_coordinator.is_scrcpy(tool))
+
     @Slot(str, result=QObject)
     def createToolSession(self, tool_id: str) -> QObject | None:
         if self.registry.get(tool_id) is None:

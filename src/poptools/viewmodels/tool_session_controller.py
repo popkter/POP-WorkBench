@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Property, QObject, QPoint, QRect, QRectF, Signal, Slot
-from PySide6.QtGui import QRegion, QWindow
+from PySide6.QtGui import QCursor, QGuiApplication, QRegion, QWindow
 from PySide6.QtWidgets import QDialog, QFileDialog
 
 from poptools.infrastructure.card_window_updates import card_window_updates
@@ -12,6 +12,7 @@ from poptools.infrastructure.window_placement import (
     card_pack_mask,
     place_tool_window,
     set_card_flight_layer,
+    zio_card_geometry,
 )
 from poptools.viewmodels.app_controller import _file_picker_start_directory
 
@@ -80,17 +81,29 @@ class ToolSessionController(QObject):
 
     @Slot(QRectF, result="QVariantMap")
     @Slot(QRectF, bool, result="QVariantMap")
-    def prepareCardFlight(self, source: QRectF, preserve_source: bool = False) -> dict[str, Any]:
+    @Slot(QRectF, bool, str, result="QVariantMap")
+    @Slot(QRectF, bool, str, QRectF, result="QVariantMap")
+    def prepareCardFlight(self, source: QRectF, preserve_source: bool = False,
+                          layout: str = "decade", dock: QRectF | None = None) -> dict[str, Any]:
         if self._window is None or source.isEmpty():
             return {}
-        place_tool_window(self._window, source.center().toPoint())
+        if layout == "zio":
+            self.placeZioCard(source, dock)
+        else:
+            place_tool_window(self._window, source.center().toPoint())
         screen = self._window.screen()
-        return card_flight_geometry(source, self._window.geometry(), screen.availableGeometry(),
-                                    preserve_source)
+        geometry: dict[str, Any] = card_flight_geometry(
+            source, self._window.geometry(), screen.availableGeometry(),
+            preserve_source if layout != "zio" else False,
+        )
+        geometry["layout"] = layout
+        return geometry
 
     @Slot(QRectF, result="QVariantMap")
     @Slot(QRectF, bool, result="QVariantMap")
-    def prepareCardReturn(self, source: QRectF, preserve_source: bool = False) -> dict[str, Any]:
+    @Slot(QRectF, bool, str, result="QVariantMap")
+    def prepareCardReturn(self, source: QRectF, preserve_source: bool = False,
+                          layout: str = "decade") -> dict[str, Any]:
         if self._window is None or self._window.screen() is None:
             return {}
         target = self._window.geometry()
@@ -101,7 +114,24 @@ class ToolSessionController(QObject):
             # Cards opened without a list origin fold into their current center.
             center = target.center()
             source = QRectF(center.x() - 20, center.y() - 20, 40, 40)
-        return card_flight_geometry(source, target, available, preserve_source)
+        geometry: dict[str, Any] = card_flight_geometry(source, target, available,
+                                        preserve_source if layout != "zio" else False)
+        geometry["layout"] = layout
+        return geometry
+
+    @Slot(QRectF)
+    @Slot(QRectF, QRectF)
+    def placeZioCard(self, source: QRectF, dock: QRectF | None = None) -> None:
+        if self._window is None:
+            return
+        point = source.center().toPoint() if not source.isEmpty() else QCursor.pos()
+        screen = QGuiApplication.screenAt(point) or self._window.screen()
+        if screen is None:
+            return
+        self._window.setScreen(screen)
+        self._window.setGeometry(zio_card_geometry(
+            screen.availableGeometry(), self._window.size(), source, dock or QRectF(),
+        ))
 
     @Slot(float, float, QRectF, QRectF)
     def moveCard(self, x: float, y: float, pack: QRectF, opening: QRectF) -> None:

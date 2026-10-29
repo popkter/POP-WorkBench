@@ -267,7 +267,8 @@ Rectangle {
                                 {label: "浅色", value: "light", icon: "light_mode"},
                                 {label: "深色", value: "dark", icon: "dark_mode"},
                                 {label: "跟随系统", value: "system", icon: "computer"},
-                                {label: "Decade", value: "decade", icon: "style"}
+                                {label: "Decade", value: "decade", icon: "style"},
+                                {label: "ZIO", value: "zio", icon: "watch"}
                             ]
                             delegate: PrimaryButton {
                                 required property var modelData
@@ -278,6 +279,8 @@ Rectangle {
                                 implicitHeight: 32
                                 text: modelData.label
                                 iconName: modelData.icon
+                                iconComponent: modelData.value === "zio" ? zioThemeIcon : null
+                                Component { id: zioThemeIcon; ZioDial {} }
                                 glyphSize: 18
                                 contentSpacing: Theme.space4
                                 labelFontSize: Theme.fontSupporting
@@ -298,7 +301,7 @@ Rectangle {
                     ToggleRow {
                         objectName: "floatingLauncherToggle"
                         label: "后台悬浮入口"
-                        description: "切换到其他应用时，在屏幕右侧显示快捷入口"
+                        description: Theme.zioMode ? "切换到其他应用时，在屏幕底部显示腰带 Dock" : "切换到其他应用时，在屏幕右侧显示快捷入口"
                         checked: root.controller.floatingLauncherEnabled
                         onToggled: function(value) { root.controller.saveFloatingLauncherEnabled(value) }
                     }

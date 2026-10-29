@@ -10,7 +10,7 @@ Item {
     id: content
     required property var dialog
     property alias workspace: workspaceLoader
-    readonly property bool decadeCard: dialog.customScriptMode && Theme.decadeMode
+    readonly property bool decadeCard: dialog.customScriptMode && Theme.mechanicalMode
     Keys.onEscapePressed: function(event) {
         if (titleDevicePicker.inlineExpanded)
             titleDevicePicker.closeDeviceMenu()
@@ -82,7 +82,7 @@ Item {
                             dialog.startSystemMove()
                         }
                     }
-                    onDoubleClicked: if (dialog.customScriptMode && Theme.decadeMode)
+                    onDoubleClicked: if (dialog.customScriptMode && Theme.mechanicalMode)
                         dialog.queueTitleActivation()
                 }
 
