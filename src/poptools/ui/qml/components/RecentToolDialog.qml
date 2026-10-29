@@ -170,14 +170,14 @@ Window {
     }
 
     function activateCard() {
-        if (closing || returnPending || recallQueued || cardMotion.entering
-                || cardMotion.activating)
+        if (closing || returnPending || recallQueued || cardMotion.recycling
+                || (!Theme.zioMode && (cardMotion.entering || cardMotion.activating)))
             return
         if (visibility === Window.Minimized)
             showNormal()
         raise()
         requestActivate()
-        if (customScriptMode)
+        if (customScriptMode && !cardMotion.entering && !cardMotion.activating)
             cardMotion.activate()
     }
 

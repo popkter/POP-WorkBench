@@ -166,7 +166,7 @@ def settled(card):
 
 
 @pytest.mark.gui
-def test_zio_compact_footer_round_dials_and_sort_popup(zio_app, qapp, qtbot):
+def test_zio_compact_footer_round_dials_and_sort_cycle(zio_app, qapp, qtbot):
     window, controller, backend, _, dock, warnings = zio_app
     for index in range(4):
         create_tool(backend, f"Compact {index}")
@@ -216,23 +216,22 @@ def test_zio_compact_footer_round_dials_and_sort_popup(zio_app, qapp, qtbot):
 
     before = set(qapp.topLevelWindows())
     sort = window.findChild(QObject, "zioDockSort")
-    assert QMetaObject.invokeMethod(sort, "openMenu")
-    qtbot.waitUntil(lambda: sort.property("menuOpen"))
-    qtbot.waitUntil(lambda: any(w.isVisible() for w in set(qapp.topLevelWindows()) - before))
-    popup = next(w for w in set(qapp.topLevelWindows()) - before if w.isVisible())
-    assert popup.y() + popup.height() <= dock.y() + search_rect.top()
+    assert controller.setToolSortMode("added_time")
+    for mode, icon in (("name", "sort_by_alpha"), ("usage", "trending_up"),
+                       ("custom", "drag_indicator"), ("added_time", "schedule")):
+        point = sort.mapToItem(dock.contentItem(), sort.boundingRect().center()).toPoint()
+        QTest.mouseClick(dock, Qt.MouseButton.LeftButton, pos=point)
+        qtbot.waitUntil(lambda expected=mode: controller.toolSortMode == expected)
+        assert sort.property("iconName") == icon
+        assert not sort.property("menuOpen")
+        assert not controller._menu_open
+        assert not any(w.isVisible() for w in set(qapp.topLevelWindows()) - before)
 
     def items(item):
         yield item
         for child in item.childItems():
             yield from items(child)
 
-    option = next(item for item in items(popup.contentItem())
-                  if item.property("text") == "自定义排序")
-    point = option.mapToItem(popup.contentItem(), option.boundingRect().center()).toPoint()
-    QTest.mouseClick(popup, Qt.MouseButton.LeftButton, pos=point)
-    qtbot.waitUntil(lambda: controller.toolSortMode == "custom")
-    assert not sort.property("menuOpen")
     qtbot.waitUntil(lambda: len([item for item in items(dock.contentItem())
         if item.objectName().startswith("deckCard_") and item.isVisible()]) == 4)
     qtbot.wait(50)
@@ -280,6 +279,17 @@ def test_zio_new_card_stays_above_an_older_card_when_its_scan_finishes(zio_app, 
     newer_motion.setProperty("progress", 0.7)
     qtbot.wait(40)
     assert is_above(newer, older)
+    # Dock requests can also raise a card while its original entry is still in progress.
+    backend.recentToolDialogRequested.emit(tools[0].id)
+    qtbot.wait(40)
+    assert is_above(older, newer)
+    assert older.property("entryAnimationRunning")
+    assert older_motion.property("progress") == 0.7
+    backend.recentToolDialogRequested.emit(tools[1].id)
+    qtbot.wait(40)
+    assert is_above(newer, older)
+    assert newer_motion.property("progress") == 0.7
+    assert len(visible_cards(qapp)) == 2
     assert QMetaObject.invokeMethod(older_motion, "finish")
     qtbot.wait(40)
     assert not older.property("entryAnimationRunning")
@@ -568,10 +578,46 @@ def test_zio_multiple_cards_keep_slot_positions_and_restore_parameters(
         assert card.flags() & Qt.WindowType.WindowStaysOnTopHint
         positions.append(card.x())
     assert len(set(positions)) == 4
-    # Repeating a request focuses the same window without creating another card.
-    backend.recentToolDialogRequested.emit(tools[0].id)
+
+    def visual_items(item):
+        yield item
+        for child in item.childItems():
+            yield from visual_items(child)
+
+    # Borrowed slots retain their script identity, with an undimmed running indicator.
+    controller.refreshTools()
+    qtbot.wait(80)
+    previews = {item.objectName().removeprefix("zioBorrowedMiniCard_"): item
+                for item in visual_items(dock.contentItem())
+                if item.objectName().startswith("zioBorrowedMiniCard_")}
+    for index, tool in enumerate(tools):
+        preview = previews[tool.id]
+        assert preview.property("active")
+        face = preview.property("item")
+        assert face.property("cardTitle") == f"Royal {index}"
+        assert face.property("cardIcon") == "terminal"
+        assert 0.4 < preview.opacity() < 0.8
+    assert all(item.property("text") != "已出列" for item in visual_items(dock.contentItem()))
+    indicator = next(item for item in visual_items(dock.contentItem())
+                     if item.objectName() == "zioRunningIndicator_" + tools[0].id)
+    assert indicator.isVisible() and indicator.opacity() == 1
+    assert indicator.property("color").green() > indicator.property("color").red()
+    assert dock.grabWindow().save("build/zio-dock-borrowed-previews.png")
+
+    # Clicking the dim slot focuses the existing window and flashes without another sweep.
+    preview = previews[tools[0].id]
+    point = preview.mapToItem(dock.contentItem(), preview.boundingRect().center()).toPoint()
+    QTest.mouseClick(dock, Qt.MouseButton.LeftButton, pos=point)
+    qtbot.waitUntil(lambda: first.isActive())
     assert visible_cards(qapp)[tools[0].id] is first
     assert len(visible_cards(qapp)) == 4
+    assert first.property("focusScanRunning")
+    qtbot.wait(80)
+    flash = first.findChild(QObject, "zioCardFocusFlash")
+    assert 0 < flash.opacity() <= 0.07
+    assert first.findChild(QObject, "mechanicalCardScan").opacity() == 0
+    assert first.property("parameterValues")["message"] == "remember me"
+    qtbot.waitUntil(lambda: not first.property("focusScanRunning"))
     QMetaObject.invokeMethod(first, "closeCardAnimated")
     qtbot.waitUntil(lambda: tools[0].id not in visible_cards(qapp), timeout=7000)
     assert not stops

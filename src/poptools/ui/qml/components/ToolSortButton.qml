@@ -9,6 +9,7 @@ PrimaryButton {
     property color backgroundColor: "transparent"
     property color hoverColor: Theme.primaryContainerHover
     property bool popupAbove: false
+    property bool cycleOnClick: false
     readonly property bool menuOpen: sortPopup.visible
     readonly property var options: [
         { "label": "按添加时间", "value": "added_time", "icon": "schedule" },
@@ -16,12 +17,15 @@ PrimaryButton {
         { "label": "按使用频率", "value": "usage", "icon": "trending_up" },
         { "label": "自定义排序", "value": "custom", "icon": "drag_indicator" }
     ]
+    readonly property int modeIndex: Math.max(0,
+        options.findIndex(option => option.value === root.controller.toolSortMode))
 
     implicitWidth: 40
     implicitHeight: 40
     compact: true
     text: "排序：" + root.controller.toolSortModeLabel
-    iconName: "sort"
+    iconName: cycleOnClick ? options[modeIndex].icon : "sort"
+    showHoverTips: !cycleOnClick && compact
     glyphSize: 24
     tonal: true
     foregroundColor: Theme.primary
@@ -29,11 +33,19 @@ PrimaryButton {
     radius: Theme.radiusSmall
     color: root.hovered || sortPopup.opened
            ? root.hoverColor : root.backgroundColor
-    onClicked: root.openMenu()
+    onClicked: cycleOnClick ? root.cycleMode() : root.openMenu()
+    Accessible.role: Accessible.Button
+    Accessible.name: "排序：" + root.controller.toolSortModeLabel
+    Accessible.onPressAction: root.clicked()
+
+    function cycleMode() {
+        root.controller.setToolSortMode(options[(modeIndex + 1) % options.length].value)
+    }
 
     function closeMenu() { sortPopup.close() }
 
     function openMenu() {
+        if (cycleOnClick) return
         var point = root.mapToItem(Overlay.overlay, 0, root.height)
         sortPopup.x = Math.max(12, Math.min(point.x + root.width - sortPopup.width,
                                            Overlay.overlay.width - sortPopup.width - 12))

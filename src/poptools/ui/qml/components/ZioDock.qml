@@ -121,6 +121,7 @@ Item {
                     ToolSortButton {
                         id: sort
                         objectName: "zioDockSort"
+                        cycleOnClick: true
                         controller: root.controller
                         width: actions.segmentWidth * 0.29; height: 40; glyphSize: 18
                         compact: false; text: "排序"; labelFontSize: 11; contentSpacing: 4
@@ -348,12 +349,8 @@ Item {
                         x: 0; y: 20; width: 72; height: 104; radius: 5
                         color: Theme.primaryContainer
                         border.color: Theme.primary
-                        opacity: slot.borrowed ? 0.6 : 0.2
-                        Text {
-                            anchors.centerIn: parent
-                            text: "已出列"; color: Theme.primaryText; font.pixelSize: 11
-                            visible: slot.borrowed
-                        }
+                        opacity: 0.2
+                        visible: !slot.borrowed
                     }
                     Item {
                         id: host
@@ -362,8 +359,21 @@ Item {
                         width: 72; height: 104
                         Behavior on y { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
                     }
+                    // The live face flies with the window; a dim preview preserves the slot's identity.
+                    Loader {
+                        objectName: "zioBorrowedMiniCard_" + slot.toolId
+                        x: host.x; y: host.y; width: host.width; height: host.height
+                        active: slot.borrowed
+                        opacity: 0.55
+                        sourceComponent: MechanicalCardFace {
+                            cardTitle: slot.title
+                            cardIcon: slot.iconName
+                            border.color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.25)
+                        }
+                    }
                     Rectangle {
-                        x: 32; y: 121; width: 8; height: 3; radius: 1.5
+                        objectName: "zioRunningIndicator_" + slot.toolId
+                        x: 33; y: 119; width: 6; height: 6; radius: 3
                         visible: slot.running
                         color: Theme.success
                     }

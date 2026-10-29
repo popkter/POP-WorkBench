@@ -1689,6 +1689,16 @@ Item {
         assert title_search.property("text") == "" and not clear.isVisible()
         assert title_search.hasActiveFocus()
         qtbot.waitUntil(lambda: controller.toolsModel.count == 2)
+        sort_button = root.findChild(QObject, "scriptListSort")
+        assert controller.setToolSortMode("added_time")
+        for mode, icon in (("name", "sort_by_alpha"), ("usage", "trending_up"),
+                           ("custom", "drag_indicator"), ("added_time", "schedule")):
+            point = sort_button.mapToItem(
+                panel.contentItem(), sort_button.boundingRect().center()).toPoint()
+            QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point)
+            qtbot.waitUntil(lambda expected=mode: controller.toolSortMode == expected)
+            assert sort_button.property("iconName") == icon
+            assert not sort_button.property("menuOpen")
         QMetaObject.invokeMethod(root, "dock", Q_ARG("QVariant", tools[0].id))
         assert faces[tools[0].id].window() is panel
         assert controller.openCardCount == 0 and controller.toolsModel.count == 3
@@ -2369,7 +2379,7 @@ def test_independent_sessions_execute_concurrently_and_keep_separate_output(laun
 
 @pytest.mark.gui
 @pytest.mark.parametrize("dark", [False, True])
-def test_qml_windows_search_theme_sort_menu_escape_and_render(
+def test_qml_windows_search_theme_sort_cycle_escape_and_render(
     launcher, qapp, qtbot, dark, monkeypatch,
 ):
     controller, backend, settings, main = launcher
@@ -2446,9 +2456,16 @@ Item {
         assert controller.expanded  # Launching no longer schedules a collapse.
         qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
         sort_button = root.findChild(QObject, "scriptListSort")
-        assert QMetaObject.invokeMethod(sort_button, "openMenu")
-        qtbot.waitUntil(lambda: sort_button.property("menuOpen"))
-        assert controller._menu_open
+        assert controller.setToolSortMode("added_time")
+        for mode, icon in (("name", "sort_by_alpha"), ("usage", "trending_up"),
+                           ("custom", "drag_indicator"), ("added_time", "schedule")):
+            point = sort_button.mapToItem(
+                panel.contentItem(), sort_button.boundingRect().center()).toPoint()
+            QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point)
+            qtbot.waitUntil(lambda expected=mode: controller.toolSortMode == expected)
+            assert sort_button.property("iconName") == icon
+            assert not sort_button.property("menuOpen")
+            assert not controller._menu_open
         controller.collapse()
         qtbot.waitUntil(lambda: not sort_button.property("menuOpen"))
         controller.toggleExpanded()

@@ -220,6 +220,7 @@ Item {
             }
             ToolSortButton {
                 id: sortButton
+                cycleOnClick: root.quickLaunch
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 24
                 glyphSize: 20

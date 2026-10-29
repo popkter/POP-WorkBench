@@ -367,7 +367,7 @@ Item {
     }
     function activate() {
         // Coalesce rapid clicks instead of snapping a partly rotated card back.
-        if (activating)
+        if (activating || (Theme.zioMode && focusing))
             return
         finish()
         if (Theme.zioMode) {
@@ -551,7 +551,8 @@ Item {
                     // gradual highlights avoid a hard white line on dark cards.
                     height: 156 * root.designScale
                     y: parent.height * root.scan - height * .55
-                    opacity: root.entering || root.recycling || root.focusing
+                    opacity: Theme.zioMode && root.focusing ? 0
+                        : root.entering || root.recycling || root.focusing
                         || (root.activating && root.spinAngle >= 360)
                         ? Math.sin(Math.PI * root.scan) * 0.95 : 0
                     gradient: Gradient {
@@ -563,6 +564,14 @@ Item {
                         GradientStop { position: 0.78; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.125) }
                         GradientStop { position: 1; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0) }
                     }
+                }
+                Rectangle {
+                    objectName: "zioCardFocusFlash"
+                    anchors.fill: parent
+                    radius: Theme.radiusMedium
+                    color: root.accent
+                    opacity: Theme.zioMode && root.focusing
+                        ? Math.sin(Math.PI * root.focusScanProgress) * 0.07 : 0
                 }
                 Rectangle {
                     objectName: "mechanicalCardEdge"
