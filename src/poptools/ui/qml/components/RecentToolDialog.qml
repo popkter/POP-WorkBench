@@ -25,9 +25,11 @@ Window {
     property bool recallQueued: false
     property bool presented: false
     property bool closing: false
+    property bool pinned: false
+    property int floatingActivationToken: -1
+    property bool floatingFocusHandoff: floatingActivationToken >= 0
     signal cardPresented(string presentedToolId)
     signal cardActivated(string activatedToolId)
-    readonly property bool keepsFloatingLauncherVisible: true
     readonly property bool entryAnimationRunning: cardMotion.entering
     readonly property bool activationAnimationRunning: cardMotion.activating
     readonly property bool focusScanRunning: cardMotion.focusing
@@ -95,7 +97,7 @@ Window {
                                     : presetMode ? 560 : 600, Screen.height - 48)
     visible: false
     flags: Qt.Window | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
-        | (Theme.zioMode && customScriptMode ? Qt.WindowStaysOnTopHint : 0)
+        | (pinned ? Qt.WindowStaysOnTopHint : 0)
     color: "transparent"
     onVisibleChanged: if (!visible) cardMotion.finish()
     onVisibilityChanged: if (root.visibility === Window.Minimized) cardMotion.finish()
@@ -150,7 +152,7 @@ Window {
                 return
             }
         }
-        session.placeWindow()
+        session.placeWindow(Theme.decadeMode && customScriptMode ? "decade" : "standard")
         if (customScriptMode)
             cardMotion.play()
         visible = true
@@ -170,8 +172,7 @@ Window {
     }
 
     function activateCard() {
-        if (closing || returnPending || recallQueued || cardMotion.recycling
-                || (!Theme.zioMode && (cardMotion.entering || cardMotion.activating)))
+        if (closing || returnPending || recallQueued || cardMotion.recycling)
             return
         if (visibility === Window.Minimized)
             showNormal()

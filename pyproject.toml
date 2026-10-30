@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pops-workbench"
-version = "1.1.8"
+version = "1.1.9"
 description = "Pop’s Workbench: a desktop workspace for parameterized scripts, Android devices, recording, terminals, and everyday tools."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"

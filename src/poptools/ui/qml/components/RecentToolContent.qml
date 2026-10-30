@@ -188,6 +188,35 @@ Item {
                         onClicked: dialog.toggleRecording()
                     }
 
+                    ToolButton {
+                        id: pinButton
+                        objectName: "recentToolPinButton"
+                        width: content.decadeCard ? Theme.decadeCardActionSize : 32
+                        height: content.decadeCard ? Theme.decadeCardActionSize : 32
+                        anchors.verticalCenter: parent.verticalCenter
+                        checkable: true
+                        checked: dialog.pinned
+                        text: checked ? "取消置顶" : "置顶卡片"
+                        Accessible.name: text
+                        onClicked: dialog.pinned = checked
+                        contentItem: MaterialIcon {
+                            icon: "push_pin"
+                            iconSize: 19
+                            color: pinButton.checked ? Theme.primaryText : Theme.textPrimary
+                        }
+                        background: Rectangle {
+                            radius: content.decadeCard ? Theme.radiusSmall : Theme.radiusTiny
+                            color: pinButton.checked || pinButton.hovered ? Theme.primaryContainer
+                                : content.decadeCard ? Theme.decadeCardActionFill : "transparent"
+                            border.width: content.decadeCard || pinButton.checked ? Theme.borderWidthThin : 0
+                            border.color: pinButton.checked ? Theme.primary : Theme.decadeCardActionBorder
+                        }
+                        HoverTips {
+                            visible: pinButton.hovered
+                            text: pinButton.text
+                        }
+                    }
+
                     // Minimize
                     Rectangle {
                         objectName: "recentToolMinimizeButton"

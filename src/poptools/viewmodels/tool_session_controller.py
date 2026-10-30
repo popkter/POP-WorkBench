@@ -75,9 +75,10 @@ class ToolSessionController(QObject):
             self._window = window
 
     @Slot()
-    def placeWindow(self) -> None:
+    @Slot(str)
+    def placeWindow(self, layout: str = "standard") -> None:
         if self._window is not None:
-            place_tool_window(self._window)
+            place_tool_window(self._window, centered=layout == "decade")
 
     @Slot(QRectF, result="QVariantMap")
     @Slot(QRectF, bool, result="QVariantMap")
@@ -90,7 +91,7 @@ class ToolSessionController(QObject):
         if layout == "zio":
             self.placeZioCard(source, dock)
         else:
-            place_tool_window(self._window, source.center().toPoint())
+            place_tool_window(self._window, source.center().toPoint(), centered=layout == "decade")
         screen = self._window.screen()
         geometry: dict[str, Any] = card_flight_geometry(
             source, self._window.geometry(), screen.availableGeometry(),

@@ -23,7 +23,23 @@ def _user32() -> ctypes.WinDLL:
     api.GetWindowThreadProcessId.restype = wintypes.DWORD
     api.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
     api.GetAncestor.restype = wintypes.HWND
+    api.WindowFromPoint.argtypes = [wintypes.POINT]
+    api.WindowFromPoint.restype = wintypes.HWND
+    api.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+    api.GetCursorPos.restype = wintypes.BOOL
     return api
+
+
+def window_under_cursor() -> int | None:
+    """Use native coordinates for native hit-testing, including mixed-DPI screens."""
+    if sys.platform != "win32":
+        return None
+    api = _user32()
+    point = wintypes.POINT()
+    if not api.GetCursorPos(ctypes.byref(point)):
+        return None
+    handle = api.WindowFromPoint(point)
+    return int(api.GetAncestor(handle, 2) or handle) if handle else None
 
 
 def foreground_window() -> ForegroundWindow | None:

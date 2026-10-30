@@ -104,6 +104,15 @@ ApplicationWindow {
         || (userGuideDialogLoader.item && userGuideDialogLoader.item.visible)
 
     onToolSearchQueryChanged: appController.setToolSearchQuery(toolSearchQuery)
+    Shortcut {
+        sequence: "Ctrl+F"
+        context: Qt.WindowShortcut
+        autoRepeat: false
+        enabled: !window.applicationOverlayVisible
+            && !window.developerSelected && !window.settingsSelected
+        onActivated: appController.section === "custom"
+            ? customScriptsPage.focusSearch() : presetFunctionsPage.focusSearch()
+    }
     function openTerminalPage() {
         if (!developerConsoleController.pluginInstalled) {
             window.requestTerminalEnable()
@@ -753,8 +762,10 @@ ApplicationWindow {
 
     property var recentToolWindows: ({})
     property var pendingToolWindows: ({})
+    property var queuedToolWindows: ({})
     property var retiredToolWindows: []
     function cancelToolIncubations() {
+        queuedToolWindows = ({})
         for (const id in pendingToolWindows)
             if (floatingLauncherLoader.item) floatingLauncherLoader.item.cancelCardLaunch(id)
         pendingToolWindows = ({})
@@ -862,10 +873,6 @@ ApplicationWindow {
         id: toolWindowRequests
         target: appController
         function onRecentToolDialogRequested(toolId) {
-            if (Theme.zioMode && appController.isCustomScript(toolId)) {
-                zioCards.request(toolId)
-                return
-            }
             openToolWindow(toolId)
         }
         function onCustomToolsChanged() {
@@ -877,7 +884,7 @@ ApplicationWindow {
                 }
             }
         }
-        function openToolWindow(toolId) {
+        function openToolWindow(toolId, queuedRequest) {
             if (toolId === "preset.video_preview") {
                 window.openPresetFunctionsPage()
                 appController.selectTool(toolId)
@@ -885,35 +892,41 @@ ApplicationWindow {
                 return
             }
             window.lastRequestedToolWindow = toolId
-            var origin = Theme.zioMode && floatingLauncherLoader.item
+            const token = queuedRequest ? queuedRequest.token
+                : typeof floatingController !== "undefined" ? floatingController.cardLaunchToken(toolId) : -1
+            if (typeof floatingController !== "undefined" && !floatingController.canActivateCard(token))
+                return
+            var origin = queuedRequest ? queuedRequest.origin : Theme.zioMode && floatingLauncherLoader.item
                 ? floatingLauncherLoader.item.cardOrigin(toolId)
                 : typeof floatingController !== "undefined"
                     ? floatingController.cardLaunchOrigin(toolId) : Qt.rect(0, 0, 0, 0)
             var existing = Object.prototype.hasOwnProperty.call(window.recentToolWindows, toolId)
                 ? window.recentToolWindows[toolId] : null
             if (existing) {
+                if (existing.returnPending || existing.recycleAnimationRunning || existing.recallQueued
+                        || existing.outgoing || existing.closing) {
+                    window.queuedToolWindows[toolId] = {token: token, origin: origin}
+                    return
+                }
                 if (origin.width > 0 && origin.height > 0)
                     existing.launchOrigin = origin
                 existing.activateCard()
-                Qt.callLater(function() {
-                    if (window.lastRequestedToolWindow === toolId
-                            && window.recentToolWindows[toolId] === existing && existing.visible
-                            && !existing.entryAnimationRunning)
-                        existing.requestActivate()
-                })
                 return
             }
             if (window.pendingToolWindows[toolId])
                 return
             if (!Theme.mechanicalMode) {
-                const win = recentToolWindowComponent.createObject(null, {launchOrigin: origin})
+                const win = recentToolWindowComponent.createObject(null, {
+                    launchOrigin: origin, floatingActivationToken: token})
                 if (win) finishToolWindow(toolId, win)
+                else if (floatingLauncherLoader.item) floatingLauncherLoader.item.cancelCardLaunch(toolId)
                 return
             }
             // Incubate the shell as well as the form. A synchronous createObject
             // blocks rotation/scans in every window sharing the GUI thread.
             const incubator = recentToolWindowComponent.incubateObject(
-                null, {launchOrigin: origin, zioManaged: Theme.zioMode && appController.isCustomScript(toolId)}, Qt.Asynchronous)
+                null, {launchOrigin: origin, floatingActivationToken: token,
+                       zioManaged: Theme.zioMode && appController.isCustomScript(toolId)}, Qt.Asynchronous)
             window.pendingToolWindows[toolId] = incubator
             function completed() {
                 if (incubator.status === Component.Loading)
@@ -931,6 +944,12 @@ ApplicationWindow {
             completed()
         }
         function finishToolWindow(toolId, win) {
+            if (typeof floatingController !== "undefined"
+                    && !floatingController.canActivateCard(win.floatingActivationToken)) {
+                if (floatingLauncherLoader.item) floatingLauncherLoader.item.cancelCardLaunch(toolId)
+                win.destroy()
+                return
+            }
             if (win.zioManaged && !appController.isCustomScript(toolId)) {
                 if (floatingLauncherLoader.item) floatingLauncherLoader.item.cancelCardLaunch(toolId)
                 win.destroy()
@@ -978,6 +997,11 @@ ApplicationWindow {
                 window.recentToolWindows = remaining
                 cardRecallQueue.completed(win)
                 window.retireToolWindow(win)
+                const queued = window.queuedToolWindows[closedToolId]
+                if (queued) {
+                    delete window.queuedToolWindows[closedToolId]
+                    Qt.callLater(function() { toolWindowRequests.openToolWindow(closedToolId, queued) })
+                }
             })
             win.initialParameterValues = Theme.zioMode ? zioCards.parameterSnapshots[toolId] || null : null
             win.showWithTool(toolId)

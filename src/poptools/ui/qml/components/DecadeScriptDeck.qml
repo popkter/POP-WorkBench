@@ -11,7 +11,9 @@ ScriptCollectionView {
     pendingLaunchCount: pendingLaunches.length
     readonly property var returningIds: controller.returningCardIds
     readonly property int deckReflowDuration: 160
-    readonly property real cardWidth: root.width - root.scrollGutter - 16
+    property real cardWidthLimit: 0
+    readonly property real cardWidth: Math.max(1, Math.min(root.width - root.scrollGutter - 16,
+        cardWidthLimit > 0 ? cardWidthLimit : root.width))
     readonly property real cardStep: 76 * Theme.scriptCardScale
     readonly property real cardHeight: Math.min(cardWidth * 672 / 432,
         Math.max(cardStep, height - topMargin))
@@ -22,17 +24,14 @@ ScriptCollectionView {
     footer: Item {
         height: root.visibleCount > 0 ? Math.max(0, root.cardHeight - root.cardStep) : 0
     }
-    // Reserve the same gutter throughout recall; only the handle disappears.
-    // Restore after the final dock has settled its scroll extent.
+    // The hinge owns the visible scrollbar; keep this internal handle hidden.
     verticalScrollBar {
-        width: 14
+        width: 0
         padding: 0
         minimumSize: Math.min(1, 72 / Math.max(1, height))
         hoverEnabled: true
-        visible: root.needsVerticalScroll && !root.continuousRecall && !scrollBarRestore.running
-        contentItem: DecadeSwordHandle {
-            highlighted: root.verticalScrollBar.pressed || root.verticalScrollBar.hovered
-        }
+        visible: false
+        contentItem: Item {}
         background: Item {}
     }
     onContinuousRecallChanged: {
@@ -98,7 +97,7 @@ ScriptCollectionView {
     // otherwise race Qt DelegateModel cancellation; face ownership is in the store.
     topMargin: 10
     bottomMargin: 0
-    emptyText: controller.openCardCount > 0 && controller.openCardCount === listModel.totalCount ? "卡牌已抽出，关闭卡牌后归还" : listModel.totalCount === 0 ? "暂无自定义脚本" : "没有匹配的脚本"
+    emptyText: listModel.totalCount === 0 ? "暂无自定义脚本" : "没有匹配的脚本"
     Timer {
         id: deckLayoutSettlement
         interval: root.deckReflowDuration + 20
@@ -109,10 +108,17 @@ ScriptCollectionView {
         onTriggered: root.dispatchLaunches()
     }
     Component.onDestruction: cancelPendingLaunches()
+    function restoreFace(id) {
+        const row = findRow(id);
+        if (row) row.mount();
+        else if (!cardStore.isBorrowed(id)) cardStore.park(id);
+    }
     function cancelPendingLaunches() {
         launchDispatch.stop();
-        for (let request of pendingLaunches)
+        for (let request of pendingLaunches) {
             cardStore.unlend(request.id);
+            restoreFace(request.id);
+        }
         pendingLaunches = [];
     }
     function dispatchLaunches() {
@@ -128,8 +134,10 @@ ScriptCollectionView {
             try {
                 toolActivatedAt(request.id, request.origin);
             } finally {
-                if (face.parent === host)
+                if (face.parent === host) {
                     cardStore.unlend(request.id);
+                    restoreFace(request.id);
+                }
             }
         }
     }
@@ -170,8 +178,12 @@ ScriptCollectionView {
         handleActivation(id, row);
     }
     function handleActivation(id, row) {
-        if (!id || returningIds.indexOf(id) >= 0)
+        if (!id)
             return;
+        if (controller.isCardOpen(id)) {
+            toolActivated(id);
+            return;
+        }
         row = row || findRow(id);
         if (row)
             launchCard(id, row);
@@ -180,13 +192,14 @@ ScriptCollectionView {
     }
     function portOrigin(face) {
         // The shared port follows the pack, not a row or the scroll position.
-        const point = root.mapToGlobal(-Theme.space16, -32);
+        const point = root.mapToGlobal(root.width + Theme.space16, -32);
         const height = root.height + 32;
         const width = Math.min(root.cardWidth, height * 440 / 680);
         const cardHeight = width * 680 / 440;
-        const origin = Qt.rect(point.x, point.y + (height - cardHeight) / 2,
+        const origin = Qt.rect(point.x - width, point.y + (height - cardHeight) / 2,
                                width, cardHeight);
         if (face) {
+            face.packExitDirection = 1;
             face.packPort = Qt.rect(point.x, point.y, 1, height);
             face.packPortOrigin = origin;
             face.packViewportTop = point.y;
@@ -222,6 +235,36 @@ ScriptCollectionView {
                 origin: origin
             }
         ]);
+        launchDispatch.start();
+    }
+    function launchSearchResult(id, host, title, icon, viewport) {
+        if (controller.isCardOpen(id)) {
+            toolActivated(id);
+            return;
+        }
+        if (cardStore.isBorrowed(id) || returningIds.indexOf(id) >= 0) return;
+        cardStore.mount(id, host, title, icon);
+        const face = cardStore.peek(id);
+        if (!face) return;
+        const point = face.mapToGlobal(0, 0);
+        const sx = face.width / 432;
+        const sy = face.height / 672;
+        const origin = Qt.rect(point.x - 4 * sx, point.y - 4 * sy,
+            face.width + 8 * sx, face.height + 8 * sy);
+        const slot = host.parent;
+        const top = (viewport || slot).mapToGlobal(0, 0);
+        const bottom = top.y + (viewport || slot).height;
+        const visibleTop = Math.max(point.y, top.y);
+        const visibleBottom = Math.min(point.y + face.height, bottom);
+        face.packPort = Qt.rect(0, 0, 0, 0);
+        face.packExitDirection = 1;
+        face.packPortOrigin = Qt.rect(0, 0, 0, 0);
+        face.packVisibleRect = Qt.rect(point.x, visibleTop, face.width,
+            Math.max(1, visibleBottom - visibleTop));
+        face.packViewportTop = top.y;
+        face.packViewportBottom = bottom;
+        cardStore.lend(id);
+        pendingLaunches = pendingLaunches.concat([{id: id, origin: origin}]);
         launchDispatch.start();
     }
     function returnCardRect(toolId) {
@@ -285,6 +328,10 @@ ScriptCollectionView {
         required property bool selected
         required property int index
         property alias deckFace: deckFace
+        readonly property bool borrowed: {
+            const revision = root.cardStore.revision;
+            return root.cardStore.isBorrowed(toolId);
+        }
         function mount() {
             root.cardStore.mount(toolId, deckFace, title, iconName);
         }
@@ -292,6 +339,10 @@ ScriptCollectionView {
         Component.onDestruction: root.cardStore.park(toolId, deckFace)
         onTitleChanged: mount()
         onIconNameChanged: mount()
+        Connections {
+            target: root.cardStore
+            function onRevisionChanged() { Qt.callLater(scriptRow.mount); }
+        }
         objectName: "scriptRow_" + toolId
         onSelectedChanged: if (selected)
             root.positionViewAtIndex(index, ListView.Contain)
@@ -305,6 +356,15 @@ ScriptCollectionView {
             x: 8
             width: root.cardWidth
             height: root.cardHeight
+            Loader {
+                anchors.fill: parent
+                active: scriptRow.borrowed
+                opacity: 0.55
+                sourceComponent: MechanicalCardFace {
+                    cardTitle: scriptRow.title
+                    cardIcon: scriptRow.iconName
+                }
+            }
             Rectangle {
                 x: -2
                 y: -5
@@ -334,9 +394,10 @@ ScriptCollectionView {
             height: deckFace.height
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            onDoubleClicked: function(mouse) { mouse.accepted = true }
             onClicked: {
-                root.activateTool(scriptRow.toolId, scriptRow);
                 root.forceActiveFocus();
+                root.activateTool(scriptRow.toolId, scriptRow);
             }
         }
     }

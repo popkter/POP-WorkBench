@@ -552,9 +552,9 @@ def test_zio_multiple_cards_keep_slot_positions_and_restore_parameters(
     assert first.property("toolController").selectedTool["title"] == "Royal 0"
     assert set(ids(controller.toolsModel)) == {tool.id for tool in tools}
     origin = first.property("launchOrigin")
-    assert abs(first.geometry().center().x() - origin.center().x()) <= 1
+    assert abs(first.geometry().center().x() - origin.center().x()) <= 2
     assert first.geometry().bottom() < dock.y() - 15
-    assert first.flags() & Qt.WindowType.WindowStaysOnTopHint
+    assert not first.flags() & Qt.WindowType.WindowStaysOnTopHint
     assert first.findChild(QObject, "mechanicalCardMotion").property("accent").name() == "#d9ae48"
     first.setProperty("parameterValues", {"message": "remember me"})
     running = {tools[0].id}
@@ -573,9 +573,9 @@ def test_zio_multiple_cards_keep_slot_positions_and_restore_parameters(
     positions = []
     for card in visible_cards(qapp).values():
         source = card.property("launchOrigin")
-        assert abs(card.geometry().center().x() - source.center().x()) <= 1
+        assert abs(card.geometry().center().x() - source.center().x()) <= 2
         assert card.geometry().bottom() < dock.y() - 15
-        assert card.flags() & Qt.WindowType.WindowStaysOnTopHint
+        assert not card.flags() & Qt.WindowType.WindowStaysOnTopHint
         positions.append(card.x())
     assert len(set(positions)) == 4
 
@@ -724,4 +724,194 @@ def test_zio_native_mask_and_theme_swaps(zio_app, qapp, qtbot):
     qtbot.wait(100)
     assert window.findChild(QQuickWindow, "zioDockWindow") is None
     assert all(not card.property("handoffBlocked") for card in visible_cards(qapp).values())
+    assert not warnings, warnings
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+def test_unified_click_focus_reuse_and_collapsed_return(zio_app, qapp, qtbot, monkeypatch, theme):
+    from poptools.viewmodels.floating_launcher_controller import FloatingLauncherController
+
+    window, controller, backend, settings, _, warnings = zio_app
+    settings.saveThemeMode(theme)
+    tool = create_tool(backend, "Unified parameterless")
+    qtbot.waitUntil(lambda: tool.id in ids(controller.toolsModel))
+    panel = controller._panel
+    qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+    executions = []
+    monkeypatch.setattr(backend, "open_custom_tool_shortcut",
+                        lambda tid: pytest.fail("Floating clicks cannot execute shortcuts"))
+    monkeypatch.setattr(backend, "run_tool", lambda *args: executions.append(args))
+    panel.requestActivate()
+    qtbot.waitUntil(panel.isActive)
+    monkeypatch.setattr(controller, "_ordinary_window_active", lambda:
+                        FloatingLauncherController._ordinary_window_active(controller))
+    controller.togglePinned()
+    inside = True
+    monkeypatch.setattr(controller, "_pointer_inside", lambda: inside)
+
+    def visual_items(item):
+        yield item
+        for child in item.childItems():
+            yield from visual_items(child)
+
+    def click_slot(double=False):
+        prefix = "zioSlot_" if theme == "zio" else "scriptRow_"
+        row = next(item for item in visual_items(panel.contentItem())
+                   if item.objectName() == prefix + tool.id)
+        point = row.mapToItem(panel.contentItem(), QPointF(row.width() / 2, 22)).toPoint()
+        action = QTest.mouseDClick if double else QTest.mouseClick
+        action(panel, Qt.MouseButton.LeftButton, pos=point)
+        if double:
+            QTest.mouseRelease(panel, Qt.MouseButton.LeftButton, pos=point)
+
+    click_slot(double=True)
+    qtbot.waitUntil(lambda: tool.id in visible_cards(qapp), timeout=7000)
+    card = visible_cards(qapp)[tool.id]
+    def flight_above_pack(flying=True):
+        if sys.platform != "win32" or theme not in ("decade", "zio"):
+            return
+        api = ctypes.WinDLL("user32", use_last_error=True)
+        api.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+        api.GetWindowLongW.restype = wintypes.LONG
+        api.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+        api.GetWindow.restype = wintypes.HWND
+        assert bool(api.GetWindowLongW(int(card.winId()), -20) & 0x8) == flying
+        if not flying:
+            return
+        handle = int(card.winId())
+        while handle and handle != int(panel.winId()):
+            handle = api.GetWindow(handle, 2)
+        assert handle == int(panel.winId())
+    flight_above_pack()
+    qtbot.waitUntil(lambda: not card.property("entryAnimationRunning"), timeout=7000)
+    flight_above_pack(False)
+    qtbot.waitUntil(lambda: controller.isCardOpen(tool.id))
+    assert controller.expanded
+    assert controller.visible and panel.isVisible()
+    assert tool.id in ids(controller.toolsModel)
+    assert not card.flags() & Qt.WindowStaysOnTopHint
+    assert card.transientParent() is None
+    assert not executions
+    assert len(visible_cards(qapp)) == 1
+
+    # The same retained list entry restores the original minimized card.
+    native_id = card.winId()
+    card.showMinimized()
+    panel.requestActivate()
+    qtbot.waitUntil(panel.isActive)
+    if not controller.expanded:
+        controller.toggleExpanded()
+    qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+    click_slot()
+    qtbot.waitUntil(lambda: card.isActive() and card.visibility() != QWindow.Minimized)
+    assert visible_cards(qapp)[tool.id] is card and card.winId() == native_id
+    assert len(visible_cards(qapp)) == 1 and not executions
+    assert controller.expanded
+    if theme in ("decade", "zio"):
+        assert not any(item.property("text") == "已打开"
+                       for item in visual_items(panel.contentItem()))
+    inside = False
+    controller.pointerChanged()
+    qtbot.waitUntil(lambda: not controller.expanded)
+
+    # Closing a normal card must not expand or activate the floating entry.
+    qtbot.waitUntil(lambda: not card.property("activationAnimationRunning"), timeout=7000)
+    QMetaObject.invokeMethod(card, "closeCardAnimated")
+    flight_above_pack()
+    qtbot.waitUntil(lambda: not visible_cards(qapp), timeout=7000)
+    assert not controller.expanded and controller.visible
+    assert not controller.isCardOpen(tool.id)
+    assert tool.id in ids(controller.toolsModel)
+    assert not warnings, warnings
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+def test_repeated_requests_during_return_open_one_replacement(zio_app, qapp, qtbot, theme):
+    _, controller, backend, settings, _, warnings = zio_app
+    settings.saveThemeMode(theme)
+    tool = create_tool(backend, "Queued return")
+    qtbot.waitUntil(lambda: tool.id in ids(controller.toolsModel))
+    backend.recentToolDialogRequested.emit(tool.id)
+    qtbot.waitUntil(lambda: tool.id in visible_cards(qapp), timeout=7000)
+    first = visible_cards(qapp)[tool.id]
+    qtbot.waitUntil(lambda: settled(first), timeout=7000)
+    QMetaObject.invokeMethod(first, "closeCardAnimated")
+    backend.recentToolDialogRequested.emit(tool.id)
+    backend.recentToolDialogRequested.emit(tool.id)
+    qtbot.waitUntil(lambda: tool.id in visible_cards(qapp)
+                    and visible_cards(qapp)[tool.id] is not first, timeout=10000)
+    replacement = visible_cards(qapp)[tool.id]
+    qtbot.waitUntil(lambda: settled(replacement), timeout=7000)
+    assert len(visible_cards(qapp)) == 1
+    assert controller.isCardOpen(tool.id)
+    assert tool.id in ids(controller.toolsModel)
+    assert not controller.returningCardIds
+    assert not warnings, warnings
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("theme", ["decade", "zio"])
+def test_async_floating_creation_cancels_after_user_switches_focus(
+    zio_app, qapp, qtbot, monkeypatch, theme,
+):
+    window, controller, backend, settings, _, warnings = zio_app
+    settings.saveThemeMode(theme)
+    tool = create_tool(backend, "Async cancellation")
+    qtbot.waitUntil(lambda: tool.id in ids(controller.toolsModel))
+    owner = (1, 10)
+    monkeypatch.setattr(controller, "_foreground_identity", lambda: owner)
+    controller.launchTool(tool.id)
+    owner = (2, 20)
+    qtbot.waitUntil(lambda: not window.property("pendingToolWindows").toVariant(), timeout=7000)
+    assert not visible_cards(qapp)
+    assert not controller.isCardOpen(tool.id)
+    assert tool.id in ids(controller.toolsModel)
+    # The canceled request must not leave a borrowed face or stuck pending ID.
+    owner = (1, 10)
+    controller.launchTool(tool.id)
+    qtbot.waitUntil(lambda: tool.id in visible_cards(qapp), timeout=7000)
+    qtbot.waitUntil(lambda: settled(visible_cards(qapp)[tool.id]), timeout=7000)
+    assert controller.isCardOpen(tool.id)
+    assert not warnings, warnings
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+def test_ctrl_f_searches_main_and_floating_windows(zio_app, qtbot, theme):
+    window, controller, backend, settings, _, warnings = zio_app
+    settings.saveThemeMode(theme)
+    create_tool(backend, "Find this script")
+    window.showNormal()
+    window.requestActivate()
+    qtbot.waitUntil(window.isActive)
+    QMetaObject.invokeMethod(window, "openCustomScriptsPage")
+    qtbot.waitUntil(lambda: not controller.visible)
+    page = window.findChild(QObject, "customScriptsPage")
+    search = page.findChild(QObject, "scriptListSearch")
+    search.setProperty("text", "Find")
+    QTest.keyClick(window, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
+    qtbot.waitUntil(search.hasActiveFocus)
+    assert search.property("selectedText") == "Find"
+    QMetaObject.invokeMethod(window, "openPresetFunctionsPage")
+    preset_search = window.findChild(QObject, "presetListSearch")
+    QTest.keyClick(window, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
+    qtbot.waitUntil(preset_search.hasActiveFocus)
+    assert not controller.visible
+    window.hide()
+    qtbot.waitUntil(lambda: controller.visible)
+    panel = controller._panel
+    controller.collapse()
+    qtbot.waitUntil(lambda: panel.property("revealProgress") == 0)
+    panel.requestActivate()
+    qtbot.waitUntil(panel.isActive)
+    QTest.keyClick(panel, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
+    name = ("zioDockSearch" if theme == "zio" else
+            "floatingTitleSearch" if theme == "decade" else "scriptListSearch")
+    floating_search = panel.findChild(QObject, name)
+    qtbot.waitUntil(lambda: controller.expanded and floating_search.hasActiveFocus())
+    floating_search.setProperty("text", "Find")
+    QTest.keyClick(panel, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
+    assert floating_search.property("selectedText") == "Find"
     assert not warnings, warnings

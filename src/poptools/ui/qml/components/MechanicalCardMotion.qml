@@ -63,6 +63,7 @@ Item {
     property real packBottom: NaN
     property rect portBounds: Qt.rect(0, 0, 0, 0)
     property rect portSource: Qt.rect(0, 0, 0, 0)
+    property int packExitDirection: -1
     readonly property bool portFlight: desktopFlight && flightGeometry.preserveSource && portBounds.height > 0
     readonly property bool sleeveFlight: desktopFlight && flightGeometry.preserveSource && isFinite(packTop)
     readonly property bool mechanicalEnabled: Theme.mechanicalMode
@@ -107,7 +108,8 @@ Item {
     readonly property real faceAspectCompensation: desktopFlight && flightScale > 0
         ? flightScaleX / flightScale : 1
     readonly property real flightTilt: !Theme.zioMode && desktopFlight
-        ? (flightGeometry.preserveSource || flightGeometry.targetX < flightGeometry.sourceX ? -1 : 1)
+        ? (flightGeometry.preserveSource ? packExitDirection
+            : flightGeometry.targetX < flightGeometry.sourceX ? -1 : 1)
             * 8 * Math.sin(Math.PI * (sleeveFlight ? freeTravel : flightProgress)) : 0
     readonly property real radians: flightTilt * Math.PI / 180
     // Keep rotation inside this fixed-size native surface; never resize or swap it.
@@ -160,7 +162,7 @@ Item {
             const gate = portSource.width > 0 ? portSource
                 : Qt.rect(g.x + g.sourceX, g.y + g.sourceY, g.sourceWidth, g.sourceHeight)
             const gateY = gate.y - g.y + gate.height / 2
-            const exitX = portBounds.x - g.x - gate.width / 2 - 12
+            const exitX = portBounds.x - g.x + packExitDirection * (gate.width / 2 + 12)
             // First align the real list face vertically inside the pack. Only
             // then travel through the side port, so low rows never leak below.
             if (distance <= .2) {
@@ -169,21 +171,21 @@ Item {
             }
             if (distance <= .5)
                 return curve((distance - .2) / .3, startX, gateY,
-                    startX - gate.width * .3, gateY,
-                    exitX + gate.width * .3, gateY, exitX, gateY)
+                    startX + packExitDirection * gate.width * .3, gateY,
+                    exitX - packExitDirection * gate.width * .3, gateY, exitX, gateY)
             return curve((distance - .5) * 2, exitX, gateY,
-                exitX - gate.width * .2, gateY,
+                exitX + packExitDirection * gate.width * .2, gateY,
                 endX + (exitX - endX) * .12, endY, endX, endY)
         }
         if (sleeveFlight) {
-            const left = g.sourceX - g.sourceWidth / 2 - 12
+            const exitX = startX + packExitDirection * (g.sourceWidth + 12)
             const top = Math.min(g.sourceY - g.sourceHeight * .65,
                                  packTop - g.y - g.sourceHeight * .15)
             const gateY = Math.max(g.screenTop - g.y + g.sourceHeight / 2 + 8,
                 Math.min(g.screenBottom - g.y - g.sourceHeight / 2 - 8,
                          top + g.sourceHeight / 2))
             // Low cards first rise inside the sleeve, with no sideways escape.
-            // Only pull left once their full body fits above the viewport bottom.
+            // Only pull sideways once their full body fits above the viewport bottom.
             const liftY = isFinite(packBottom)
                 ? Math.min(startY, packBottom - g.y - g.sourceHeight / 2 - 8) : startY
             const liftEnd = liftY < startY ? .18 : 0
@@ -192,15 +194,15 @@ Item {
             if (distance <= .5)
                 return curve((distance - liftEnd) / (.5 - liftEnd), startX, liftY, startX,
                     liftY + (gateY - liftY) * .8,
-                    left + g.sourceWidth * .35, gateY, left, gateY)
-            return curve((distance - .5) * 2, left, gateY,
-                         left - g.sourceWidth * .1, gateY,
-                         endX + (left - endX) * .12, endY, endX, endY)
+                    exitX - packExitDirection * g.sourceWidth * .35, gateY, exitX, gateY)
+            return curve((distance - .5) * 2, exitX, gateY,
+                         exitX + packExitDirection * g.sourceWidth * .1, gateY,
+                         endX + (exitX - endX) * .12, endY, endX, endY)
         }
-        // Pull diagonally through the upper-left sleeve corner first. The
+        // Pull diagonally through the configured sleeve corner first. The
         // tangent is independent of the landing window (which may be below or
         // to the right). Returning retraces this same curve into the sleeve.
-        const controlX = startX - g.sourceWidth * 1.1
+        const controlX = startX + packExitDirection * g.sourceWidth * 1.1
         const controlY = startY - g.sourceHeight * .7
         const approachX = endX + (startX - endX) * .12
         const remaining = 1 - distance
@@ -301,6 +303,7 @@ Item {
         packBottom = cardFace ? cardFace.packViewportBottom : NaN
         portBounds = cardFace ? cardFace.packPort : Qt.rect(0, 0, 0, 0)
         portSource = cardFace ? cardFace.packPortOrigin : Qt.rect(0, 0, 0, 0)
+        packExitDirection = cardFace ? cardFace.packExitDirection : -1
         ensureFace()
         entrySpinEnabled = !Theme.zioMode
         flightGeometry = geometry
@@ -391,6 +394,7 @@ Item {
         packBottom = cardFace ? cardFace.packViewportBottom : NaN
         portBounds = cardFace ? cardFace.packPort : Qt.rect(0, 0, 0, 0)
         portSource = cardFace ? cardFace.packPortOrigin : Qt.rect(0, 0, 0, 0)
+        packExitDirection = cardFace ? cardFace.packExitDirection : -1
         ensureFace()
         returnScan = 1
         returnProgress = 0

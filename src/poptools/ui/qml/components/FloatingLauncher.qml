@@ -9,6 +9,26 @@ Item {
     id: root
     required property var controller
     property string searchQuery: ""
+    property bool searchFocusPending: false
+    function focusSearch() {
+        searchFocusPending = true
+        if (!controller.expanded) controller.toggleExpanded()
+        finishSearchFocus()
+    }
+    function finishSearchFocus() {
+        if (!controller.visible || !controller.expanded) {
+            searchFocusPending = false
+            return
+        }
+        if (!searchFocusPending || panel.revealProgress !== 1) return
+        searchFocusPending = false
+        if (Theme.decadeMode) {
+            titleSearch.forceActiveFocus()
+            titleSearch.selectAll()
+        } else {
+            scripts.focusSearch()
+        }
+    }
     property bool attached: false
     property bool continuousRecall: false
     property var pendingReturns: []
@@ -47,9 +67,24 @@ Item {
     function prepareCardReturn(toolId, callback) {
         if (!controller.beginCardReturn(toolId))
             return false
+        if (!controller.expanded) {
+            callback(collapsedReturnOrigin(toolId))
+            return true
+        }
         pendingReturns.push({toolId: toolId, callback: callback, attempts: 0})
         returnPreparation.start()
         return true
+    }
+    function collapsedReturnOrigin(toolId) {
+        const face = scripts.cardStore.peek(toolId)
+        if (face) {
+            face.packVisibleRect = Qt.rect(0, 0, 0, 0)
+            face.packViewportTop = NaN
+            face.packViewportBottom = NaN
+            face.packPort = Qt.rect(0, 0, 0, 0)
+            face.packPortOrigin = Qt.rect(0, 0, 0, 0)
+        }
+        return controller.collapsedCardOrigin()
     }
     Timer {
         id: returnPreparation
@@ -59,10 +94,12 @@ Item {
             root.pendingReturns = []
             for (let request of pending) {
                 request.attempts++
-                if (((Theme.zioMode ? zioDock && zioDock.dockWindow.revealProgress === 1 && zioDock.dockWindow.visible
+                if (!root.controller.expanded)
+                    request.callback(root.collapsedReturnOrigin(request.toolId))
+                else if (((Theme.zioMode ? zioDock && zioDock.dockWindow.revealProgress === 1 && zioDock.dockWindow.visible
                         : panel.revealProgress === 1 && panel.visible
                         && (root.continuousRecall || !scripts.layoutSettling)))
-                        || request.attempts > 30)
+                        || request.attempts > (Theme.decadeMode ? 90 : 30))
                     request.callback(Theme.zioMode && zioDock ? zioDock.cardRect(request.toolId) : scripts.returnCardRect(request.toolId))
                 else
                     root.pendingReturns.push(request)
@@ -130,6 +167,10 @@ Item {
         height: Theme.floatingTipHeight
         readonly property bool revealRequested: root.controller.visible && root.controller.expanded
         property real revealProgress: 0
+        readonly property real motionProgress: (1 - Math.cos(Math.PI * revealProgress)) / 2
+        readonly property real packExpansion: motionProgress
+        readonly property real coverOpening: motionProgress
+        readonly property real caseWidth: width / 2
         property bool pendingMaskSettlement: false
         property bool dragMaskActive: false
         visible: root.attached && root.controller.visible && !Theme.zioMode
@@ -141,7 +182,11 @@ Item {
         palette.highlightedText: Theme.primaryForeground
         contentItem.clip: true
 
-        onVisibleChanged: if (!visible) scripts.closeMenus()
+        onVisibleChanged: if (!visible) {
+            root.searchFocusPending = false
+            scripts.closeMenus()
+        }
+        onRevealProgressChanged: root.finishSearchFocus()
         onFrameSwapped: {
             if (root.pendingDocks.length > 0)
                 root.finishCardDocks()
@@ -173,7 +218,8 @@ Item {
                 return;
             panelSlide.from = revealProgress;
             panelSlide.to = targetProgress;
-            panelSlide.easing.type = requested ? Easing.OutCubic : Easing.InCubic;
+            panelSlide.easing.type = Theme.decadeMode ? Easing.Linear
+                : requested ? Easing.OutCubic : Easing.InCubic;
             panelSlide.start();
         }
         Connections {
@@ -199,7 +245,7 @@ Item {
             objectName: "floatingPanelSlideAnimation"
             target: panel
             property: "revealProgress"
-            duration: Theme.motionStandard
+            duration: Theme.decadeMode ? 450 : Theme.motionStandard
             onRunningChanged: {
                 if (Theme.zioMode) return;
                 if (running) {
@@ -216,28 +262,81 @@ Item {
         Item {
             id: drawerSurface
             objectName: "floatingDrawerSurface"
-            x: (panel.width - Theme.floatingTipWidth)
+            x: Theme.decadeMode ? 0 : (panel.width - Theme.floatingTipWidth)
                 * (1 - panel.revealProgress)
             width: panel.width
             height: panel.height
             layer.enabled: true
             layer.smooth: true
 
+            DecadePackHinge {
+                id: packHinge
+                objectName: "decadePackScrollHinge"
+                scrollView: Theme.decadeMode ? scripts.collectionView : null
+                interactive: panel.revealProgress === 1 && !root.continuousRecall
+                onDraggingChanged: root.controller.setMenuOpen(dragging)
+                x: tip.x + tip.width - width / 2
+                y: tip.y + 12 * panel.packExpansion
+                width: 8 + 12 * panel.packExpansion
+                height: Math.max(1, tip.height - 24 * panel.packExpansion)
+                z: 4
+                visible: Theme.decadeMode && panel.coverOpening > 0
+                opacity: panel.coverOpening
+            }
+            Item {
+                id: decadeSideRail
+                objectName: "decadePackSideRail"
+                x: panel.width - 44
+                y: 30
+                width: 30
+                height: panel.height - 60
+                z: 3
+                visible: Theme.decadeMode && panel.revealProgress === 1
+                DecadePackControls {
+                    id: sideActions
+                    y: Math.round((parent.height - height - 36) / 2)
+                    controller: root.controller
+                    cardList: scripts
+                }
+                ToolSortButton {
+                    id: sortKey
+                    objectName: "decadePackSort"
+                    x: 0
+                    y: sideActions.y + sideActions.height + 6
+                    width: 30; height: 30
+                    controller: root.controller
+                    cycleOnClick: true
+                    glyphSize: 16
+                    backgroundColor: "transparent"
+                    hoverColor: "transparent"
+                    foregroundColor: hovered ? Theme.primaryText : "#A9B0BA"
+                    border.width: 0
+                    radius: 1
+                    DecadePackControlFace {
+                        anchors.fill: parent; z: -1
+                        hovered: sortKey.hovered; pressed: sortKey.pressed
+                    }
+                }
+            }
+
             Rectangle {
                 id: tip
                 objectName: "floatingDrawerTip"
+                z: Theme.decadeMode ? 2 : 0
                 x: 0
-                y: root.controller.drawerTipOffset
-                width: Theme.floatingTipWidth
-                height: Theme.floatingTipHeight
+                y: root.controller.drawerTipOffset * (Theme.decadeMode ? 1 - panel.packExpansion : 1)
+                width: Theme.decadeMode ? Theme.floatingTipWidth
+                    + (panel.caseWidth - Theme.floatingTipWidth) * panel.packExpansion : Theme.floatingTipWidth
+                height: Theme.decadeMode ? Theme.floatingTipHeight
+                    + (panel.height - Theme.floatingTipHeight) * panel.packExpansion : Theme.floatingTipHeight
                 topLeftRadius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
                 bottomLeftRadius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
-                color: Theme.decadeMode ? (grip.containsMouse ? Theme.decadeCardActionFill : Theme.decadePackSurface) : grip.containsMouse || root.controller.expanded
+                color: Theme.decadeMode ? "transparent" : grip.containsMouse || root.controller.expanded
                     ? Theme.primaryContainer : Theme.surfaceContainerLow
-                border.width: 1
+                border.width: Theme.decadeMode ? 0 : 1
                 border.color: Theme.decadeMode ? Theme.decadePackRail : Theme.outlineVariant
                 opacity: grip.containsMouse || root.controller.dragging || root.controller.expanded
-                    ? 1 : Theme.floatingIdleOpacity
+                    ? 1 : Theme.decadeMode ? 0.92 : Theme.floatingIdleOpacity
                 Behavior on opacity {
                     NumberAnimation { duration: Theme.motionStandard }
                 }
@@ -251,15 +350,105 @@ Item {
                                         height * Screen.devicePixelRatio)
                     fillMode: Image.PreserveAspectFit
                     smooth: true
+                    visible: !Theme.decadeMode
+                }
+                Flipable {
+                    objectName: "decadePackCoverBook"
+                    anchors.fill: parent
+                    visible: Theme.decadeMode
+                    front: DecadePackCover {
+                        objectName: "decadeFloatingPackCover"
+                        anchors.fill: parent
+                        layer.enabled: true
+                    }
+                    back: DecadePackLining {
+                        id: packLining
+                        objectName: "decadePackInnerCover"
+                        anchors.fill: parent
+                        layer.enabled: true
+                        searching: root.searchQuery.trim().length > 0
+                        DecadeSearchResults {
+                            id: searchResults
+                            objectName: "decadeSearchResults"
+                            x: titleSearch.x
+                            y: titleSearch.y + titleSearch.height + 14
+                            width: titleSearch.width
+                            height: Math.max(1, parent.height - y - 36)
+                            visible: packLining.searching
+                            enabled: panel.revealProgress === 1
+                            controller: root.controller
+                            deck: scripts.collectionView
+                        }
+                        AppTextField {
+                            id: titleSearch
+                            objectName: "floatingTitleSearch"
+                            visible: Theme.decadeMode
+                            enabled: panel.revealProgress === 1
+                            x: 20; y: 40
+                            width: Math.max(60, parent.width - 80)
+                            height: 34
+                            leftPadding: 30
+                            baseRightPadding: Theme.space8
+                            clearButtonEnabled: true
+                            placeholderText: "搜索脚本..."
+                            text: root.searchQuery
+                            color: "#D4D8DF"
+                            placeholderTextColor: "#7F8895"
+                            font.pixelSize: Theme.decadeMode ? Theme.fontCaption : Theme.fontSupporting
+                            onTextChanged: {
+                                if (root.searchQuery !== text) {
+                                    root.searchQuery = text;
+                                    root.controller.setToolSearchQuery(text);
+                                }
+                            }
+                            background: Item {
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 1
+                                    color: "#07090C"
+                                    border.color: titleSearch.activeFocus ? "#89516F" : "#3B424C"
+                                }
+                                Rectangle {
+                                    anchors.fill: parent; anchors.margins: 3
+                                    radius: 1
+                                    color: "#0E1217"
+                                    border.color: "#1E252D"
+                                }
+                                Rectangle {
+                                    x: 1; y: 8
+                                    width: 2; height: parent.height - 16
+                                    color: titleSearch.activeFocus ? Theme.primary : "#515B68"
+                                }
+                                MaterialIcon {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: Theme.space8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    icon: "search"
+                                    iconSize: 16
+                                    color: titleSearch.activeFocus ? Theme.primaryText : "#8D98A6"
+                                }
+                            }
+                        }
+                    }
+                    transform: Rotation {
+                        objectName: "decadePackCoverTurn"
+                        origin.x: tip.width
+                        origin.y: tip.height / 2
+                        axis { x: 0; y: 1; z: 0 }
+                        // Lift the free edge toward the viewer before opening right.
+                        angle: 180 * panel.coverOpening
+                    }
                 }
                 Accessible.role: Accessible.Button
                 Accessible.name: root.controller.expanded ? "收起自定义脚本" : "展开自定义脚本"
-                Accessible.description: "点击展开或收起，拖动调整屏幕边缘的位置"
+                Accessible.description: Theme.decadeMode ? "点击放大并打开卡包，沿屏幕左侧上下拖动"
+                    : "点击展开或收起，拖动调整屏幕边缘的位置"
                 Accessible.onPressAction: if (!panelSlide.running) root.controller.toggleExpanded()
                 MouseArea {
                     id: grip
                     objectName: "floatingDragGrip"
                     anchors.fill: parent
+                    enabled: !Theme.decadeMode || panel.revealProgress === 0
                     hoverEnabled: true
                     preventStealing: true
                     cursorShape: dragStarted ? Qt.ClosedHandCursor : Qt.OpenHandCursor
@@ -304,15 +493,16 @@ Item {
             Rectangle {
                 id: panelSurface
                 objectName: "floatingPanelSurface"
-                x: Theme.floatingTipWidth
-                y: 0
-                width: drawerSurface.width - Theme.floatingTipWidth
-                height: panel.height
-                enabled: panel.revealRequested
+                x: Theme.decadeMode ? tip.x : Theme.floatingTipWidth
+                y: Theme.decadeMode ? tip.y : 0
+                width: Theme.decadeMode ? tip.width : drawerSurface.width - Theme.floatingTipWidth
+                height: Theme.decadeMode ? tip.height : panel.height
+                enabled: panel.revealRequested && (!Theme.decadeMode || panel.revealProgress === 1)
+                visible: !Theme.decadeMode || panel.revealProgress > 0
                 radius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
-                topLeftRadius: tip.y < radius ? 0 : radius
-                bottomLeftRadius: tip.y + tip.height > height - radius ? 0 : radius
-                color: Theme.decadeMode ? Theme.decadePackSurface : Theme.surfaceContainerLow
+                topLeftRadius: !Theme.decadeMode && tip.y < radius ? 0 : radius
+                bottomLeftRadius: !Theme.decadeMode && tip.y + tip.height > height - radius ? 0 : radius
+                color: Theme.decadeMode ? "transparent" : Theme.surfaceContainerLow
                 border.width: Theme.decadeMode ? 0 : 1
                 border.color: Theme.outlineVariant
 
@@ -320,6 +510,7 @@ Item {
 
                 // Join the grip to the panel without an internal border or corner gap.
                 Rectangle {
+                    visible: !Theme.decadeMode
                     x: -1
                     y: tip.y + panelSurface.border.width
                     width: 2
@@ -328,9 +519,15 @@ Item {
                 }
 
                 ColumnLayout {
+                    id: mainColumn
                     anchors.fill: parent
+                    anchors.leftMargin: Theme.decadeMode ? 12 : 0
+                    anchors.rightMargin: Theme.decadeMode ? 14 : 0
+                    anchors.topMargin: Theme.decadeMode ? 24 : 0
+                    anchors.bottomMargin: Theme.decadeMode ? 24 : 0
                     spacing: 0
                     RowLayout {
+                        visible: !Theme.decadeMode
                         Layout.fillWidth: true
                         Layout.topMargin: Theme.space12
                         Layout.leftMargin: Theme.space16
@@ -343,43 +540,11 @@ Item {
                             font.pixelSize: Theme.fontComponentTitle
                             font.weight: Font.DemiBold
                         }
-                        AppTextField {
-                            id: titleSearch
-                            objectName: "floatingTitleSearch"
-                            visible: Theme.decadeMode
-                            Layout.fillWidth: true
-                            Layout.minimumWidth: 0
-                            Layout.preferredHeight: Theme.controlHeightSmall
-                            leftPadding: 30
-                            baseRightPadding: Theme.space8
-                            clearButtonEnabled: true
-                            placeholderText: "搜索脚本..."
-                            text: root.searchQuery
-                            color: Theme.textPrimary
-                            font.pixelSize: Theme.decadeMode ? Theme.fontCaption : Theme.fontSupporting
-                            onTextChanged: {
-                                if (root.searchQuery !== text) {
-                                    root.searchQuery = text;
-                                    root.controller.setToolSearchQuery(text);
-                                }
-                            }
-                            background: Rectangle {
-                                radius: Theme.decadeMode ? Theme.radiusTiny : Theme.radiusSmall
-                                color: Theme.decadeMode ? Theme.decadePackWell : Theme.surfaceContainer
-                                border.width: titleSearch.activeFocus ? 1 : 0
-                                border.color: Theme.primary
-                                MaterialIcon {
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: Theme.space8
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    icon: "search"
-                                    iconSize: 18
-                                    color: Theme.decadeMode ? Theme.primaryText : Theme.textSecondary
-                                }
-                            }
-                        }
+
                         PrimaryButton {
-                            objectName: "floatingPinButton"
+                            objectName: Theme.decadeMode ? "standardHiddenPin" : "floatingPinButton"
+                            Layout.preferredWidth: Theme.controlHeightSmall
+                            Layout.preferredHeight: Theme.controlHeightSmall
                             width: Theme.controlHeightSmall
                             height: Theme.controlHeightSmall
                             compact: true
@@ -399,7 +564,9 @@ Item {
                             onClicked: root.controller.togglePinned()
                         }
                         PrimaryButton {
-                            objectName: "floatingRecallAllButton"
+                            objectName: Theme.decadeMode ? "standardHiddenRecall" : "floatingRecallAllButton"
+                            Layout.preferredWidth: Theme.controlHeightSmall
+                            Layout.preferredHeight: Theme.controlHeightSmall
                             width: Theme.controlHeightSmall
                             height: Theme.controlHeightSmall
                             compact: true
@@ -422,13 +589,15 @@ Item {
                             onClicked: recall()
                         }
                         PrimaryButton {
-                            objectName: "floatingCollapseButton"
+                            objectName: Theme.decadeMode ? "standardHiddenCollapse" : "floatingCollapseButton"
+                            Layout.preferredWidth: Theme.controlHeightSmall
+                            Layout.preferredHeight: Theme.controlHeightSmall
                             width: Theme.controlHeightSmall
                             height: Theme.controlHeightSmall
                             compact: true
                             showHoverTips: false
-                            text: "收起"
-                            iconName: "chevron_right"
+                            text: Theme.decadeMode ? "合上卡包" : "收起"
+                            iconName: Theme.decadeMode ? "remove" : "chevron_right"
                             tonal: true
                             radius: Theme.decadeMode ? Theme.radiusTiny : Theme.radiusControl
                             border.width: 0
@@ -437,6 +606,8 @@ Item {
                         }
                     }
                     CustomScriptList {
+                        deckCardWidth: Theme.decadeMode ? Math.max(1, Math.min(
+                            searchResults.width - 2, searchResults.height * 432 / 672)) : 0
                         continuousRecall: root.continuousRecall
                         id: scripts
                         objectName: "floatingScriptList"
@@ -462,6 +633,13 @@ Item {
         }
         HoverHandler {
             onHoveredChanged: root.controller.pointerChanged()
+        }
+        Shortcut {
+            sequence: "Ctrl+F"
+            context: Qt.WindowShortcut
+            autoRepeat: false
+            enabled: panel.visible && !Theme.zioMode
+            onActivated: root.focusSearch()
         }
         Shortcut {
             sequence: "Esc"

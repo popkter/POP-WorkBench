@@ -49,6 +49,16 @@ def test_card_clears_the_upper_lip_without_clearing_the_left_edge():
     assert card_pack_mask(QRect(800, 100, 440, 680), pack, opening).isEmpty()
 
 
+def test_card_body_is_visible_to_the_right_when_returning_into_a_left_hand_pack():
+    pack = QRectF(1000, 200, 300, 464)
+    opening = QRectF(1000, 200, 300, 60)
+    mask = card_pack_mask(QRect(1160, 150, 440, 680), pack, opening)
+    assert mask.contains(QPoint(300, 400))  # Body remains visible outside the right edge.
+    assert not mask.contains(QPoint(50, 400))  # Body already inside the pack is covered.
+    assert mask.contains(QPoint(50, 70))  # The exposed card header remains visible.
+    assert card_pack_mask(QRect(1400, 150, 440, 680), pack, opening).isEmpty()
+
+
 def test_cards_without_pack_origin_have_no_native_mask():
     assert card_pack_mask(QRect(0, 0, 440, 680), QRectF(), QRectF()).isEmpty()
 
@@ -86,6 +96,43 @@ def test_first_window_is_top_left_and_following_windows_cascade_down_and_right()
     assert second.y() - first.y() == 32
     assert third.x() - second.x() == 32
     assert third.y() - second.y() == 32
+
+
+@pytest.mark.parametrize("available", [QRect(32, 32, 1856, 976),
+                                       QRect(-1888, -168, 1856, 976)])
+def test_decade_first_card_centers_and_following_cards_cascade_right(available):
+    size = QSize(314, 486)
+    occupied = []
+    center = QPoint(available.x() + (available.width() - size.width()) // 2,
+                    available.y() + (available.height() - size.height()) // 2)
+    for index in range(6):
+        point = staggered_position(available, size, occupied, centered=True)
+        assert point == center + QPoint(32 * index, 32 * index)
+        card = QRect(point, size)
+        assert available.contains(card)
+        occupied.append(card)
+
+
+@pytest.mark.parametrize("available,size", [
+    (QRect(32, 32, 1856, 976), QSize(314, 486)),
+    (QRect(-1268, -88, 1256, 696), QSize(314, 486)),
+    (QRect(20, 30, 300, 250), QSize(220, 180)),
+])
+def test_centered_cascade_wraps_inside_work_area_and_keeps_distinct_positions(available, size):
+    occupied = []
+    for _ in range(12):
+        point = staggered_position(available, size, occupied, centered=True)
+        card = QRect(point, size)
+        assert available.contains(card)
+        assert all(point != other.topLeft() for other in occupied)
+        occupied.append(card)
+
+
+def test_cards_on_other_screens_do_not_displace_the_center():
+    available = QRect(-1920, -200, 1920, 1040)
+    size = QSize(314, 486)
+    point = staggered_position(available, size, [QRect(500, 300, 314, 486)], centered=True)
+    assert point == staggered_position(available, size, [], centered=True)
 
 
 def test_windows_on_another_monitor_do_not_shift_the_first_window():

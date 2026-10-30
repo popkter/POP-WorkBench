@@ -15,6 +15,7 @@ Item {
     onShowSearchAndFiltersChanged: if (!showSearchAndFilters) kindFilter = "all"
     property alias cardStore: sharedCards
     property bool continuousRecall: false
+    property real deckCardWidth: 0
     property string keyboardToolId: ""
     readonly property bool deckMode: quickLaunch && Theme.decadeMode
     readonly property bool layoutSettling: collectionView ? collectionView.settling : false
@@ -59,6 +60,10 @@ Item {
     function closeMenus() {
         sortButton.closeMenu();
     }
+    function focusSearch() {
+        searchField.forceActiveFocus();
+        searchField.selectAll();
+    }
     function navigateTo(id) {
         keyboardToolId = id;
         if (quickLaunch)
@@ -87,6 +92,7 @@ Item {
     Component {
         id: decadeView
         DecadeScriptDeck {
+            cardWidthLimit: root.deckCardWidth
             controller: root.controller
             listModel: root.listModel
             kindFilter: root.kindFilter
@@ -193,6 +199,7 @@ Item {
         }
 
         RowLayout {
+            visible: !root.deckMode
             Layout.fillWidth: true
             Layout.preferredHeight: 24
             Layout.topMargin: 3
@@ -239,6 +246,7 @@ Item {
             sourceComponent: root.deckMode ? decadeView : standardView
         }
         Rectangle {
+            visible: !root.deckMode
             Layout.fillWidth: true
             Layout.preferredHeight: root.deckMode ? 24 : footerRow.implicitHeight
             color: "transparent"

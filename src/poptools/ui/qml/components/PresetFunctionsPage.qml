@@ -22,6 +22,10 @@ Rectangle {
     property real toolListWidth: 288
 
     signal searchEdited(string query)
+    function focusSearch() {
+        presetSearch.forceActiveFocus();
+        presetSearch.selectAll();
+    }
 
     color: "transparent"
 

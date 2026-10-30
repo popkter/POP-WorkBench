@@ -248,10 +248,10 @@ QtObject {
     readonly property int motionFast: 120
     readonly property int motionStandard: 180
     readonly property int motionSpinner: 750
-    readonly property int floatingTipWidth: 40
-    readonly property int floatingTipHeight: 40
+    readonly property int floatingTipWidth: decadeMode ? 76 : 40
+    readonly property int floatingTipHeight: decadeMode ? 112 : 40
     readonly property real scriptCardScale: 5 / 7
-    readonly property int floatingPanelWidth: decadeMode ? 320 : 360
-    readonly property int floatingPanelHeight: decadeMode ? 480 : 480
+    readonly property int floatingPanelWidth: decadeMode ? 560 : 360
+    readonly property int floatingPanelHeight: decadeMode ? 440 : 480
     readonly property real floatingIdleOpacity: 0.55
 }

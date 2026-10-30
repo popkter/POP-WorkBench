@@ -10,6 +10,35 @@ from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import QCursor, QGuiApplication, QRegion, QWindow
 
 
+def sync_launcher_card_layers(launchers: Sequence[QWindow] | None = None) -> None:
+    """Maintain only the launcher's native topmost layer, without reordering cards."""
+    if launchers is None:
+        launchers = [window for window in QGuiApplication.topLevelWindows()
+                     if window.objectName() in {"floatingScriptPanelWindow", "zioDockWindow"}]
+    for launcher in dict.fromkeys(launchers):
+        if launcher.isVisible():
+            _set_native_topmost(launcher, True)
+
+
+def _set_native_topmost(window: QWindow, topmost: bool, *, raise_window: bool = False) -> None:
+    if sys.platform != "win32":
+        if bool(window.flags() & Qt.WindowStaysOnTopHint) != topmost:
+            window.setFlag(Qt.WindowStaysOnTopHint, topmost)
+        return
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    style = user32.GetWindowLongW
+    style.argtypes = [wintypes.HWND, ctypes.c_int]
+    style.restype = wintypes.LONG
+    if bool(style(int(window.winId()), -20) & 0x8) == topmost and not raise_window:
+        return
+    position = user32.SetWindowPos
+    position.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                         ctypes.c_int, ctypes.c_int, wintypes.UINT]
+    position.restype = wintypes.BOOL
+    # Do not activate, move, resize or change owner ordering.
+    position(int(window.winId()), -1 if topmost else -2, 0, 0, 0, 0, 0x0213)
+
+
 def zio_card_geometry(available: QRect, size: QSize, source: QRectF, dock: QRectF) -> QRect:
     """Align a card above its Dock slot, keeping the whole card in the work area."""
     margin = min(16, max(0, (min(available.width(), available.height()) - 1) // 2))
@@ -25,24 +54,13 @@ def zio_card_geometry(available: QRect, size: QSize, source: QRectF, dock: QRect
 
 
 def set_card_flight_layer(window: QWindow, flying: bool) -> None:
-    """Keep a flying card above the topmost pack without replacing its HWND."""
-    if not flying and window.flags() & Qt.WindowStaysOnTopHint:
-        # ZIO cards keep their topmost layer after landing. Reapplying HWND_TOPMOST
-        # would also raise this older card over a newer card that is still scanning.
-        return
+    """Draw above the pack only while flying, then restore the explicit pin."""
     if sys.platform != "win32":
         if flying:
             window.raise_()
         return
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    position = user32.SetWindowPos
-    position.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
-                         ctypes.c_int, ctypes.c_int, wintypes.UINT]
-    position.restype = wintypes.BOOL
-    topmost = flying or bool(window.flags() & Qt.WindowStaysOnTopHint)
-    # SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE: do not steal the pack's focus,
-    # resize the native surface, or recreate it via a Qt window-flags change.
-    position(int(window.winId()), -1 if topmost else -2, 0, 0, 0, 0, 0x0013)
+    _set_native_topmost(window, flying or bool(window.flags() & Qt.WindowStaysOnTopHint),
+                        raise_window=flying)
 
 
 def card_pack_mask(surface: QRect, pack: QRectF, opening: QRectF) -> QRegion:
@@ -73,17 +91,26 @@ def card_pack_mask(surface: QRect, pack: QRectF, opening: QRectF) -> QRegion:
     return visible if not visible.isEmpty() else QRegion(-1, -1, 1, 1)
 
 
-def staggered_position(available: QRect, size: QSize, occupied: Sequence[QRect]) -> QPoint:
+def staggered_position(
+    available: QRect, size: QSize, occupied: Sequence[QRect], *, centered: bool = False,
+) -> QPoint:
     left, top = available.left(), available.top()
     right = max(left, available.right() + 1 - size.width())
     bottom = max(top, available.bottom() + 1 - size.height())
     nearby = [rect for rect in occupied if rect.intersects(available)]
     step = 32
-    candidates = [QPoint(left, top)]
-    # Start at the padded top-left, then cascade down/right within the work area.
+    start_x = (left + right) // 2 if centered else left
+    start_y = (top + bottom) // 2 if centered else top
+    candidates = [QPoint(start_x, start_y)]
+    # Centered cards cascade toward the right, away from Decade's left-hand pack.
     for index in range(1, max(right - left, bottom - top) // step + 2):
         offset = index * step
-        candidates.append(QPoint(min(right, left + offset), min(bottom, top + offset)))
+        candidates.append(QPoint(min(right, start_x + offset), min(bottom, start_y + offset)))
+    if centered:
+        # Fill the center/right side before falling back to the rest of a small screen.
+        for y in [*range(top, bottom + 1, step), bottom]:
+            for x in [*range(start_x, right + 1, step), right]:
+                candidates.append(QPoint(x, y))
     # Manually moved windows may occupy the diagonal; use the rest of the desktop too.
     for y in [*range(top, bottom + 1, step), bottom]:
         for x in [*range(left, right + 1, step), right]:
@@ -123,7 +150,9 @@ def card_flight_geometry(
             "screenBottom": available.y() + available.height()}
 
 
-def place_tool_window(window: QWindow, origin: QPoint | None = None) -> None:
+def place_tool_window(
+    window: QWindow, origin: QPoint | None = None, *, centered: bool = False,
+) -> None:
     point = origin if origin is not None else QCursor.pos()
     screen = QGuiApplication.screenAt(point) or window.screen()
     if screen is None:
@@ -143,4 +172,4 @@ def place_tool_window(window: QWindow, origin: QPoint | None = None) -> None:
         destination = other.property("cardPlacementRect")
         occupied.append(destination.toAlignedRect() if isinstance(destination, QRectF)
                         else other.geometry())
-    window.setPosition(staggered_position(bounds, window.size(), occupied))
+    window.setPosition(staggered_position(bounds, window.size(), occupied, centered=centered))

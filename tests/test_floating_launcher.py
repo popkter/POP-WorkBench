@@ -1,5 +1,8 @@
+import ctypes
 import math
 import os
+import sys
+from ctypes import wintypes
 from pathlib import Path
 from time import perf_counter
 
@@ -17,7 +20,7 @@ from PySide6.QtCore import (
     QTimer,
     QUrl,
 )
-from PySide6.QtGui import QCursor, QFontDatabase, QMouseEvent, QRegion, QWindow
+from PySide6.QtGui import QCursor, QFontDatabase, QMouseEvent, QRegion, QWheelEvent, QWindow
 from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent, QQmlEngine, QQmlExpression
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
@@ -38,6 +41,7 @@ from poptools.viewmodels.app_controller import AppController
 from poptools.viewmodels.developer_console_controller import DeveloperConsoleController
 from poptools.viewmodels.floating_launcher_controller import (
     FloatingLauncherController,
+    decade_pack_geometry,
     edge_geometry,
 )
 from poptools.viewmodels.jira_feishu_controller import JiraFeishuController
@@ -64,6 +68,7 @@ def launcher(qapp, tmp_path, monkeypatch):
     # Keep Qt activation tests independent of OS foreground-lock restrictions.
     # Native ownership and stale startup state are exercised explicitly below.
     monkeypatch.setattr(floating_module, "foreground_window", lambda: None)
+    monkeypatch.setattr(floating_module, "window_under_cursor", lambda: None)
     controller.attach_main_window(main)
     controller.reconcile()
     yield controller, backend, settings, main
@@ -89,6 +94,285 @@ def create_tool(backend, title, kind="python", command="print('hello')"):
 
 def ids(model):
     return [model.data(model.index(i, 0), model.IdRole) for i in range(model.rowCount())]
+
+
+def test_decade_search_results_keep_full_pack_and_follow_open_cards(launcher):
+    controller, backend, settings, _ = launcher
+    alpha = create_tool(backend, "Alpha search")
+    beta = create_tool(backend, "Beta search")
+    controller.refreshTools()
+    settings.saveThemeMode("decade")
+    controller.setToolSearchQuery("Alpha")
+    assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
+    assert ids(controller.searchResultsModel) == [alpha.id]
+    controller.setCardOpen(alpha.id, True)
+    assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
+    assert ids(controller.searchResultsModel) == [alpha.id]
+    assert controller.isCardOpen(alpha.id)
+    controller.setCardOpen(alpha.id, False)
+    assert ids(controller.searchResultsModel) == [alpha.id]
+    settings.saveThemeMode("light")
+    assert ids(controller.toolsModel) == [alpha.id]
+    controller.setToolSearchQuery("")
+    assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
+
+
+@pytest.mark.parametrize("ratio", [0, 0.17, 0.49, 0.5, 0.83, 1])
+@pytest.mark.parametrize("available", [QRect(0, 0, 1920, 1040),
+                                       QRect(-1280, -300, 1280, 720), QRect(40, 20, 300, 250)])
+def test_decade_pack_follows_left_edge_and_continuous_vertical_position(available, ratio):
+    closed_pack, pack = decade_pack_geometry(available, (76, 112), (340, 520), ratio)
+    assert available.contains(closed_pack) and available.contains(pack)
+    assert closed_pack.left() == pack.left() == available.left() + 16
+    travel = available.height() - 32 - closed_pack.height()
+    assert closed_pack.top() == available.top() + 16 + round(travel * ratio)
+    assert pack.top() <= closed_pack.top()
+    assert pack.bottom() >= closed_pack.bottom()
+
+
+def test_decade_drag_tracks_pointer_and_persists_arbitrary_left_edge_position(
+    launcher, qapp, monkeypatch,
+):
+    controller, _, settings, _ = launcher
+    settings.saveThemeMode("decade")
+    window = QWindow()
+    available = qapp.primaryScreen().availableGeometry()
+    controller.attachDrawerWindow(window, 76, 112, 560, 440)
+    closed, _ = decade_pack_geometry(available, (76, 112), (560, 440), controller._ratio)
+    pointer = closed.topLeft() + QPoint(25, 40)
+    monkeypatch.setattr(QCursor, "pos", lambda: pointer)
+    try:
+        controller.beginDrag()
+        for fraction in (0.23, 0.68, 0.41):
+            expected, _ = decade_pack_geometry(available, (76, 112), (560, 440), fraction)
+            pointer = expected.topLeft() + QPoint(25, 40)
+            controller.updateDrag()
+            assert window.x() == available.left() + 16
+            assert window.y() + controller.drawerTipOffset == expected.y()
+        controller.endDrag()
+        reopened = ConfigStore(settings.config_store.paths)
+        saved_screen, saved_ratio = reopened.floating_launcher_position()
+        assert saved_screen == qapp.primaryScreen().name()
+        assert 0.40 < saved_ratio < 0.42
+        restarted, _ = decade_pack_geometry(available, (76, 112), (560, 440), saved_ratio)
+        assert restarted.y() == expected.y()
+    finally:
+        controller.shutdown()
+        window.close()
+        window.deleteLater()
+
+
+@pytest.mark.gui
+def test_decade_pack_keeps_original_list_and_search_results(launcher, qapp, qtbot):
+    controller, backend, settings, _ = launcher
+    settings.saveThemeMode("decade")
+    for index in range(12):
+        create_tool(backend, f"Pack card {index:02}")
+    controller.setToolSortMode("name")
+    QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda messages: warnings.extend(m.toString() for m in messages))
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+Item {
+    required property var backend
+    Component.onCompleted: { Theme.decadeMode = true; Theme.darkMode = true }
+    FloatingLauncher { controller: backend }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/PackWheelHarness.qml")))
+    root = component.createWithInitialProperties({"backend": controller})
+    assert root is not None, [e.toString() for e in component.errors()]
+    panel = root.findChild(QQuickWindow, "floatingScriptPanelWindow")
+    try:
+        controller.reconcile()
+        qtbot.waitUntil(panel.isVisible)
+        assert QTest.qWaitForWindowExposed(panel)
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 0)
+        closed_pack = root.findChild(QObject, "floatingDragGrip")
+        closed_rect = closed_pack.mapRectToItem(panel.contentItem(), closed_pack.boundingRect())
+        assert closed_rect.left() == 0
+        assert panel.x() == panel.screen().availableGeometry().left() + 16
+        assert panel.mask().boundingRect() == closed_rect.toAlignedRect()
+        assert root.findChild(QObject, "decadeFloatingPackCover").isVisible()
+        Path("build/decade-pack").mkdir(parents=True, exist_ok=True)
+        assert panel.grabWindow().save("build/decade-pack/closed-pack.png")
+        native_id = panel.winId()
+        # Layout checks explicitly keep the pack open independently of the cursor.
+        controller.togglePinned()
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=closed_rect.center().toPoint())
+        animation = root.findChild(QObject, "floatingPanelSlideAnimation")
+        assert animation.property("duration") == 450
+        qtbot.waitUntil(lambda: animation.property("running"))
+        assert QMetaObject.invokeMethod(animation, "pause")
+        panel.setProperty("revealProgress", 0.25)
+        assert root.findChild(QObject, "decadeFloatingPackCover").isVisible()
+        assert root.findChild(QObject, "floatingDrawerTip").width() > closed_rect.width()
+        assert root.findChild(QObject, "floatingDrawerTip").width() < panel.width() / 2
+        assert 0 < root.findChild(QObject, "decadePackCoverTurn").property("angle") < 90
+        panel.setProperty("revealProgress", 0.5)
+        tip = root.findChild(QObject, "floatingDrawerTip")
+        assert tip.width() == pytest.approx((closed_rect.width() + panel.width() / 2) / 2)
+        assert root.findChild(QObject, "floatingPanelSurface").isVisible()
+        turn = root.findChild(QObject, "decadePackCoverTurn")
+        assert turn.property("angle") == pytest.approx(90)
+        assert turn.property("origin").x() == tip.width()
+        panel.setProperty("revealProgress", 0.85)
+        assert panel.grabWindow().save("build/decade-pack/opening-cover.png")
+        assert panel.winId() == native_id
+        assert QMetaObject.invokeMethod(animation, "resume")
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
+        view = root.findChild(QObject, "sharedScriptList")
+        assert view.property("interactive")
+        assert view.property("cardStep") == pytest.approx(76 * 5 / 7)
+        assert view.property("topMargin") == 10
+        assert view.findChild(QObject, "scriptListScrollBar").width() == 0
+        assert not view.findChild(QObject, "scriptListScrollBar").isVisible()
+        assert view.property("cardWidth") > 184
+        rows = [row for row in view.property("contentItem").childItems()
+                if row.objectName().startswith("scriptRow_") and row.isVisible()]
+        rows.sort(key=lambda row: row.y())
+        assert len(rows) >= 2
+        for back, front in zip(rows, rows[1:], strict=False):
+            host = back.property("deckFace")
+            assert host.x() == 8 and host.y() == 0
+            assert host.width() == view.property("cardWidth")
+            assert host.height() > back.height()
+            assert not back.property("clip")
+            assert front.z() > back.z()
+        assert turn.property("angle") == 180
+        book = root.findChild(QObject, "decadePackCoverBook")
+        back_shown = QQmlExpression(QQmlEngine.contextForObject(book), book,
+                                   "side === Flipable.Back")
+        assert back_shown.evaluate() == (True, False)
+        cover = root.findChild(QObject, "decadePackInnerCover")
+        cover_bounds = cover.mapRectToItem(panel.contentItem(), cover.boundingRect())
+        assert cover_bounds.left() == pytest.approx(panel.width() / 2)
+        assert cover_bounds.right() == pytest.approx(panel.width())
+        assert (panel.width(), panel.height()) == (560, 440)
+        # Side controls must remain inside the small cover and stack vertically.
+        rail = root.findChild(QObject, "decadePackSideRail")
+        with qtbot.waitSignal(panel.frameSwapped):
+            panel.update()
+        control_bounds = []
+        for name in ("floatingPinButton", "floatingRecallAllButton",
+                     "floatingCollapseButton", "decadePackSort"):
+            button = root.findChild(QObject, name)
+            bounds = button.mapRectToItem(rail, button.boundingRect())
+            assert rail.boundingRect().contains(bounds), (
+                name, bounds, button.parentItem().width(), button.parentItem().x(), button.x())
+            control_bounds.append(bounds)
+        assert all(
+            a.bottom() < b.top()
+            for a, b in zip(control_bounds, control_bounds[1:], strict=False)
+        ), control_bounds
+        search = root.findChild(QObject, "floatingTitleSearch")
+        search_bounds = search.mapRectToItem(cover, QRectF(0, 0, search.width(), search.height()))
+        assert cover.boundingRect().contains(search_bounds)
+        assert search_bounds.width() > search_bounds.height() * 4
+        assert search_bounds.bottom() < cover.height() * 0.25
+        def wheel(angle):
+            method = "positionViewAtEnd" if angle < 0 else "positionViewAtBeginning"
+            assert QMetaObject.invokeMethod(view, method)
+            qapp.processEvents()
+            if angle > 0:
+                view.setProperty("contentY", view.property("originY") - view.property("topMargin"))
+
+        wheel(-12000)
+        assert view.property("atYEnd")
+        hinge = root.findChild(QObject, "decadePackScrollHinge")
+        thumb = root.findChild(QObject, "decadePackScrollThumb")
+        assert hinge.property("scrollProgress") == pytest.approx(1)
+        end_thumb_y = thumb.y()
+        wheel(12000)
+        assert view.property("atYBeginning")
+        assert hinge.property("scrollProgress") == pytest.approx(0)
+        assert thumb.y() < end_thumb_y
+        start_point = thumb.mapToItem(panel.contentItem(), thumb.boundingRect().center())
+        target_y = hinge.property("trackTop") + thumb.height() / 2 + (
+            hinge.property("trackHeight") - thumb.height()) * 0.6
+        target = hinge.mapToItem(panel.contentItem(), QPointF(hinge.width() / 2, target_y))
+        QTest.mousePress(panel, Qt.MouseButton.LeftButton, pos=start_point.toPoint())
+        assert hinge.property("dragging")
+        QTest.mouseMove(panel, target.toPoint())
+        QTest.mouseRelease(panel, Qt.MouseButton.LeftButton, pos=target.toPoint())
+        assert not hinge.property("dragging")
+        assert hinge.property("scrollProgress") == pytest.approx(0.6, abs=0.01)
+        wheel(12000)
+        scroll_start = view.property("contentY")
+        wheel_point = thumb.mapToItem(panel.contentItem(), thumb.boundingRect().center())
+        event = QWheelEvent(wheel_point, QPointF(panel.mapToGlobal(wheel_point.toPoint())),
+                            QPoint(), QPoint(0, -120), Qt.MouseButton.NoButton,
+                            Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+        qapp.sendEvent(panel, event)
+        assert view.property("contentY") == pytest.approx(
+            scroll_start + view.property("cardStep"), abs=1)
+        assert hinge.property("scrollProgress") > 0
+        wheel(12000)
+        Path("build/decade-pack").mkdir(parents=True, exist_ok=True)
+        assert panel.grabWindow().save("build/decade-pack/compact-card-wheel.png")
+        launches = []
+        backend.recentToolDialogRequested.connect(launches.append)
+        row = next(item for item in view.property("contentItem").childItems()
+                   if item.objectName() == "scriptRow_" + ids(controller.toolsModel)[0])
+        point = row.mapToItem(panel.contentItem(), QPointF(row.width() / 2, 20))
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point.toPoint())
+        qtbot.waitUntil(lambda: len(launches) == 1)
+        # Searching from the end must recover a short list and the empty state.
+        wheel(-12000)
+        search.forceActiveFocus()
+        for character in "pack card 11":
+            QTest.keyClick(panel, Qt.Key(ord(character.upper())))
+        results = root.findChild(QObject, "decadeSearchResults")
+        qtbot.waitUntil(lambda: results.property("count") == 1)
+        assert view.property("visibleCount") == 12
+        result_bounds = results.mapRectToItem(cover, results.boundingRect())
+        assert cover.boundingRect().contains(result_bounds)
+        assert result_bounds.top() > search_bounds.bottom()
+        def result_rows(item):
+            for child in item.childItems():
+                if child.objectName().startswith("decadeSearchResult_"):
+                    yield child
+                yield from result_rows(child)
+
+        result_row = next(result_rows(results))
+        assert result_row.width() == view.property("cardWidth")
+        assert result_row.height() == view.property("cardHeight")
+        assert result_row.height() == pytest.approx(result_row.width() * 672 / 432)
+        full_card_bounds = result_row.mapRectToItem(results, result_row.boundingRect())
+        assert results.boundingRect().contains(full_card_bounds)
+        assert panel.grabWindow().save("build/decade-pack/search-results.png")
+        origins = []
+        backend.recentToolDialogRequested.connect(
+            lambda tid: origins.append(controller.cardLaunchOrigin(tid)))
+        result_point = result_row.mapToItem(panel.contentItem(),
+                                           result_row.boundingRect().center())
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=result_point.toPoint())
+        qtbot.waitUntil(lambda: len(launches) == 2)
+        assert backend.registry.get(launches[-1]).title == "Pack card 11"
+        assert origins[-1].x() > panel.x() + panel.width() / 2
+        search.setProperty("text", "missing-pack-card")
+        qtbot.waitUntil(lambda: results.property("count") == 0)
+        assert view.property("visibleCount") == 12
+        search.setProperty("text", "")
+        qtbot.waitUntil(lambda: not results.isVisible())
+        controller.collapse()
+        qtbot.waitUntil(lambda: animation.property("running"))
+        assert QMetaObject.invokeMethod(animation, "pause")
+        panel.setProperty("revealProgress", 0.5)
+        assert closed_rect.width() < tip.width() < panel.width() / 2
+        assert turn.property("angle") == pytest.approx(90)
+        assert QMetaObject.invokeMethod(animation, "resume")
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 0)
+        qtbot.waitUntil(lambda: panel.mask().boundingRect() == closed_rect.toAlignedRect())
+        assert not warnings, warnings
+    finally:
+        controller.shutdown()
+        root.deleteLater()
+        engine.deleteLater()
 
 
 @pytest.mark.parametrize("ratio", [0, 0.5, 1])
@@ -178,7 +462,7 @@ def test_foreground_setting_and_shutdown_collapse(launcher, monkeypatch):
     assert controller.expanded
     monkeypatch.setattr(controller, "_ordinary_window_active", lambda: True)
     controller.reconcile()
-    assert not controller.visible and not controller.expanded
+    assert controller.visible and not controller.expanded
     monkeypatch.setattr(controller, "_ordinary_window_active", lambda: False)
     controller.reconcile()
     assert controller.visible
@@ -199,24 +483,30 @@ def test_startup_without_click_recovers_missing_focus_notification(launcher, qtb
     monkeypatch.setattr(controller._app, "applicationState", lambda:
                         Qt.ApplicationState.ApplicationActive)
     monkeypatch.setattr(controller._app, "topLevelWindows", lambda: [main])
-    monkeypatch.setattr(main, "isVisible", lambda: True)
+    shown = True
+    monkeypatch.setattr(main, "isVisible", lambda: shown)
     monkeypatch.setattr(main, "isActive", lambda: True)
     foreground = ForegroundWindow(int(main.winId()), os.getpid(), 0)
     monkeypatch.setattr(floating_module, "foreground_window", lambda: foreground)
     controller.reconcile()
     assert not controller.visible
+    shown = False
 
     # No click, FocusOut or applicationStateChanged: Qt's startup activation is
     # stale, but Windows already reports another process in the foreground.
     foreground = ForegroundWindow(123, os.getpid() + 1, 123)
     qtbot.waitUntil(lambda: controller.visible, timeout=1000)
+    monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
+    controller.toggleExpanded()
+    assert controller.expanded
 
-    # The reverse stale state must not leave the tip over the main window.
+    # Returning to the main window keeps the floating entry available.
     monkeypatch.setattr(controller._app, "applicationState", lambda:
                         Qt.ApplicationState.ApplicationInactive)
     monkeypatch.setattr(main, "isActive", lambda: False)
     foreground = ForegroundWindow(int(main.winId()), os.getpid(), 0)
-    qtbot.waitUntil(lambda: not controller.visible, timeout=1000)
+    qtbot.waitUntil(lambda: not controller.expanded, timeout=1000)
+    assert controller.visible
     settings.saveFloatingLauncherEnabled(False)
     assert not controller._foreground_timer.isActive()
     foreground = ForegroundWindow(123, os.getpid() + 1, 123)
@@ -227,93 +517,180 @@ def test_startup_without_click_recovers_missing_focus_notification(launcher, qtb
 
 
 @pytest.mark.gui
-def test_native_foreground_preserves_cards_and_owned_dialogs(launcher, monkeypatch):
-    controller, _, _, main = launcher
-    card = QWindow()
-    card.setProperty("keepsFloatingLauncherVisible", True)
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+def test_launcher_focus_group_and_external_activation(launcher, monkeypatch, theme):
+    controller, _, settings, main = launcher
+    settings.saveThemeMode(theme)
+    panel, popup, card = QWindow(), QWindow(), QWindow()
+    popup.setTransientParent(panel)
+    card.setObjectName("recentToolWindow")
+    controller.attachDrawerWindow(panel, 76, 112, 560, 440)
     monkeypatch.setattr(controller, "_ordinary_window_active", lambda:
                         FloatingLauncherController._ordinary_window_active(controller))
     monkeypatch.setattr(controller._app, "platformName", lambda: "windows")
-    monkeypatch.setattr(controller._app, "topLevelWindows", lambda: [main, card])
-    for window in (main, card):
+    monkeypatch.setattr(controller._app, "topLevelWindows", lambda: [main, panel, popup, card])
+    for window in (panel, popup, card):
         monkeypatch.setattr(window, "isVisible", lambda: True)
     try:
-        main_id, card_id = int(main.winId()), int(card.winId())
-        for handle, owner, expected in (
-            (main_id, main_id, False), (card_id, main_id, True),
-            (123, card_id, True), (123, main_id, False), (123, 0, False),
+        panel_id = int(panel.winId())
+        for handle, owner, pid, outside in (
+            (panel_id, panel_id, os.getpid(), False),
+            (int(popup.winId()), panel_id, os.getpid(), False),
+            (123, panel_id, os.getpid(), False),
+            (int(card.winId()), int(main.winId()), os.getpid(), True),
+            (int(main.winId()), int(main.winId()), os.getpid(), True),
+            (123, 123, os.getpid() + 1, True),
         ):
-            monkeypatch.setattr(
-                floating_module, "foreground_window",
-                lambda handle=handle, owner=owner: ForegroundWindow(handle, os.getpid(), owner),
-            )
+            monkeypatch.setattr(floating_module, "foreground_window",
+                                lambda handle=handle, pid=pid, owner=owner:
+                                ForegroundWindow(handle, pid, owner))
+            controller._expanded = True
+            controller.setDrawerAnimating(True)
+            controller.setMenuOpen(True)
             controller.reconcile()
-            assert controller.visible is expected
+            assert controller.expanded is not outside
+            assert controller.visible
+        controller._expanded = True
         controller.togglePinned()
-        assert controller.visible
+        controller.reconcile()
+        assert controller.expanded and controller.visible
+        controller.collapse()
+        assert not controller.expanded
+        controller.toggleExpanded()
+        controller.togglePinned()
+        assert not controller.expanded
     finally:
-        card.destroy()
-        card.deleteLater()
+        controller.shutdown()
+        for window in (popup, panel, card):
+            window.destroy()
+            window.deleteLater()
 
 
 @pytest.mark.gui
-def test_mouse_leave_delay_menu_and_drag(launcher, qtbot, monkeypatch):
-    controller, _, settings, _ = launcher
-    monkeypatch.setattr(controller, "_pointer_inside", lambda: False)
-    controller.toggleExpanded()
-    controller.pointerChanged()
-    qtbot.wait(100)
-    assert controller.expanded
-    controller.setMenuOpen(True)
-    qtbot.wait(320)
-    assert controller.expanded
-    controller.setMenuOpen(False)
-    qtbot.waitUntil(lambda: not controller.expanded)
-    controller.toggleExpanded()
-    controller.pointerChanged()
-    monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
-    controller.pointerChanged()
-    qtbot.wait(320)
-    assert controller.expanded
-    controller.beginDrag()
-    assert not controller.expanded
-    controller.toggleExpanded()
-    assert not controller.expanded
-    controller.dragTo(999999)
-    controller.endDrag()
-    assert settings.config_store.floating_launcher_position()[1] == 1
-
-
-@pytest.mark.gui
-@pytest.mark.parametrize("theme", ["light", "dark", "decade"])
-def test_pin_and_script_focus_keep_pack_open(launcher, monkeypatch, theme):
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+def test_pointer_leave_does_not_collapse_or_steal_focus(launcher, qtbot, monkeypatch, theme):
     controller, _, settings, _ = launcher
     settings.saveThemeMode(theme)
     monkeypatch.setattr(controller, "_pointer_inside", lambda: False)
-    monkeypatch.setattr(controller, "_script_window_active", lambda: False)
     controller.toggleExpanded()
-    controller.togglePinned()
-    controller.pointerChanged()
-    controller._collapse_if_outside()
-    assert controller.pinned and controller.expanded
+    for menu in (True, False):
+        controller.setMenuOpen(menu)
+        controller.pointerChanged()
+        qtbot.wait(200)
+        assert controller.expanded
     monkeypatch.setattr(controller, "_ordinary_window_active", lambda: True)
     controller.reconcile()
-    assert controller.visible and controller.expanded
-    controller.collapse()  # Explicit collapse still works while pinned.
-    assert not controller.expanded
-    controller.toggleExpanded()
+    assert controller.visible and not controller.expanded
+
+
+@pytest.mark.parametrize("theme", ["decade", "zio"])
+@pytest.mark.parametrize("expanded", [True, False])
+def test_return_keeps_launcher_state(launcher, theme, expanded):
+    controller, backend, settings, _ = launcher
+    settings.saveThemeMode(theme)
+    tool = create_tool(backend, "Return")
+    controller.refreshTools()
+    controller.setCardOpen(tool.id, True)
+    controller._expanded = expanded
+    assert controller.beginCardReturn(tool.id)
+    assert controller.expanded == expanded
+    assert controller.isCardOpen(tool.id)
+    assert tool.id in ids(controller.toolsModel)
+    controller.setCardOpen(tool.id, False)
+    assert not controller.returningCardIds
+    assert not controller.isCardOpen(tool.id)
+
+
+def test_async_card_request_expires_on_focus_switch(launcher, monkeypatch):
+    controller, backend, _, _ = launcher
+    tool = create_tool(backend, "Async focus")
+    owner = (os.getpid(), 10)
+    monkeypatch.setattr(controller, "_foreground_identity", lambda: owner)
+    tokens = []
+    backend.recentToolDialogRequested.connect(
+        lambda tid: tokens.append(controller.cardLaunchToken(tid)))
+    controller.launchTool(tool.id)
+    controller.launchTool(tool.id)
+    assert tokens[0] == tokens[1] and controller.canActivateCard(tokens[0])
+    card = QWindow()
+    card.setObjectName("recentToolWindow")
+    card.setProperty("floatingActivationToken", tokens[0])
+    card.setProperty("floatingFocusHandoff", True)
+    owner = (os.getpid(), int(card.winId()))
+    assert controller.canActivateCard(tokens[0])
+    assert not card.property("floatingFocusHandoff")
+    card.destroy()
+    card.deleteLater()
+    owner = (os.getpid() + 1, 20)
+    assert not controller.canActivateCard(tokens[0])
+    owner = (os.getpid(), 10)
+    assert not controller.canActivateCard(tokens[0])
+    assert controller.cardLaunchToken(tool.id) == -1
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("theme", ["decade", "zio"])
+def test_pack_double_click_draws_one_card_and_preserves_rows(launcher, qtbot, theme):
+    controller, backend, settings, _ = launcher
+    settings.saveThemeMode(theme)
+    for index in range(3):
+        create_tool(backend, f"Double card {index}")
+    controller.refreshTools()
     controller.togglePinned()
-    assert not controller.visible and not controller.expanded
-    monkeypatch.setattr(controller, "_ordinary_window_active", lambda: False)
-    controller.reconcile()
-    controller.toggleExpanded()
-    monkeypatch.setattr(controller, "_script_window_active", lambda: True)
-    controller.pointerChanged()
-    controller._collapse_if_outside()
-    assert controller.expanded and not controller._collapse_timer.isActive()
-    monkeypatch.setattr(controller, "_script_window_active", lambda: False)
-    controller._collapse_if_outside()
-    assert not controller.expanded
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda messages: warnings.extend(m.toString() for m in messages))
+    engine.rootContext().setContextProperty("packTestController", controller)
+    engine.rootContext().setContextProperty("testTheme", theme)
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+Item {
+    Component.onCompleted: {
+        Theme.decadeMode = testTheme === "decade"
+        Theme.zioMode = testTheme === "zio"
+    }
+    FloatingLauncher { controller: packTestController }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/DoubleClickPackHarness.qml")))
+    root = component.create()
+    assert root, component.errors()
+    panel = root.findChild(QQuickWindow, "zioDockWindow" if theme == "zio"
+                           else "floatingScriptPanelWindow")
+    requested = []
+
+    def opened(tid):
+        requested.append(tid)
+        controller.setCardOpen(tid, True)
+
+    backend.recentToolDialogRequested.connect(opened)
+
+    def items(item):
+        yield item
+        for child in item.childItems():
+            yield from items(child)
+
+    try:
+        controller.toggleExpanded()
+        qtbot.waitUntil(lambda: panel.isVisible() and panel.property("revealProgress") == 1)
+        first_id = ids(controller.toolsModel)[0]
+        row = next(item for item in items(panel.contentItem())
+                   if item.objectName() == ("zioSlot_" if theme == "zio" else "scriptRow_")
+                   + first_id)
+        point = row.mapToItem(panel.contentItem(), QPointF(row.width() / 2,
+                                                         70 if theme == "zio" else 20)).toPoint()
+        QTest.mouseDClick(panel, Qt.MouseButton.LeftButton, pos=point)
+        qtbot.waitUntil(lambda: len(requested) > 0)
+        qtbot.wait(280)
+        assert requested == [first_id]
+        assert controller.visible and controller.expanded
+        assert not warnings, warnings
+    finally:
+        controller.shutdown()
+        root.deleteLater()
+        engine.deleteLater()
 
 
 @pytest.mark.gui
@@ -550,7 +927,10 @@ def test_panel_animation_reverses_without_restarting_on_window_show(launcher, qt
     animation.setProperty("duration", 400)
     try:
         controller.toggleExpanded()
-        qtbot.waitUntil(lambda: 0.1 < panel.property("revealProgress") < 0.9)
+        # Choose an intermediate frame deterministically; native activation can
+        # otherwise finish the short animation before the first polling tick.
+        QMetaObject.invokeMethod(animation, "pause")
+        panel.setProperty("revealProgress", 0.4)
         progress = panel.property("revealProgress")
         controller.collapse()
         assert panel.isVisible()
@@ -570,11 +950,13 @@ def test_panel_animation_reverses_without_restarting_on_window_show(launcher, qt
         # closing frame when the launcher becomes available again.
         monkeypatch.setattr(controller, "_ordinary_window_active", lambda: True)
         controller.reconcile()
-        assert not panel.isVisible() and panel.property("revealProgress") == 0
+        assert panel.isVisible() and not controller.expanded
+        qtbot.waitUntil(lambda: panel.property("revealProgress") == 0)
         monkeypatch.setattr(controller, "_ordinary_window_active", lambda: False)
         controller.reconcile()
         assert not controller.expanded and panel.isVisible()
-        assert panel.mask().boundingRect().width() == 40
+        # The native input mask settles on the following rendered frame.
+        qtbot.waitUntil(lambda: panel.mask().boundingRect().width() == 40)
     finally:
         controller.shutdown()
         root.deleteLater()
@@ -667,27 +1049,24 @@ def test_floating_updates_coalesce_within_one_event_turn(launcher, qtbot, monkey
 @pytest.mark.parametrize("command", [
     "print('hello')", "print('${文本}')", "import os; os.system('adb devices')",
 ])
-def test_shortcut_launch_and_failure_feedback(launcher, monkeypatch, command):
-    controller, backend, _, _ = launcher
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+def test_all_themes_draw_before_running(launcher, monkeypatch, command, theme):
+    controller, backend, settings, _ = launcher
+    settings.saveThemeMode(theme)
     tool = create_tool(backend, "运行测试", command=command)
     runs = []
     dialogs = []
     backend.recentToolDialogRequested.connect(dialogs.append)
     monkeypatch.setattr(backend, "runSelected", lambda values: runs.append(values) or True)
     controller.launchTool(tool.id)
-    needs_dialog = bool(tool.parameters or backend._analyze_tool(tool).uses_adb)
-    assert dialogs == ([tool.id] if needs_dialog else [])
-    assert runs == ([] if needs_dialog else [{}])
-    if not needs_dialog:
-        backend.execution_coordinator.finished.emit(tool.id, 0)
-        dialogs.clear()
-        monkeypatch.setattr(backend, "runSelected", lambda values: False)
-        controller.launchTool(tool.id)
-        assert dialogs == [tool.id]
+    assert dialogs == [tool.id]
+    assert not runs
+    backend.execution_coordinator.finished.emit(tool.id, -1)
+    assert dialogs == [tool.id]  # Finishing execution never creates another card.
 
 
 @pytest.mark.gui
-def test_running_shortcuts_open_card_without_rerun_and_async_errors_are_visible(
+def test_running_and_finished_scripts_do_not_execute_on_draw(
     launcher, monkeypatch,
 ):
     controller, backend, _, _ = launcher
@@ -709,6 +1088,75 @@ def test_running_shortcuts_open_card_without_rerun_and_async_errors_are_visible(
     controller.launchTool(tool.id)
     backend.execution_coordinator.finished.emit(tool.id, -1)
     assert dialogs == [tool.id]
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+def test_card_pin_button_controls_native_layer_across_themes(launcher, qtbot, theme):
+    _, backend, _, _ = launcher
+    tool = create_tool(backend, "Pin card", command="print('${message:hello}')")
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda messages: warnings.extend(m.toString() for m in messages))
+    engine.rootContext().setContextProperty("appController", backend)
+    engine.rootContext().setContextProperty("testTheme", theme)
+    component = QQmlComponent(engine)
+    component.setData(b'''
+import QtQuick
+import "components"
+import "theme"
+RecentToolDialog {
+    presetUtilities: null
+    deviceController: null
+    jiraFeishuBackend: null
+    Component.onCompleted: {
+        Theme.darkMode = testTheme !== "light"
+        Theme.decadeMode = testTheme === "decade"
+        Theme.zioMode = testTheme === "zio"
+    }
+}
+''', QUrl.fromLocalFile(str(package_root() / "ui/qml/PinCardHarness.qml")))
+    window = component.create()
+    assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
+
+    def assert_native_layer(pinned):
+        if sys.platform == "win32":
+            get_style = ctypes.WinDLL("user32", use_last_error=True).GetWindowLongW
+            get_style.argtypes = [wintypes.HWND, ctypes.c_int]
+            get_style.restype = wintypes.LONG
+            assert bool(get_style(int(window.winId()), -20) & 0x8) == pinned
+
+    try:
+        assert QMetaObject.invokeMethod(window, "showWithTool", Q_ARG("QVariant", tool.id))
+        assert QTest.qWaitForWindowExposed(window)
+        qtbot.waitUntil(lambda: not window.property("entryAnimationRunning"))
+        qtbot.waitUntil(lambda: window.findChild(QObject, "recentToolPinButton") is not None)
+        button = window.findChild(QObject, "recentToolPinButton")
+        session = window.property("toolController")
+        geometry = window.geometry()
+        native_id = window.winId()
+        assert not button.property("checked")
+        assert not window.flags() & Qt.WindowType.WindowStaysOnTopHint
+        assert_native_layer(False)
+        for pinned in (True, False, True, False):
+            point = button.mapToItem(window.contentItem(), button.boundingRect().center())
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point.toPoint())
+            assert window.property("pinned") == button.property("checked") == pinned
+            assert bool(window.flags() & Qt.WindowType.WindowStaysOnTopHint) == pinned
+            assert_native_layer(pinned)
+            # Only the flight is elevated above the pack; landing restores the pin.
+            session.setCardFlightLayer(True)
+            assert_native_layer(True)
+            session.setCardFlightLayer(False)
+            assert_native_layer(pinned)
+            assert window.isVisible() and window.winId() == native_id
+            assert window.geometry() == geometry
+            assert window.property("parameterValues").toVariant()["message"] == "hello"
+        assert not warnings, warnings
+    finally:
+        window.close()
+        window.deleteLater()
+        engine.deleteLater()
 
 
 @pytest.mark.gui
@@ -1055,11 +1503,12 @@ RecentToolDialog {
         assert not window.findChild(QObject, "mechanicalCardBack").isVisible()
         assert not window.findChild(QObject, "mechanicalCardScan").isVisible()
         assert window.findChild(QObject, "movingScriptCard").opacity() == .4
-        # Closing during fade-in starts at the current alpha; reopening cancels close.
+        # Closing during fade-in starts at the current alpha; explicit settling cancels close.
         QMetaObject.invokeMethod(window, "closeCardAnimated")
         assert fade_out.property("running")
         QMetaObject.invokeMethod(fade_out, "pause")
         assert motion.property("fadeOpacity") == .4
+        QMetaObject.invokeMethod(window, "settleCard")
         QMetaObject.invokeMethod(window, "activateCard")
         assert motion.property("fadeOpacity") == 1
         assert not window.property("activationAnimationRunning")
@@ -1121,16 +1570,16 @@ def test_decade_pack_tracks_open_cards_across_refresh_filter_and_theme(launcher,
     controller.setCardOpen(alpha.id, True)
     controller.setCardOpen(beta.id, True)
     controller.refreshTools()
-    assert controller.toolsModel.count == 0
+    assert controller.toolsModel.count == 2
     settings.saveThemeMode("light")
     assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
     settings.saveThemeMode("decade")
-    assert controller.toolsModel.count == 0
+    assert controller.toolsModel.count == 2
     assert controller.beginCardReturn(alpha.id)
     assert controller.beginCardReturn(beta.id)
     assert set(controller.returningCardIds) == {alpha.id, beta.id}
     controller.setToolSearchQuery("Alpha")
-    assert ids(controller.toolsModel) == []  # Return preparation never adds a blank row.
+    assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
     controller.setCardOpen(alpha.id, False)
     assert controller.returningCardIds == [beta.id]
     controller.setCardOpen(beta.id, False)
@@ -1195,6 +1644,8 @@ Item {
             assert face.mapToGlobal(QPointF()) == origin and face.size() == size
             port = face.property("packPort")
             assert port.width() == 1 and port.height() > 0
+            assert face.property("packExitDirection") == 1
+            assert port.x() > origin.x() + face.width()
             ports.append(port)
         assert all(port == ports[0] for port in ports)
         assert scripts.property("pendingLaunchCount") == 3
@@ -1344,8 +1795,9 @@ Window {
 @pytest.mark.parametrize("row_y", [200, 500, 800])
 @pytest.mark.parametrize("offset", [QPoint(0, 0), QPoint(-1920, -400)])
 @pytest.mark.parametrize("uses_port,compact_face", [(False, False), (True, False), (True, True)])
+@pytest.mark.parametrize("direction", [-1, 1])
 def test_all_pack_rows_clear_sleeve_before_turning_or_growing(
-    qapp, row_y, offset, uses_port, compact_face,
+    qapp, row_y, offset, uses_port, compact_face, direction,
 ):
     from poptools.infrastructure.window_placement import card_flight_geometry
 
@@ -1363,19 +1815,23 @@ MechanicalCardMotion {
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/AllRowExtraction.qml")))
     motion = component.create()
     assert motion, component.errors()
-    source = QRectF(1400, row_y, 210, 453 * 210 / 293).translated(offset)
+    source = QRectF(1400 if direction < 0 else 40, row_y,
+                    210, 453 * 210 / 293).translated(offset)
     if compact_face:
         source.setHeight(source.height() * .75)
     available = QRect(0, 0, 1920, 1040).translated(offset)
     # Even a destination on the right cannot pull a low card sideways first.
     target = QRect(1450, 450, 293, 453).translated(offset)
     face = motion.property("cardFace")
+    face.setProperty("packExitDirection", direction)
     face.setProperty("packViewportTop", 200 + offset.y())
     face.setProperty("packViewportBottom", 900 + offset.y())
     face.setProperty("packVisibleRect", QRectF(source.x(), source.y(), 210, 50))
     if uses_port:
-        face.setProperty("packPort", QRectF(source.x() - 24, 200 + offset.y(), 1, 700))
-        face.setProperty("packPortOrigin", QRectF(source.x() - 24, 350 + offset.y(),
+        port_x = source.x() - 24 if direction < 0 else source.right() + 24
+        face.setProperty("packPort", QRectF(port_x, 200 + offset.y(), 1, 700))
+        face.setProperty("packPortOrigin", QRectF(port_x if direction < 0 else port_x - 200,
+                                                 350 + offset.y(),
                                                  200, 453 * 200 / 293))
     positions = []
     motion.positionRequested.connect(
@@ -1407,7 +1863,8 @@ MechanicalCardMotion {
                     else:
                         assert bounds.center().y() == pytest.approx(gate.center().y())
                     assert opening.width() > 1  # The face remains visible inside the list.
-                elif bounds.left() < source.left() - .5:
+                elif (bounds.left() < source.left() - .5 if direction < 0
+                      else bounds.right() > source.right() + .5):
                     assert bounds.bottom() <= face.property("packViewportBottom")
                 elif source.bottom() > face.property("packViewportBottom"):
                     assert bounds.center().x() == pytest.approx(source.center().x())
@@ -1419,7 +1876,10 @@ MechanicalCardMotion {
                 previous_y = bounds.center().y()
                 assert motion.property("flightTilt") == 0
             if distance == .5:
-                assert bounds.right() < source.left() - 10
+                if direction < 0:
+                    assert bounds.right() < source.left() - 10
+                else:
+                    assert bounds.left() > source.right() + 10
                 assert available.contains(bounds.toAlignedRect())
             if distance > .5:
                 assert pack.isEmpty() and opening.isEmpty()  # Fully clear; never cut again.
@@ -1662,7 +2122,7 @@ Item {
             settings.saveThemeMode(mode)
             root.setProperty("mode", mode)
             qtbot.wait(30)
-            expected_height = 480
+            expected_height = 440 if mode == "decade" else 480
             available_height = panel.screen().availableGeometry().height()
             assert panel.height() == min(expected_height, available_height)
             view = scripts.findChild(QObject, "sharedScriptList")
@@ -1674,13 +2134,14 @@ Item {
             assert search.isVisible() == (mode != "decade")
             assert root.findChild(QObject, "floatingTitleSearch").isVisible() == (mode == "decade")
             assert search.property("text") == "Theme"
-            assert scripts.property("visibleCount") == (2 if mode == "decade" else 3)
+            assert scripts.property("visibleCount") == 3
             for tool_id, original in faces.items():
                 assert root.findChild(QObject, "deckCard_" + tool_id) is original
             assert faces[tools[0].id].window() is borrowed_window
         title_search = root.findChild(QObject, "floatingTitleSearch")
         title_search.setProperty("text", "Theme card 1")
-        qtbot.waitUntil(lambda: controller.toolsModel.count == 1)
+        qtbot.waitUntil(lambda: controller.searchResultsModel.count == 1)
+        assert controller.toolsModel.count == 3
         assert scripts.property("searchQuery") == "Theme card 1"
         clear = title_search.findChild(QObject, "floatingTitleSearchClearButton")
         assert clear.isVisible()
@@ -1688,8 +2149,8 @@ Item {
         QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point)
         assert title_search.property("text") == "" and not clear.isVisible()
         assert title_search.hasActiveFocus()
-        qtbot.waitUntil(lambda: controller.toolsModel.count == 2)
-        sort_button = root.findChild(QObject, "scriptListSort")
+        qtbot.waitUntil(lambda: controller.searchResultsModel.count == 3)
+        sort_button = root.findChild(QObject, "decadePackSort")
         assert controller.setToolSortMode("added_time")
         for mode, icon in (("name", "sort_by_alpha"), ("usage", "trending_up"),
                            ("custom", "drag_indicator"), ("added_time", "schedule")):
@@ -1780,9 +2241,9 @@ Item {
             assert bounds.bottom() == pytest.approx(script_list.height(), abs=1)
             assert panel.grabWindow().save(f"build/stack-bottom-{kind}.png")
         scroll_bar = script_list.findChild(QObject, "scriptListScrollBar")
-        assert scroll_bar.isVisible()
-        handle = scroll_bar.property("contentItem")
-        assert handle.objectName() == "decadeSwordScrollHandle"
+        assert not scroll_bar.isVisible()
+        handle = root.findChild(QObject, "decadePackScrollThumb")
+        assert handle is not None
         start_y = script_list.property("contentY")
         start = handle.mapToItem(panel.contentItem(), handle.boundingRect().center()).toPoint()
         end = start - QPoint(0, 70)
@@ -1826,7 +2287,7 @@ RecentToolDialog {
     assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
     assert window.flags() & Qt.NoDropShadowWindowHint
     available = qapp.primaryScreen().availableGeometry()
-    source = QRectF(available.right() - 300, available.center().y(), 280, 40)
+    source = QRectF(available.left() + 16, available.center().y(), 280, 40)
     try:
         window.setProperty("launchOrigin", source)
         assert QMetaObject.invokeMethod(window, "showWithTool", Q_ARG("QVariant", tool.id))
@@ -1839,7 +2300,9 @@ RecentToolDialog {
         destination = QRect(geometry["x"] + geometry["targetX"],
                             geometry["y"] + geometry["targetY"],
                             geometry["targetWidth"], geometry["targetHeight"])
-        assert destination.topLeft() == available.topLeft() + QPoint(32, 32)
+        assert destination.topLeft() == QPoint(
+            available.x() + (available.width() - destination.width()) // 2,
+            available.y() + (available.height() - destination.height()) // 2)
         assert window.property("cardPlacementRect").toAlignedRect() == destination
         assert motion.property("scanDuration") == 300
         assert QTest.qWaitForWindowExposed(window)
@@ -1862,7 +2325,7 @@ RecentToolDialog {
             elif travel == 1:
                 assert window.geometry() == destination
             else:
-                assert global_rect.center().x() < source.center().x()
+                assert global_rect.center().x() > source.center().x()
                 assert global_rect.height() > source.height()
             assert available.adjusted(-1, -1, 1, 1).contains(global_rect.toAlignedRect())
             assert window.size() == destination.size()
@@ -1919,6 +2382,7 @@ RecentToolDialog {
                     assert rect.height() == pytest.approx(source.height(), abs=1)
                 assert window.grabWindow().save(str(output_dir / f"recycle-{progress}.png"))
             if interrupt == "reopen":
+                assert QMetaObject.invokeMethod(window, "settleCard")
                 assert QMetaObject.invokeMethod(window, "activateCard")
                 assert window.geometry() == return_start
                 assert window.property("activationAnimationRunning")
@@ -2045,7 +2509,7 @@ MechanicalCardMotion { Component.onCompleted: Theme.decadeMode = true }
 
 
 @pytest.mark.gui
-def test_capacity_confirmation_raises_main_window(launcher, monkeypatch):
+def test_click_opens_card_without_capacity_confirmation(launcher, monkeypatch):
     controller, backend, _, main = launcher
     tool = create_tool(backend, "容量测试")
     dialogs = []
@@ -2057,8 +2521,8 @@ def test_capacity_confirmation_raises_main_window(launcher, monkeypatch):
 
     monkeypatch.setattr(backend, "runSelected", run)
     controller.launchTool(tool.id)
-    assert main.isVisible()
-    assert not dialogs
+    assert not main.isVisible()
+    assert dialogs == [tool.id]
 
 
 @pytest.mark.gui
@@ -2418,6 +2882,7 @@ Item {
         with qtbot.waitSignal(panel.frameSwapped):
             panel.update()
         rect = tip.mapRectToItem(panel.contentItem(), tip.boundingRect())
+        controller.togglePinned()  # Search/sort checks require a persistent open surface.
         QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
         qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
         assert controller._is_launcher_window(panel)
@@ -2446,8 +2911,8 @@ Item {
         point = row.mapToGlobal(QPointF(0, 0))
         expected_origin = QRectF(point.x(), point.y(), row.width(), row.height())
         origins = []
-        monkeypatch.setattr(backend, "open_custom_tool_shortcut",
-                            lambda tool_id: origins.append(controller.cardLaunchOrigin(tool_id)))
+        backend.recentToolDialogRequested.connect(
+            lambda tool_id: origins.append(controller.cardLaunchOrigin(tool_id)))
         rect = row.mapRectToItem(panel.contentItem(), row.boundingRect())
         QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
         assert origins == [expected_origin]
@@ -2491,10 +2956,12 @@ Item {
         qtbot.waitUntil(panel.isActive)
         controller.reconcile()
         assert controller.visible and controller.expanded
+        controller.togglePinned()
         main.showNormal()
         main.requestActivate()
         qtbot.waitUntil(main.isActive)
-        qtbot.waitUntil(lambda: not controller.visible and not panel.isVisible())
+        qtbot.waitUntil(lambda: not controller.visible and not controller.expanded)
+        assert not panel.isVisible()
         main.hide()
         qtbot.waitUntil(lambda: controller.visible)
         assert not warnings, warnings
@@ -2583,7 +3050,7 @@ def test_main_window_settings_navigation_and_close_to_tray(
                 pack = window.findChild(QObject, "floatingScriptList")
                 view = pack.findChild(QObject, "sharedScriptList")
                 panel = window.findChild(QQuickWindow, "floatingScriptPanelWindow")
-                qtbot.wait(250)
+                qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
                 QMetaObject.invokeMethod(view, "positionViewAtEnd")
                 qtbot.wait(150)
                 QMetaObject.invokeMethod(view, "forceLayout")
@@ -2591,11 +3058,14 @@ def test_main_window_settings_navigation_and_close_to_tray(
                 qtbot.wait(150)
                 opened_ids = set()
                 for attempt in range(5):
-                    tid = controller.toolsModel.lastToolId("all")
+                    tid = tools[-1 - attempt].id
+                    QMetaObject.invokeMethod(view, "positionViewAtIndex",
+                        Q_ARG("int", controller.toolsModel.indexOfTool(tid)), Q_ARG("int", 0))
+                    qtbot.wait(30)
                     face = window.findChild(QObject, "deckCard_" + tid)
                     assert face is not None
                     bounds = face.mapRectToItem(view, face.boundingRect())
-                    assert bounds.top() >= -1 and bounds.bottom() <= view.height() + 1
+                    assert bounds.top() >= -1 and bounds.top() < view.height()
                     if attempt == 0:
                         assert panel.grabWindow().save("build/decade-bottom-complete.png")
                     samples = []
@@ -2604,20 +3074,21 @@ def test_main_window_settings_navigation_and_close_to_tray(
                     sampler.timeout.connect(lambda samples=samples: samples.append(
                         view.property("contentY") - view.property("bottomRevealOffset")))
                     sampler.start()
-                    point = face.mapToItem(panel.contentItem(), face.boundingRect().center())
+                    point = face.mapToItem(panel.contentItem(), QPointF(face.width() / 2,
+                        min(view.property("cardStep") / 2, view.height() - bounds.top() - 2)))
                     QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point.toPoint())
                     qtbot.waitUntil(lambda tid=tid: any(card.objectName() == "recentToolWindow"
                         and card.property("toolId") == tid and card.isVisible()
                         for card in qapp.topLevelWindows()), timeout=7000)
-                    qtbot.waitUntil(lambda tid=tid: tid not in ids(controller.toolsModel))
+                    qtbot.waitUntil(lambda tid=tid: controller.isCardOpen(tid))
+                    assert tid in ids(controller.toolsModel)
                     opened_ids.add(tid)
                     qtbot.wait(300)
                     sampler.stop()
                     sampler.deleteLater()
-                    assert len({round(value, 1) for value in samples}) >= 3
-                    assert view.property("atYEnd")
-                    assert controller.toolsModel.count == 17 - attempt
-                    expected_last = tools[16 - attempt].id
+                    assert samples and max(samples) - min(samples) <= 1
+                    assert controller.toolsModel.count == 18
+                    expected_last = tools[-1].id
                     assert controller.toolsModel.lastToolId("all") == expected_last
                 assert controller.openCardCount == len(opened_ids)
                 assert not warnings, warnings
@@ -2678,7 +3149,7 @@ def test_main_window_settings_navigation_and_close_to_tray(
                     assert not any(shown for shown, _, _ in recall_scroll_bars)
                     assert any(needed for _, _, needed in recall_scroll_bars)
                     assert all(width == gutter for _, width, _ in recall_scroll_bars)
-                    qtbot.waitUntil(scroll_bar.isVisible)
+                    assert not scroll_bar.isVisible()
                     gaps = sorted((b - a) * 1000 for a, b in zip(beats, beats[1:], strict=False))
                     print(f"10-card GUI heartbeat: p95={gaps[int(len(gaps) * .95)]:.1f} ms, "
                           f"max={max(gaps):.1f} ms")
@@ -2716,6 +3187,8 @@ def test_main_window_settings_navigation_and_close_to_tray(
                 return values.toVariant() if hasattr(values, "toVariant") else values
 
             controller.refreshTools()
+            # Multi-window checks explicitly require a persistent open pack.
+            controller.togglePinned()
             controller.toggleExpanded()
             panel = window.findChild(QQuickWindow, "floatingScriptPanelWindow")
             qtbot.waitUntil(lambda: panel.property("revealProgress") == 1)
@@ -2731,16 +3204,21 @@ def test_main_window_settings_navigation_and_close_to_tray(
             row = next(item for item in rows if item.property("toolId") == alpha.id)
             original_face = next(item for item in visual_items(row)
                                  if item.objectName() == "deckCard_" + alpha.id)
-            point = row.mapToItem(panel.contentItem(), QPointF(row.width() / 2, 35))
+            search = window.findChild(QObject, "floatingTitleSearch")
+            search.setProperty("text", "Window A")
+            results = window.findChild(QObject, "decadeSearchResults")
+            qtbot.waitUntil(lambda: results.property("count") == 1)
+            point = results.mapToItem(panel.contentItem(), QPointF(results.width() / 2, 20))
             QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=point.toPoint())
             assert not any(w.objectName() == "cardFlightWindow" for w in qapp.topLevelWindows())
             qtbot.waitUntil(lambda: alpha.id in tool_windows())
             first = tool_windows()[alpha.id]
             assert first.property("cardFace") is original_face
             assert original_face.window() is first
-            assert first.property("launchOrigin").height() > 300
+            assert first.property("launchOrigin").x() > panel.x() + panel.width() / 2
+            search.setProperty("text", "")
             qtbot.waitUntil(lambda: not first.property("entryAnimationRunning"))
-            assert alpha.id not in ids(controller.toolsModel)
+            assert alpha.id in ids(controller.toolsModel)
             assert controller.openCardCount == 1
             assert not first.findChild(QObject, "recentToolMinimizeButton").isVisible()
             qtbot.waitUntil(first.isActive)
@@ -2748,16 +3226,26 @@ def test_main_window_settings_navigation_and_close_to_tray(
             first.requestActivate()
             qtbot.waitUntil(first.isActive)
             controller.reconcile()
-            assert controller.visible and window.isVisible()
+            assert not controller.visible and window.isVisible()
+            window.hide()
+            qtbot.waitUntil(lambda: controller.visible)
+            if not controller.expanded:
+                controller.toggleExpanded()
+            qtbot.waitUntil(panel.isActive)
             set_message(first, "draft A")
             session_a = first.property("toolController")
             first_position = first.position()
+            work_area = first.screen().availableGeometry()
+            assert first_position == QPoint(
+                work_area.x() + (work_area.width() - first.width()) // 2,
+                work_area.y() + (work_area.height() - first.height()) // 2)
             controller.launchTool(beta.id)
             qtbot.waitUntil(lambda: beta.id in tool_windows())
             second = tool_windows()[beta.id]
             qtbot.waitUntil(second.isActive)
+            qtbot.waitUntil(lambda: not second.property("entryAnimationRunning"))
             second_position = second.position()
-            assert second_position != first_position
+            assert second_position == first_position + QPoint(32, 32)
             assert first.position() == first_position
             assert second.screen().availableGeometry().contains(second.geometry())
             controller.reconcile()
@@ -2765,11 +3253,11 @@ def test_main_window_settings_navigation_and_close_to_tray(
             set_message(second, "draft B")
             session_b = second.property("toolController")
             qtbot.waitUntil(lambda: controller.openCardCount == 2)
-            assert controller.toolsModel.count == 0
+            assert controller.toolsModel.count == 2
             settings.saveThemeMode("light")
             assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
             settings.saveThemeMode("decade")
-            assert controller.toolsModel.count == 0
+            assert controller.toolsModel.count == 2
             assert session_a.selectedTool["id"] == alpha.id
             assert session_b.selectedTool["id"] == beta.id
             # Reopening a tool activates its existing window without resetting its form.
@@ -2838,25 +3326,22 @@ def test_main_window_settings_navigation_and_close_to_tray(
             assert alpha.id in controller.returningCardIds
             assert first.isVisible()
             qtbot.waitUntil(lambda: first.property("recycleAnimationRunning"))
-            assert alpha.id not in ids(controller.toolsModel)  # No empty return slot.
+            assert alpha.id in ids(controller.toolsModel)  # No empty return slot.
             assert first.property("cardFace") is original_face
             assert original_face.window() is first
             landing = first.findChild(QObject, "mechanicalCardMotion").property("flightGeometry")
-            landing_scale = landing["sourceWidth"] / first.width()
-            inset = 4 * first.property("cardUiScale") * landing_scale
-            expected_origin = QPointF(landing["x"] + landing["sourceX"] + inset,
-                                      landing["y"] + landing["sourceY"] + inset)
-            expected_width = landing["sourceWidth"] - 2 * inset
+            return_motion = first.findChild(QObject, "mechanicalCardMotion")
+            assert not controller.expanded
+            assert return_motion.property("portBounds").isEmpty()
+            collapsed = controller.collapsedCardOrigin()
+            assert landing["sourceWidth"] == collapsed.width()
+            assert landing["sourceHeight"] == collapsed.height()
             qtbot.waitUntil(lambda: len(tool_windows()) == 1)
             assert alpha.id in ids(controller.toolsModel)
-            assert beta.id not in ids(controller.toolsModel)
+            assert beta.id in ids(controller.toolsModel)
             assert not controller.returningCardIds
             assert original_face.window() is panel  # The item is docked, not recreated.
-            docked_origin = original_face.mapToGlobal(QPointF(0, 0))
-            assert abs(docked_origin.x() - expected_origin.x()) <= 1
-            assert abs(docked_origin.y() - expected_origin.y()) <= 1
-            assert abs(original_face.width() - expected_width) <= 1
-            assert original_face.parentItem().width() == original_face.width()
+            assert not controller.expanded
             qtbot.waitUntil(lambda: len(backend.findChildren(ToolSessionController)) == 1)
             assert second.isVisible() and session_b.running
             second.close()
@@ -2942,3 +3427,79 @@ def test_main_window_settings_navigation_and_close_to_tray(
         engine.deleteLater()
         tray.deleteLater()
         qapp.setQuitOnLastWindowClosed(previous_quit_policy)
+
+
+@pytest.mark.parametrize("pinned", [False, True])
+def test_main_and_floating_launcher_are_mutually_exclusive(launcher, monkeypatch, pinned):
+    controller, _, _, main = launcher
+    controller._pinned = pinned
+    controller.toggleExpanded()
+    visible = True
+    visibility = QWindow.Windowed
+    monkeypatch.setattr(main, "isVisible", lambda: visible)
+    monkeypatch.setattr(main, "visibility", lambda: visibility)
+    controller.reconcile()
+    assert not controller.visible and not controller.expanded
+    visibility = QWindow.Minimized
+    controller.reconcile()
+    assert controller.visible and not controller.expanded
+    visibility = QWindow.Windowed
+    controller.reconcile()
+    assert not controller.visible
+    visible = False
+    controller.reconcile()
+    assert controller.visible
+
+
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+def test_drawing_keeps_browsing_but_external_focus_dismisses(launcher, monkeypatch, theme):
+    controller, backend, settings, _ = launcher
+    settings.saveThemeMode(theme)
+    tool = create_tool(backend, "Keep browsing")
+    inside = True
+    card_focused = True
+    monkeypatch.setattr(controller, "_pointer_inside", lambda: inside)
+    monkeypatch.setattr(controller, "_card_window_active", lambda: card_focused)
+    controller.toggleExpanded()
+    controller.launchTool(tool.id)
+    monkeypatch.setattr(controller, "_ordinary_window_active", lambda: True)
+    controller.reconcile()
+    assert controller.expanded
+    card_focused = False  # Alt+Tab to another application, even with the cursor unmoved.
+    controller.reconcile()
+    assert controller.visible and not controller.expanded
+    monkeypatch.setattr(controller, "_ordinary_window_active", lambda: False)
+    card_focused = True
+    controller.toggleExpanded()
+    controller.launchTool(tool.id)
+    inside = False
+    monkeypatch.setattr(controller, "_ordinary_window_active", lambda: True)
+    controller.reconcile()
+    assert not controller.expanded and controller.visible
+
+
+@pytest.mark.gui
+def test_flight_above_pack_does_not_end_stationary_browsing(launcher, monkeypatch):
+    controller, _, _, _ = launcher
+    panel, flight = QWindow(), QWindow()
+    controller.attachDrawerWindow(panel, 76, 112, 560, 440)
+    panel.show()
+    controller.toggleExpanded()
+    controller.setDrawerProgress(1)
+    point = panel.position() + panel.mask().boundingRect().center()
+    monkeypatch.setattr(QCursor, "pos", lambda: point)
+    flight.setObjectName("recentToolWindow")
+    flight.setProperty("nativeFlightActive", True)
+    controller._browsing_cards = True
+    monkeypatch.setattr(floating_module, "window_under_cursor", lambda: int(flight.winId()))
+    try:
+        assert controller._pointer_inside()
+        flight.setProperty("nativeFlightActive", False)
+        assert not controller._pointer_inside()
+        flight.setProperty("nativeFlightActive", True)
+        point += QPoint(9999, 9999)
+        assert not controller._pointer_inside()
+    finally:
+        controller.shutdown()
+        panel.destroy()
+        flight.destroy()

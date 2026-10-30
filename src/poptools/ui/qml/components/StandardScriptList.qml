@@ -6,7 +6,7 @@ import "../theme"
 ScriptCollectionView {
     id: root
     property bool quickLaunch: false
-    actionText: quickLaunch ? "点击运行" : "↑ / ↓ 切换脚本"
+    actionText: quickLaunch ? "点击出卡" : "↑ / ↓ 切换脚本"
     onActivationRequested: function (id, row) {
         handleActivation(id, row);
     }
@@ -34,6 +34,7 @@ ScriptCollectionView {
         required property bool selected
         required property bool running
         required property int index
+        readonly property bool cardOpen: root.quickLaunch && root.controller.openCardIds.indexOf(toolId) >= 0
         objectName: "scriptRow_" + toolId
         onSelectedChanged: if (selected)
             root.positionViewAtIndex(index, ListView.Contain)
@@ -69,10 +70,16 @@ ScriptCollectionView {
                 elide: Text.ElideRight
             }
             MaterialIcon {
-                icon: scriptRow.running ? "hourglass_top" : root.quickLaunch ? "play_arrow" : "chevron_right"
+                icon: scriptRow.running ? "hourglass_top" : "chevron_right"
                 iconSize: 14
                 color: scriptRow.running ? Theme.primary : Theme.textSecondary
                 Layout.preferredWidth: 14
+            }
+            Text {
+                visible: root.quickLaunch && scriptRow.cardOpen
+                text: "已打开"
+                color: Theme.primary
+                font.pixelSize: Theme.fontCaption
             }
         }
         MouseArea {
@@ -80,9 +87,10 @@ ScriptCollectionView {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            onDoubleClicked: function(mouse) { mouse.accepted = true }
             onClicked: {
-                root.activateTool(scriptRow.toolId, scriptRow);
                 root.forceActiveFocus();
+                root.activateTool(scriptRow.toolId, scriptRow);
             }
         }
     }

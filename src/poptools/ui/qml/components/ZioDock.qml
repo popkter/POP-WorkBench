@@ -16,6 +16,22 @@ Item {
     signal searchEdited(string query)
     signal framePresented()
     signal recallRequested()
+    property bool searchFocusPending: false
+    function focusSearch() {
+        searchFocusPending = true
+        if (!controller.expanded) controller.toggleExpanded()
+        finishSearchFocus()
+    }
+    function finishSearchFocus() {
+        if (!controller.visible || !controller.expanded) {
+            searchFocusPending = false
+            return
+        }
+        if (!searchFocusPending || panel.revealProgress !== 1) return
+        searchFocusPending = false
+        dockSearch.forceActiveFocus()
+        dockSearch.selectAll()
+    }
 
     function cardRect(id) {
         let index = controller.toolsModel.indexOfTool(id)
@@ -62,8 +78,14 @@ Item {
                 easing.type: Easing.OutCubic
             }
         }
-        onRevealProgressChanged: root.syncProgress()
-        onVisibleChanged: if (!visible) root.closeMenus()
+        onRevealProgressChanged: {
+            root.syncProgress()
+            root.finishSearchFocus()
+        }
+        onVisibleChanged: if (!visible) {
+            root.searchFocusPending = false
+            root.closeMenus()
+        }
         onFrameSwapped: root.framePresented()
         palette.text: Theme.textPrimary
         palette.highlight: Theme.primary
@@ -382,6 +404,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onDoubleClicked: function(mouse) { mouse.accepted = true }
                         onClicked: slot.activate()
                     }
                     Accessible.role: Accessible.Button
@@ -439,6 +462,12 @@ Item {
             Accessible.onPressAction: root.controller.toggleExpanded()
         }
         HoverHandler { onHoveredChanged: if (Theme.zioMode) root.controller.pointerChanged() }
+        Shortcut {
+            sequence: "Ctrl+F"; context: Qt.WindowShortcut
+            autoRepeat: false
+            enabled: panel.visible
+            onActivated: root.focusSearch()
+        }
         Shortcut {
             sequence: "Esc"; context: Qt.WindowShortcut
             enabled: Theme.zioMode && root.controller.expanded

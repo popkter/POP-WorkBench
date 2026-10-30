@@ -23,6 +23,7 @@ Rectangle {
     color: "transparent"
 
     signal searchEdited(string query)
+    function focusSearch() { mainScriptList.focusSearch(); }
     signal createRequested()
     signal importRequested()
     signal editRequested()

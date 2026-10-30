@@ -5,6 +5,7 @@ Rectangle {
     id: root
     property string cardTitle: ""
     property string cardIcon: "terminal"
+    property int packExitDirection: -1
     property rect packVisibleRect: Qt.rect(0, 0, 0, 0)
     property real packViewportTop: NaN
     property real packViewportBottom: NaN
