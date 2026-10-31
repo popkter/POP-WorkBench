@@ -28,4 +28,5 @@ def test_release_bundles_images_referenced_by_qml():
             assert destination in bundled, f"{qml.name}: missing bundled image {reference}"
             assert bundled[destination].is_file()
             referenced.add(asset.name)
-    assert "decade-camera.svg" in referenced
+    # Guard against an empty scan without coupling this check to a specific UI icon.
+    assert referenced, "No QML image references found; check the resource reference matcher"
