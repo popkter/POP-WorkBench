@@ -358,7 +358,9 @@ def test_zio_entry_has_no_rotation_and_only_one_scan(zio_app, qapp, qtbot):
     assert any(0 < value < 1 for value in scans)
     assert scans[-1] == 1
     assert not motion.property("entrySpinEnabled")
-    assert card.findChild(QObject, "zioDeviceDial") is not None
+    phone = card.findChild(QObject, "deviceSelectorPhoneIcon")
+    assert phone is not None and phone.isVisible()
+    assert card.findChild(QObject, "deviceSelectorPhoneFrame") is not None
     assert card.findChild(QObject, "zioDeviceWatch") is None
     assert not warnings, warnings
 
@@ -813,7 +815,19 @@ def test_unified_click_focus_reuse_and_collapsed_return(zio_app, qapp, qtbot, mo
                        for item in visual_items(panel.contentItem()))
     inside = False
     controller.pointerChanged()
-    qtbot.waitUntil(lambda: not controller.expanded)
+    qtbot.wait(200)
+    assert controller.expanded
+    # Moving away after automatic card activation is not a window switch.
+    # Explicitly activating a different window still dismisses the launcher.
+    other_window = QWindow()
+    try:
+        other_window.show()
+        other_window.requestActivate()
+        qtbot.waitUntil(other_window.isActive)
+        qtbot.waitUntil(lambda: not controller.expanded)
+    finally:
+        other_window.close()
+        other_window.deleteLater()
 
     # Closing a normal card must not expand or activate the floating entry.
     qtbot.waitUntil(lambda: not card.property("activationAnimationRunning"), timeout=7000)

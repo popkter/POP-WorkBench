@@ -96,16 +96,22 @@ class DeveloperConsoleController(QObject):
         self._terminal_columns = 120
         self._terminal_rows = 30
         self._terminal_syntax_colors = self.TERMINAL_SYNTAX_COLOR_DEFAULTS.copy()
-        self._power_shell_history_list_view_enabled = False
+        self._power_shell_history_list_view_enabled = (
+            python_environment.config_store.terminal_history_list_view_enabled()
+        )
         self._shutdown_pending = False
         self._plugin_manager = plugin_manager
         self._owns_plugin_manager = False
         self._plugin = powershell_plugin
         if self._plugin is None and sys.platform == "win32":
             if self._plugin_manager is None:
-                self._plugin_manager = PluginController(PluginService(python_environment.paths), self)
+                self._plugin_manager = PluginController(
+                    PluginService(python_environment.paths), self,
+                )
                 self._owns_plugin_manager = True
-            self._plugin = ManagedPowerShell(self._plugin_manager.service, self._plugin_manager.runtime)
+            self._plugin = ManagedPowerShell(
+                self._plugin_manager.service, self._plugin_manager.runtime,
+            )
         self._managed_terminal_install_requested = False
         if self._plugin_manager is not None:
             self._plugin_manager.changed.connect(self.pluginStateChanged)
@@ -157,7 +163,8 @@ class DeveloperConsoleController(QObject):
 
     @Property(bool, notify=pluginStateChanged)
     def pluginInstalling(self) -> bool:
-        return self._plugin_manager.operation_state("powershell")[0] if self._plugin_manager else False
+        return (self._plugin_manager.operation_state("powershell")[0]
+                if self._plugin_manager else False)
 
     @Property(int, notify=pluginStateChanged)
     def pluginInstallProgress(self) -> int:
@@ -291,6 +298,9 @@ class DeveloperConsoleController(QObject):
             }
         )
         if self._plugin is not None:
+            environment["POPTOOLS_PS_HISTORY_LIST_VIEW"] = (
+                "1" if self._power_shell_history_list_view_enabled else "0"
+            )
             environment.update(
                 {
                     f"POPTOOLS_PS_COLOR_{name.upper()}": color
@@ -326,8 +336,6 @@ class DeveloperConsoleController(QObject):
             return False
         self.terminalTabsChanged.emit()
         self.runningChanged.emit()
-        if self._power_shell_history_list_view_enabled and self._plugin is not None:
-            session.write(self.POWER_SHELL_HISTORY_LIST_VIEW_COMMAND.encode("utf-8"))
         return True
 
     def _terminal_environment(self) -> dict[str, str]:
@@ -360,6 +368,8 @@ class DeveloperConsoleController(QObject):
             return False
         enabled = bool(enabled)
         changed = enabled != self._power_shell_history_list_view_enabled
+        if changed:
+            self.python_environment.config_store.set_terminal_history_list_view_enabled(enabled)
         self._power_shell_history_list_view_enabled = enabled
         command = (
             self.POWER_SHELL_HISTORY_LIST_VIEW_COMMAND

@@ -21,6 +21,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "last_section": "custom",
         "console_expanded": True,
         "terminal_enabled": False,
+        "terminal_history_list_view_enabled": False,
         "floating_launcher_enabled": True,
         "floating_launcher_position": {"screen": "", "vertical_ratio": 0.5},
         "user_guide_seen": False,
@@ -395,6 +396,19 @@ class ConfigStore:
             app = {}
             config["app"] = app
         app["terminal_enabled"] = bool(enabled)
+        self.save_config(config)
+
+    def terminal_history_list_view_enabled(self) -> bool:
+        app = self.load_config().get("app")
+        value = (app.get("terminal_history_list_view_enabled", False)
+                 if isinstance(app, dict) else False)
+        return value if isinstance(value, bool) else False
+
+    def set_terminal_history_list_view_enabled(self, enabled: bool) -> None:
+        config = self.load_config()
+        if not isinstance(config.get("app"), dict):
+            config["app"] = {}
+        config["app"]["terminal_history_list_view_enabled"] = bool(enabled)
         self.save_config(config)
 
     def custom_script_concurrency(self) -> int:

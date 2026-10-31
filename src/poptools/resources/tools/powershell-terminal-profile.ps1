@@ -59,7 +59,14 @@ foreach ($entry in $popToolsColorSources.GetEnumerator()) {
 if ($popToolsColors.Count -gt 0) {
     Set-PSReadLineOption -Colors $popToolsColors
 }
-Set-PSReadLineOption -PredictionSource None
+# New and restarted sessions apply the saved preference during initialization,
+# before PSReadLine begins accepting input.
+if ($env:POPTOOLS_PS_HISTORY_LIST_VIEW -eq '1') {
+    Set-PSReadLineOption -PredictionSource History
+    Set-PSReadLineOption -PredictionViewStyle ListView
+} else {
+    Set-PSReadLineOption -PredictionSource None
+}
 
 # PopTools sends these otherwise-unused key chords to change prediction mode
 # without typing commands into the editable line or adding them to history.

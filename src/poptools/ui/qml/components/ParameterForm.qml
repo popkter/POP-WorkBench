@@ -118,8 +118,8 @@ Column {
             }
 
             Text {
-                x: parameterInput.x
-                width: parameterInput.width
+                x: parameterInput.x + parameterInput.contentLeftPadding
+                width: Math.max(0, parameterInput.width - parameterInput.contentLeftPadding)
                 visible: parameterItem.modelData.kind !== "boolean" && text.length > 0
                 text: root.submitOnEnter && parameterItem.modelData.kind === "multiline"
                     ? "Enter 运行，Shift+Enter 换行"

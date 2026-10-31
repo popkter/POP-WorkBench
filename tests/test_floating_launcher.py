@@ -1,4 +1,5 @@
 import ctypes
+import json
 import math
 import os
 import sys
@@ -490,10 +491,8 @@ def test_startup_without_click_recovers_missing_focus_notification(launcher, qtb
     monkeypatch.setattr(floating_module, "foreground_window", lambda: foreground)
     controller.reconcile()
     assert not controller.visible
-    shown = False
-
     # No click, FocusOut or applicationStateChanged: Qt's startup activation is
-    # stale, but Windows already reports another process in the foreground.
+    # stale and the main window is still shown behind another foreground process.
     foreground = ForegroundWindow(123, os.getpid() + 1, 123)
     qtbot.waitUntil(lambda: controller.visible, timeout=1000)
     monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
@@ -501,6 +500,7 @@ def test_startup_without_click_recovers_missing_focus_notification(launcher, qtb
     assert controller.expanded
 
     # Returning to the main window keeps the floating entry available.
+    shown = False
     monkeypatch.setattr(controller._app, "applicationState", lambda:
                         Qt.ApplicationState.ApplicationInactive)
     monkeypatch.setattr(main, "isActive", lambda: False)
@@ -2527,7 +2527,10 @@ def test_click_opens_card_without_capacity_confirmation(launcher, monkeypatch):
 
 @pytest.mark.gui
 @pytest.mark.parametrize("parameter_count", [0, 3, 18])
-def test_decade_card_live_usage_and_compact_controls(launcher, qtbot, monkeypatch, parameter_count):
+@pytest.mark.parametrize("card_theme", ["decade", "zio"])
+def test_decade_card_live_usage_and_compact_controls(
+    launcher, qtbot, monkeypatch, parameter_count, card_theme,
+):
     _, backend, _, _ = launcher
     android = backend.android_controller
     monkeypatch.setattr(android, "_managed_discovery", False)
@@ -2538,6 +2541,9 @@ def test_decade_card_live_usage_and_compact_controls(launcher, qtbot, monkeypatc
         title="批量文件整理与归档", description="", kind="python",
         command=f"print('{parameters}')", icon="folder",
     )
+    if parameter_count == 3:
+        tool.presentation.confirm_before_run = True
+        backend.registry.repository.save_tool(tool)
     backend.reloadImportedScripts()
     other = create_tool(backend, "Other card")
     config = backend.config_store.load_config()
@@ -2574,9 +2580,14 @@ RecentToolDialog {
     deviceController: androidBackend
     presetUtilities: null
     jiraFeishuBackend: null
-    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    Component.onCompleted: {
+        Theme.darkMode = true; Theme.CARD_THEME = true; Theme.zioPalette = ZIO_PALETTE
+    }
 }
-''', QUrl.fromLocalFile(str(package_root() / "ui/qml/DecadeDesignHarness.qml")))
+'''.replace(b"CARD_THEME", f"{card_theme}Mode".encode()).replace(
+        b"ZIO_PALETTE", json.dumps(json.loads((package_root() / "ui/qml/theme/configs/zio.json")
+                                             .read_text("utf-8"))["darkColors"]).encode()),
+                      QUrl.fromLocalFile(str(package_root() / "ui/qml/DecadeDesignHarness.qml")))
     window = component.create()
     assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
     try:
@@ -2605,24 +2616,41 @@ RecentToolDialog {
                 yield from visual_items(child)
 
         counter_items = {item.objectName(): item for item in visual_items(counter)}
+        assert counter.height() == 56
+        assert not any(item.property("text") in ("使用次数", "累计 / 次")
+                       for item in counter_items.values())
         for index in range(10):
             block = counter_items[f"decadeUsageBlock_{index}"]
             bounds = block.mapRectToItem(window.contentItem(), block.boundingRect())
             assert bounds.width() == pytest.approx(bounds.height())
             assert bounds.width() == pytest.approx(17 * 5 / 7)
-        camera = window.findChild(QObject, "decadeDeviceCamera")
-        assert camera.isVisible()
-        assert camera.property("source").toString().endswith("decade-camera.svg")
-        ready = QQmlExpression(QQmlEngine.contextForObject(camera), camera,
-                              "status === Image.Ready")
-        qtbot.waitUntil(lambda: ready.evaluate() == (True, False))
+        phone = window.findChild(QObject, "deviceSelectorPhoneIcon")
+        phone_frame = window.findChild(QObject, "deviceSelectorPhoneFrame")
+        assert phone.isVisible() and phone_frame.isVisible()
+        assert phone_frame.width() < phone.width() and phone_frame.height() < phone.height()
+        outline = window.findChild(QObject, "recentToolCardOutline")
+        assert outline.isVisible() and outline.height() > 600 and outline.property("z") > 0
+        assert QQmlExpression(QQmlEngine.contextForObject(outline), outline,
+                              "parent.border.width").evaluate() == (0, False)
         buttons = [window.findChild(QObject, name) for name in (
             "recentToolRunButton", "recentToolDeviceSelector", "recentToolCloseButton",
         )]
-        assert len({round(button.width(), 2) for button in buttons}) == 1
+        assert buttons[1].width() == buttons[2].width()
+        run_bounds = buttons[0].mapRectToItem(window.contentItem(), buttons[0].boundingRect())
+        assert run_bounds.height() == pytest.approx(60 if card_theme == "zio" else 52)
+        assert run_bounds.width() > window.width() * 0.85
+        assert run_bounds.bottom() < window.height()
+        assert window.findChild(QObject, "zioRunDriveCore").isVisible() == (card_theme == "zio")
+        assert window.findChild(QObject, "decadeRunReader").isVisible() == (card_theme == "decade")
+        assert not window.findChild(QObject, "recentToolHeaderRunButton").isVisible()
         assert not window.findChild(QObject, "deviceSelectorLabel").isVisible()
         if parameter_count:
             items = {item.objectName(): item for item in visual_items(window.contentItem())}
+            label = items["customParameterLabelCell_value0"]
+            input_loader = items["customParameterInput_value0"]
+            assert label.parentItem() == input_loader.parentItem()
+            assert label.y() == input_loader.y()
+            assert label.x() + label.width() == pytest.approx(input_loader.x())
             editor = items["customParameterInput_value0"].property("item")
             editor.setProperty("text", "Edited value")
         section = window.findChild(QObject, "decadeInlineDeviceSection")
@@ -2644,7 +2672,7 @@ RecentToolDialog {
         assert section.isVisible() and not popup.property("opened")
         assert counter.mapToItem(window.contentItem(), QPointF()).y() > original_y + 50
         assert panel.mapToItem(window.contentItem(), QPointF()).y() > original_panel_y + 50
-        output_dir = Path("build/decade-design")
+        output_dir = Path(f"build/{card_theme}-design")
         output_dir.mkdir(parents=True, exist_ok=True)
         assert window.grabWindow().save(
             str(output_dir / f"card-{parameter_count}-devices-empty.png"))
@@ -2669,8 +2697,30 @@ RecentToolDialog {
         sampler.stop()
         sampler.deleteLater()
         assert len({round(y, 1) for y in samples}) > 4
-        assert QMetaObject.invokeMethod(buttons[0], "clicked")
+        # The whole module is clickable, including the edge outside its central icon.
+        QTest.mouseClick(window, Qt.MouseButton.LeftButton,
+                         pos=(run_bounds.topLeft() + QPointF(8, 18)).toPoint())
+        if parameter_count == 3:
+            confirmation_loader = window.findChild(QObject, "recentToolConfirmRunLoader")
+            qtbot.waitUntil(lambda: confirmation_loader.property("active"))
+            confirmation = confirmation_loader.property("item")
+            qtbot.waitUntil(lambda: confirmation.property("opened"))
+            assert not starts
+            assert counter.property("usageCount") == 37
+            assert QMetaObject.invokeMethod(confirmation, "close")
+            qtbot.waitUntil(lambda: not confirmation_loader.property("active"))
+            assert not starts
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton,
+                             pos=run_bounds.center().toPoint())
+            qtbot.waitUntil(lambda: confirmation_loader.property("active"))
+            confirmation = confirmation_loader.property("item")
+            qtbot.waitUntil(lambda: confirmation.property("opened"))
+            confirm_button = next(
+                item for item in visual_items(confirmation.property("contentItem"))
+                if item.property("text") == "继续运行")
+            assert QMetaObject.invokeMethod(confirm_button, "clicked")
         qtbot.waitUntil(lambda: panel.property("consoleExpanded"))
+        assert session.running and buttons[0].property("text") == "停止运行"
         assert counter.property("usageCount") == session.usageCount == 38
         assert ConfigStore(backend.config_store.paths).tool_usage_counts()[tool.id] == 38
         if parameter_count:
@@ -2680,23 +2730,44 @@ RecentToolDialog {
         assert counter.property("usageCount") == 38
         assert QMetaObject.invokeMethod(buttons[0], "clicked")
         assert not session.running
+        backend.execution_coordinator.finished.emit(tool.id, 0)
+        assert buttons[0].property("text") == "再次运行"
+        if parameter_count == 0:
+            buttons[0].forceActiveFocus()
+            QTest.keyClick(window, Qt.Key.Key_Space)
+            assert session.running and len(starts) == 2
+            assert QMetaObject.invokeMethod(buttons[0], "clicked")
+            assert not session.running
+            backend.execution_coordinator.finished.emit(tool.id, 0)
         backend.append_tool_console(tool.id, "Actual output\n")
         qtbot.waitUntil(lambda: window.findChild(QObject, "customConsoleText").property("text")
                        == "Actual output\n")
         qtbot.waitUntil(lambda: panel.property("consoleReveal") == 1)
+        expanded_run_bounds = buttons[0].mapRectToItem(
+            window.contentItem(), buttons[0].boundingRect())
+        assert expanded_run_bounds == run_bounds
         console = window.findChild(QObject, "customConsolePanel")
         bounds = console.mapRectToItem(window.contentItem(), console.boundingRect())
         assert bounds.bottom() <= window.height()
         area = window.findChild(QObject, "customParameterArea")
         if parameter_count == 18:
             assert area.property("contentHeight") > area.height()
-        output_dir = Path("build/decade-design")
+        output_dir = Path(f"build/{card_theme}-design")
         output_dir.mkdir(parents=True, exist_ok=True)
         assert window.grabWindow().save(str(output_dir / f"card-{parameter_count}-expanded.png"))
         toggle = window.findChild(QObject, "customConsoleToggle")
         assert QMetaObject.invokeMethod(toggle, "clicked")
         qtbot.waitUntil(lambda: panel.property("consoleReveal") == 0)
         assert window.grabWindow().save(str(output_dir / f"card-{parameter_count}-collapsed.png"))
+        image = window.grabWindow()
+        accent = QQmlExpression(QQmlEngine.contextForObject(buttons[0]), buttons[0],
+                                "Theme.primary").evaluate()[0]
+        footer_y = round(run_bounds.center().y() * image.height() / window.height())
+        for x, y in ((image.width() // 2, image.height() - 1),
+                     (0, footer_y), (image.width() - 1, footer_y)):
+            pixel = image.pixelColor(x, y)
+            channels = zip(pixel.getRgb()[:3], accent.getRgb()[:3], strict=True)
+            assert max(abs(a - b) for a, b in channels) < 50
         assert not warnings, warnings
     finally:
         window.close()
@@ -2962,6 +3033,20 @@ Item {
         qtbot.waitUntil(main.isActive)
         qtbot.waitUntil(lambda: not controller.visible and not controller.expanded)
         assert not panel.isVisible()
+        other = QWindow()
+        try:
+            other.show()
+            other.requestActivate()
+            qtbot.waitUntil(other.isActive)
+            qtbot.waitUntil(lambda: controller.visible)
+            assert main.isVisible() and not main.isActive()
+            assert not controller.expanded
+            main.requestActivate()
+            qtbot.waitUntil(main.isActive)
+            qtbot.waitUntil(lambda: not controller.visible)
+        finally:
+            other.close()
+            other.destroy()
         main.hide()
         qtbot.waitUntil(lambda: controller.visible)
         assert not warnings, warnings
@@ -3226,11 +3311,12 @@ def test_main_window_settings_navigation_and_close_to_tray(
             first.requestActivate()
             qtbot.waitUntil(first.isActive)
             controller.reconcile()
-            assert not controller.visible and window.isVisible()
+            assert controller.visible and window.isVisible()
             window.hide()
             qtbot.waitUntil(lambda: controller.visible)
             if not controller.expanded:
                 controller.toggleExpanded()
+            panel.requestActivate()
             qtbot.waitUntil(panel.isActive)
             set_message(first, "draft A")
             session_a = first.property("toolController")
@@ -3430,22 +3516,56 @@ def test_main_window_settings_navigation_and_close_to_tray(
 
 
 @pytest.mark.parametrize("pinned", [False, True])
-def test_main_and_floating_launcher_are_mutually_exclusive(launcher, monkeypatch, pinned):
-    controller, _, _, main = launcher
+@pytest.mark.parametrize("native_focus", [False, True])
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+def test_main_foreground_hides_launcher_but_background_main_does_not(
+    launcher, monkeypatch, pinned, native_focus, theme,
+):
+    controller, _, settings, main = launcher
+    settings.saveThemeMode(theme)
     controller._pinned = pinned
     controller.toggleExpanded()
     visible = True
+    active = True
     visibility = QWindow.Windowed
+    main_id = int(main.winId())
+    foreground = ForegroundWindow(main_id, os.getpid(), main_id)
+    monkeypatch.setattr(controller._app, "platformName",
+                        lambda: "windows" if native_focus else "offscreen")
+    monkeypatch.setattr(controller._app, "applicationState",
+                        lambda: Qt.ApplicationState.ApplicationActive)
+    monkeypatch.setattr(floating_module, "foreground_window", lambda: foreground)
     monkeypatch.setattr(main, "isVisible", lambda: visible)
+    monkeypatch.setattr(main, "isActive", lambda: active)
     monkeypatch.setattr(main, "visibility", lambda: visibility)
     controller.reconcile()
     assert not controller.visible and not controller.expanded
+
+    # Alt+Tab leaves the main window shown; native focus overrides stale Qt activation.
+    active = native_focus
+    foreground = ForegroundWindow(123, os.getpid() + 1, main_id)
+    controller.reconcile()
+    assert main.isVisible() and controller.visible and not controller.expanded
+    active = True
+    foreground = ForegroundWindow(main_id, os.getpid(), main_id)
+    controller.reconcile()
+    assert not controller.visible
+
     visibility = QWindow.Minimized
     controller.reconcile()
     assert controller.visible and not controller.expanded
     visibility = QWindow.Windowed
     controller.reconcile()
     assert not controller.visible
+    if native_focus:
+        # Main-owned dialogs hide the entry; independent script cards do not.
+        active = False
+        foreground = ForegroundWindow(456, os.getpid(), main_id)
+        controller.reconcile()
+        assert not controller.visible
+        foreground = ForegroundWindow(456, os.getpid(), 456)
+        controller.reconcile()
+        assert controller.visible
     visible = False
     controller.reconcile()
     assert controller.visible
@@ -3474,8 +3594,56 @@ def test_drawing_keeps_browsing_but_external_focus_dismisses(launcher, monkeypat
     controller.launchTool(tool.id)
     inside = False
     monkeypatch.setattr(controller, "_ordinary_window_active", lambda: True)
+    controller.pointerChanged()
+    controller.reconcile()
+    assert controller.expanded and controller.visible
+    card_focused = False
     controller.reconcile()
     assert not controller.expanded and controller.visible
+
+
+@pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
+@pytest.mark.parametrize("target", ["card", "external"])
+def test_card_handoff_survives_pointer_leave_until_explicit_window_switch(
+    launcher, monkeypatch, theme, target,
+):
+    controller, backend, settings, _ = launcher
+    settings.saveThemeMode(theme)
+    tool = create_tool(backend, "Focus handoff")
+    card, other_card = QWindow(), QWindow()
+    for window in (card, other_card):
+        window.setObjectName("recentToolWindow")
+        monkeypatch.setattr(window, "isVisible", lambda: True)
+    owner = (os.getpid(), 10)
+    monkeypatch.setattr(controller, "_foreground_identity", lambda: owner)
+    # Keyboard activation must also work with the pointer outside the launcher.
+    monkeypatch.setattr(controller, "_pointer_inside", lambda: False)
+
+    def handoff(tool_id):
+        card.setProperty("floatingActivationToken", controller.cardLaunchToken(tool_id))
+        card.setProperty("floatingFocusHandoff", True)
+
+    backend.recentToolDialogRequested.connect(handoff)
+    try:
+        controller.toggleExpanded()
+        controller.launchTool(tool.id)
+        owner = (os.getpid(), int(card.winId()))
+        monkeypatch.setattr(controller, "_ordinary_window_active", lambda: True)
+        controller.reconcile()
+        assert controller.expanded
+        assert not card.property("floatingFocusHandoff")
+        controller.pointerChanged()
+        controller.reconcile()
+        assert controller.expanded
+        owner = ((os.getpid(), int(other_card.winId())) if target == "card"
+                 else (os.getpid() + 1, 123))
+        controller.reconcile()
+        assert controller.visible and not controller.expanded
+    finally:
+        controller.shutdown()
+        for window in (card, other_card):
+            window.destroy()
+            window.deleteLater()
 
 
 @pytest.mark.gui

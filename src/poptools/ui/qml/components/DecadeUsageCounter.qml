@@ -39,40 +39,40 @@ Item {
         x: Theme.space12; y: 0; width: 44; height: Theme.borderWidthMedium
         color: Theme.primary
     }
-    Column {
-        x: Theme.space12; y: Theme.space12
-        spacing: Theme.space8
+    Item {
+        id: meter
+        x: Theme.space12
+        anchors.verticalCenter: parent.verticalCenter
+        width: Math.max(0, divider.x - x - Theme.space12)
+        height: Theme.decadeCounterSquareSize
         Row {
-            spacing: Theme.space8
-            Row {
-                spacing: 2
-                Repeater {
-                    model: 8
-                    Rectangle {
-                        required property int index
-                        width: index % 3 === 0 ? 3 : 1
-                        height: 9
-                        color: Theme.primaryText
-                        opacity: 0.7
-                    }
+            id: barcode
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+            Repeater {
+                model: 8
+                Rectangle {
+                    required property int index
+                    width: index % 3 === 0 ? 3 : 1
+                    height: 12
+                    color: Theme.primaryText
+                    opacity: 0.7
                 }
-            }
-            Text {
-                text: "使用次数"; color: Theme.decadeCounterMuted
-                font.pixelSize: Theme.decadeCardMetaSize
-                lineHeight: 0.8
             }
         }
         Row {
             id: blocks
             objectName: "decadeUsageBlocks"
+            x: barcode.width + Theme.space8
+            anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.decadeCounterSquareGap
             Repeater {
                 model: 10
                 Rectangle {
                     required property int index
                     objectName: "decadeUsageBlock_" + index
-                    width: Theme.decadeCounterSquareSize
+                    width: Math.max(1, Math.min(Theme.decadeCounterSquareSize,
+                        (meter.width - blocks.x - blocks.spacing * 9) / 10))
                     height: width
                     color: index < root.filledCount ? Theme.decadeCounterGreen : Theme.decadeCounterEmpty
                     border.color: index < root.filledCount ? Theme.decadeCounterGreen : Theme.decadeCounterEmptyBorder
@@ -86,51 +86,29 @@ Item {
                 }
             }
         }
-        Row {
-            spacing: Theme.space8
-            Text {
-                text: "每格 " + root.unit + " 次"
-                color: Theme.decadeCounterMuted
-                font.pixelSize: Theme.decadeCardMetaSize
-            }
-            Row {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 4
-                Repeater {
-                    model: Math.max(0, Math.floor((blocks.width - 90) / 5))
-                    Rectangle { width: 1; height: 4; color: Theme.decadeCounterLeading }
-                }
-            }
-        }
     }
     Rectangle {
-        anchors.right: parent.right; anchors.rightMargin: 105
-        y: Theme.space12; width: 1; height: parent.height - Theme.space24
+        id: divider
+        x: numberReadout.x - Theme.space12
+        y: Theme.space8; width: 1; height: parent.height - Theme.space16
         color: Theme.decadeCounterBorder
         Rectangle { width: 1; height: Theme.space12; color: Theme.primary }
     }
-    Column {
+    Row {
+        id: numberReadout
         anchors.right: parent.right; anchors.rightMargin: Theme.space12
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 2
-        Row {
-            anchors.right: parent.right
-            Text {
-                text: "0".repeat(Math.max(0, 4 - root.digits.length))
-                color: Theme.decadeCounterLeading
-                font.family: "Consolas"; font.pixelSize: 29; font.weight: Font.DemiBold
-            }
-            Text {
-                objectName: "decadeUsageValue"
-                text: root.digits
-                color: Theme.textPrimary
-                font.family: "Consolas"; font.pixelSize: root.digits.length > 4 ? 18 : 29
-                font.weight: Font.DemiBold
-            }
+        Text {
+            text: "0".repeat(Math.max(0, 4 - root.digits.length))
+            color: Theme.decadeCounterLeading
+            font.family: "Consolas"; font.pixelSize: 32; font.weight: Font.DemiBold
         }
         Text {
-            anchors.right: parent.right; text: "▪ 累计 / 次"
-            color: Theme.decadeCounterMuted; font.pixelSize: Theme.decadeCardMetaSize
+            objectName: "decadeUsageValue"
+            text: root.digits
+            color: Theme.textPrimary
+            font.family: "Consolas"; font.pixelSize: root.digits.length > 4 ? 22 : 32
+            font.weight: Font.DemiBold
         }
     }
 }

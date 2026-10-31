@@ -107,11 +107,12 @@ QtObject {
     readonly property int decadeCardPadding: 16
     readonly property int decadeCardHeaderHeight: 66
     readonly property int decadeCardActionSize: 35
+    readonly property int mechanicalCardRunHeight: zioMode ? 60 : 52
     readonly property int decadeCardTitleSize: 18
     readonly property int decadeCardTextSize: 14
     readonly property int decadeCardMetaSize: 11
     readonly property int decadeCardFieldActionSize: 28
-    readonly property int decadeCounterHeight: 83
+    readonly property int decadeCounterHeight: 56
     readonly property int decadeCounterSquareSize: 17
     readonly property int decadeCounterSquareGap: 5
     readonly property color decadePackSurface: zioColor("decadePackSurface", "#111017")

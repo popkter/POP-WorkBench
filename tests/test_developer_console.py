@@ -1,17 +1,25 @@
 from __future__ import annotations
 
+import json
+import os
+import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from PySide6.QtCore import QUrl
+import pytest
+from PySide6.QtCore import QObject, QUrl, Signal
 
+from poptools.infrastructure.config_store import ConfigStore
+from poptools.paths import AppPaths
 from poptools.viewmodels.developer_console_controller import DeveloperConsoleController
 
 
 class FakePythonEnvironment:
     def __init__(self, root: Path) -> None:
         self.paths = SimpleNamespace(python_venv_dir=root / "python", data_dir=root)
+        self.config_store = ConfigStore(AppPaths(root))
 
     def execution_executable(self) -> str:
         return str(self.paths.python_venv_dir / "python.exe")
@@ -254,6 +262,111 @@ def test_power_shell_history_toggle_disables_prediction(tmp_path: Path) -> None:
 
     assert not controller.powerShellHistoryListViewEnabled
     assert session.writes == [b"\x1b[24;5~"]
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_history_preference_survives_terminal_and_app_lifecycle(
+    tmp_path, qtbot, monkeypatch, enabled,
+):
+    class Session(QObject):
+        outputReceived = Signal(bytes)
+        processExited = Signal(int)
+        finished = Signal()
+
+        def start_process(self, shell, arguments, directory, environment, **size):
+            self.environment = environment
+
+        def write(self, payload):
+            return True
+
+        def stop_process(self):
+            self.finished.emit()
+
+        def dispose(self):
+            pass
+
+        def wait(self, timeout):
+            return True
+
+    monkeypatch.setattr("poptools.viewmodels.developer_console_controller.ConPtySession", Session)
+    store = ConfigStore(AppPaths(tmp_path))
+    store.set_terminal_history_list_view_enabled(not enabled)
+    controller = make_controller(tmp_path)
+    controller.terminalReady()
+    assert controller.setPowerShellHistoryListViewEnabled(enabled)
+    saved = store.paths.config_file.read_bytes()
+    assert ConfigStore(store.paths).terminal_history_list_view_enabled() is enabled
+
+    def check_session():
+        qtbot.waitUntil(lambda: controller.running)
+        assert controller.powerShellHistoryListViewEnabled is enabled
+        assert controller._active_tab().session.environment["POPTOOLS_PS_HISTORY_LIST_VIEW"] == (
+            "1" if enabled else "0"
+        )
+
+    controller.restart()
+    check_session()
+    assert controller.createTerminalTab()
+    check_session()
+    for tab in list(controller.terminalTabs):
+        assert controller.closeTerminalTab(tab["tabId"])
+    assert not controller.terminalTabs
+    assert controller.powerShellHistoryListViewEnabled is enabled
+    assert controller.createTerminalTab()
+    check_session()
+    controller.shutdown()
+
+    restored = make_controller(tmp_path)
+    try:
+        assert restored.powerShellHistoryListViewEnabled is enabled
+        assert restored.ensureStarted()
+        assert restored._active_tab().session.environment["POPTOOLS_PS_HISTORY_LIST_VIEW"] == (
+            "1" if enabled else "0"
+        )
+        assert store.paths.config_file.read_bytes() == saved
+    finally:
+        restored.shutdown()
+
+
+@pytest.mark.parametrize("app", [{}, None, {"terminal_history_list_view_enabled": "false"}])
+def test_history_preference_defaults_to_disabled_for_old_or_invalid_config(tmp_path, app):
+    store = ConfigStore(AppPaths(tmp_path))
+    store.save_config({"app": app})
+    assert not store.terminal_history_list_view_enabled()
+    store.set_terminal_history_list_view_enabled(True)
+    assert ConfigStore(store.paths).terminal_history_list_view_enabled()
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_powershell_profile_applies_history_preference_before_input(enabled):
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    if os.name != "nt" or shell is None:
+        pytest.skip("PowerShell bootstrap requires Windows")
+    profile = (Path(__file__).parents[1] / "src/poptools/resources/tools"
+               / "powershell-terminal-profile.ps1")
+    command = r'''
+$global:options = @{}
+function Import-Module { param($Name) }
+function Set-PSReadLineOption {
+    param($Colors, $PredictionSource, $PredictionViewStyle)
+    foreach ($name in @('PredictionSource', 'PredictionViewStyle')) {
+        if ($PSBoundParameters.ContainsKey($name)) {
+            $global:options[$name] = $PSBoundParameters[$name]
+        }
+    }
+}
+function Set-PSReadLineKeyHandler { param($Chord, $ScriptBlock) }
+. 'PROFILE'
+$global:options | ConvertTo-Json -Compress
+'''.replace("PROFILE", str(profile).replace("'", "''"))
+    result = subprocess.run(
+        [shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
+        env={**os.environ, "POPTOOLS_PS_HISTORY_LIST_VIEW": "1" if enabled else "0"},
+        capture_output=True, encoding="utf-8", check=True, timeout=15,
+    )
+    options = json.loads(result.stdout)
+    assert options == ({"PredictionSource": "History", "PredictionViewStyle": "ListView"}
+                       if enabled else {"PredictionSource": "None"})
 
 
 def test_terminal_defaults_to_user_home_directory(tmp_path: Path) -> None:

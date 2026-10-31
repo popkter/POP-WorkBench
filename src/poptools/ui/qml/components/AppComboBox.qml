@@ -11,8 +11,6 @@ ComboBox {
     font.pixelSize: Theme.fontBody
 
     contentItem: Text {
-        leftPadding: control.leftPadding
-        rightPadding: control.rightPadding
         text: control.displayText
         color: control.enabled ? Theme.textPrimary : Theme.textSecondary
         font: control.font

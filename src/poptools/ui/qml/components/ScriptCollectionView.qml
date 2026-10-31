@@ -8,11 +8,11 @@ ListView {
     required property var controller
     required property var listModel
     property string kindFilter: "all"
-    property string keyboardToolId: ""
     property string headingText: "脚本名称"
     property string countSuffix: " 个脚本"
     property string actionText: ""
     property bool settling: false
+    property bool reordering: false
     property int pendingLaunchCount: 0
     property string emptyText: listModel.totalCount === 0 ? "暂无自定义脚本" : "没有匹配的脚本"
     readonly property int visibleCount: {
@@ -24,6 +24,9 @@ ListView {
     property alias verticalScrollBar: verticalBar
     signal toolActivated(string toolId)
     signal toolActivatedAt(string toolId, rect sourceRect)
+    signal toolRunRequested(string toolId)
+    signal toolActionRequested(string toolId, string action)
+    signal reorderFailed()
     signal navigationRequested(string toolId)
     signal activationRequested(string toolId, var row)
     objectName: "sharedScriptList"
@@ -55,10 +58,37 @@ ListView {
         if (id.length > 0)
             navigationRequested(id);
     }
+    // Delegates are recreated as they enter the viewport. Moving the view from
+    // their selectedChanged handler reenters ListView layout and can collapse
+    // its content extent to a single row. Follow actual selection changes here,
+    // after model notifications and delegate creation have finished instead.
+    function revealSelection() {
+        if (reordering) return;
+        const index = listModel.indexOfTool(listModel.selectedToolId, kindFilter);
+        if (index >= 0) {
+            cancelFlick();
+            positionViewAtIndex(index, ListView.Contain);
+        }
+    }
+    Connections {
+        target: root.listModel
+        function onSelectedToolIdChanged() {
+            if (!root.reordering) Qt.callLater(root.revealSelection);
+        }
+        function onLayoutChanged() {
+            if (!root.reordering) Qt.callLater(root.revealSelection);
+        }
+    }
+    Component.onCompleted: Qt.callLater(root.revealSelection)
+    function activateSelection() {
+        const id = listModel.selectedToolId;
+        if (listModel.indexOfTool(id, kindFilter) >= 0)
+            activationRequested(id, null);
+    }
     Keys.onUpPressed: selectAdjacent(-1)
     Keys.onDownPressed: selectAdjacent(1)
-    Keys.onReturnPressed: activationRequested(keyboardToolId, null)
-    Keys.onEnterPressed: activationRequested(keyboardToolId, null)
+    Keys.onReturnPressed: activateSelection()
+    Keys.onEnterPressed: activateSelection()
     Text {
         anchors.centerIn: parent
         visible: root.visibleCount === 0

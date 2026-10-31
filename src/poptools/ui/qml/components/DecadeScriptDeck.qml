@@ -344,8 +344,6 @@ ScriptCollectionView {
             function onRevisionChanged() { Qt.callLater(scriptRow.mount); }
         }
         objectName: "scriptRow_" + toolId
-        onSelectedChanged: if (selected)
-            root.positionViewAtIndex(index, ListView.Contain)
         width: root.width - root.scrollGutter
 
         height: (root.kindFilter === "all" || root.kindFilter === executorKind) ? root.cardStep : 0

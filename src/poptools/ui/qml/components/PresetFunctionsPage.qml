@@ -64,7 +64,8 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 36
                         leftPadding: 40
-                        rightPadding: 14
+                        baseRightPadding: 14
+                        clearButtonEnabled: true
                         placeholderText: "搜索预设名称或描述..."
                         text: root.searchQuery
                         color: Theme.textPrimary

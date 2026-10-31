@@ -16,7 +16,6 @@ Item {
     property alias cardStore: sharedCards
     property bool continuousRecall: false
     property real deckCardWidth: 0
-    property string keyboardToolId: ""
     readonly property bool deckMode: quickLaunch && Theme.decadeMode
     readonly property bool layoutSettling: collectionView ? collectionView.settling : false
     readonly property int pendingLaunchCount: collectionView ? collectionView.pendingLaunchCount : 0
@@ -29,6 +28,9 @@ Item {
     signal searchEdited(string query)
     signal toolActivated(string toolId)
     signal toolActivatedAt(string toolId, rect sourceRect)
+    signal toolRunRequested(string toolId)
+    signal toolActionRequested(string toolId, string action)
+    signal reorderFailed()
 
     // Keep face ownership outside the replaceable view, including while a card
     // is in a native execution window or the user switches themes.
@@ -65,19 +67,10 @@ Item {
         searchField.selectAll();
     }
     function navigateTo(id) {
-        keyboardToolId = id;
         if (quickLaunch)
             listModel.select(id);
         else
             toolActivated(id);
-    }
-    onKindFilterChanged: keyboardToolId = ""
-    onSearchQueryChanged: keyboardToolId = ""
-    Connections {
-        target: root.listModel
-        function onModelReset() {
-            root.keyboardToolId = "";
-        }
     }
     Component {
         id: standardView
@@ -85,7 +78,6 @@ Item {
             controller: root.controller
             listModel: root.listModel
             kindFilter: root.kindFilter
-            keyboardToolId: root.keyboardToolId
             quickLaunch: root.quickLaunch
         }
     }
@@ -96,7 +88,6 @@ Item {
             controller: root.controller
             listModel: root.listModel
             kindFilter: root.kindFilter
-            keyboardToolId: root.keyboardToolId
             cardStore: sharedCards
             continuousRecall: root.continuousRecall
         }
@@ -109,6 +100,9 @@ Item {
         function onToolActivatedAt(id, rect) {
             root.toolActivatedAt(id, rect);
         }
+        function onToolRunRequested(id) { root.toolRunRequested(id); }
+        function onToolActionRequested(id, action) { root.toolActionRequested(id, action); }
+        function onReorderFailed() { root.reorderFailed(); }
         function onNavigationRequested(id) {
             root.navigateTo(id);
         }
@@ -128,7 +122,7 @@ Item {
             Layout.preferredHeight: 36
             leftPadding: 42
             baseRightPadding: 14
-            clearButtonEnabled: root.quickLaunch
+            clearButtonEnabled: true
             placeholderText: "搜索名称、说明或标签..."
             text: root.searchQuery
             color: Theme.textPrimary

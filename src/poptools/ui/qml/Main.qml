@@ -67,7 +67,6 @@ ApplicationWindow {
     }
 
     property var parameterValues: ({})
-    property string toolSearchQuery: ""
     readonly property real primaryNavWidth: titleBarHeight
     readonly property real toolListWidth: Math.max(
         minimumToolListWidth,
@@ -103,7 +102,6 @@ ApplicationWindow {
         || (pythonDoctorDialogLoader.item && pythonDoctorDialogLoader.item.visible)
         || (userGuideDialogLoader.item && userGuideDialogLoader.item.visible)
 
-    onToolSearchQueryChanged: appController.setToolSearchQuery(toolSearchQuery)
     Shortcut {
         sequence: "Ctrl+F"
         context: Qt.WindowShortcut
@@ -544,13 +542,13 @@ ApplicationWindow {
                     androidBackend: androidController
                     parentWindow: window
                     parameterValues: window.parameterValues
-                    searchQuery: window.toolSearchQuery
+                    searchQuery: appController.customScriptSearchQuery
                     compact: window.compactContentActions
                     compactHeight: window.compactHeight
                     overlaysVisible: window.applicationOverlayVisible
                     deviceInTitleBar: window.customTitleBar
                     onSearchEdited: function(query) {
-                        window.toolSearchQuery = query
+                        appController.setSectionSearchQuery("custom", query)
                     }
                     onCreateRequested: window.openCommandEditorForCreate()
                     onImportRequested: window.importCustomScriptFromClipboard()
@@ -578,11 +576,11 @@ ApplicationWindow {
                     jiraFeishuBackend: jiraFeishuController
                     videoBackend: window.videoBackend
                     toolListWidth: window.toolListWidth
-                    searchQuery: window.toolSearchQuery
+                    searchQuery: appController.presetSearchQuery
                     compact: window.compactContentActions
                     overlaysVisible: window.applicationOverlayVisible || titleBar.presetDevicePopupVisible
                     onSearchEdited: function(query) {
-                        window.toolSearchQuery = query
+                        appController.setSectionSearchQuery("preset", query)
                     }
                 }
 
@@ -910,6 +908,8 @@ ApplicationWindow {
                 }
                 if (origin.width > 0 && origin.height > 0)
                     existing.launchOrigin = origin
+                existing.floatingActivationToken = token
+                existing.floatingFocusHandoff = token >= 0
                 existing.activateCard()
                 return
             }

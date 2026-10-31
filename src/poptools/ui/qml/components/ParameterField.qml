@@ -13,6 +13,7 @@ Loader {
     property bool framed: false
     property bool submitOnEnter: false
     property bool decadeCardLayout: false
+    readonly property real contentLeftPadding: 13
     signal submitRequested()
 
     function handleEnter(event, editor) {
@@ -71,7 +72,7 @@ Loader {
             placeholderText: root.parameter.placeholder || ""
             color: Theme.textPrimary
             font.pixelSize: Theme.fontBody
-            leftPadding: 13
+            leftPadding: root.contentLeftPadding
             rightPadding: root.decadeCardLayout
                 ? (pathPickerVisible ? Theme.decadeCardFieldActionSize * 2 + 14 : Theme.decadeCardFieldActionSize + 12)
                 : pathPickerVisible ? 81 : 45
@@ -148,7 +149,7 @@ Loader {
             placeholderText: root.parameter.placeholder || ""
             color: Theme.textPrimary
             font.pixelSize: Theme.fontBody
-            leftPadding: 13
+            leftPadding: root.contentLeftPadding
             rightPadding: 45
             wrapMode: TextEdit.Wrap
             background: null
@@ -191,7 +192,7 @@ Loader {
                 return choiceOptions.length > 0 ? 0 : -1
             }
             textRole: choiceOptions.length > 0 && typeof choiceOptions[0] === "object" ? "label" : ""
-            leftPadding: 13
+            leftPadding: root.contentLeftPadding
             font.pixelSize: Theme.fontBody
             onCurrentIndexChanged: {
                 if (currentIndex >= 0)
@@ -203,6 +204,7 @@ Loader {
     Component {
         id: radioField
         ParameterRadioGroup {
+            leftPadding: root.contentLeftPadding
             options: root.parameter.options || []
             currentValue: String(root.initialValue ?? "")
             onValueChanged: function(value) {
@@ -214,6 +216,7 @@ Loader {
     Component {
         id: booleanField
         AppCheckBox {
+            leftPadding: root.contentLeftPadding
             text: root.framed || root.decadeCardLayout ? (checked ? "已启用" : "未启用") : ""
             Accessible.name: root.parameter.label
             checked: root.initialValue === true

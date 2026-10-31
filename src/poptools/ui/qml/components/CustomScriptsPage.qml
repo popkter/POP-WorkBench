@@ -17,6 +17,7 @@ Rectangle {
     property bool compactHeight: false
     property bool overlaysVisible: false
     property bool deviceInTitleBar: false
+    property string pendingRunToolId: ""
     property alias kindFilter: mainScriptList.kindFilter
     readonly property bool drawerVisible: false
     readonly property bool popupVisible: false
@@ -34,9 +35,41 @@ Rectangle {
     function closeDrawerImmediately() {}
     function closeDrawer() {}
     function runSelectedTool() { detailPanel.runSelectedTool() }
+    function selectTool(id) {
+        if (controller.selectedTool.id !== id)
+            controller.selectTool(id)
+    }
+    function requestQuickRun(id) {
+        if (overlaysVisible)
+            return
+        selectTool(id)
+        pendingRunToolId = id
+        Qt.callLater(dispatchQuickRun)
+    }
+    function dispatchQuickRun() {
+        const id = pendingRunToolId
+        pendingRunToolId = ""
+        // Allow the selected script's form/defaults to settle first. A double
+        // click on a running script must never act as the Stop button.
+        if (id && controller.selectedTool.id === id && !controller.running && !overlaysVisible)
+            runSelectedTool()
+    }
     function shareSelectedTool() {
         const success = root.controller.exportSelectedScriptToClipboard()
         root.toastRequested(success ? "脚本已复制到剪贴板" : "脚本分享失败", !success)
+    }
+    function handleToolAction(id, action) {
+        if (overlaysVisible || controller.selectedTool.id !== id)
+            return
+        if (action === "edit") {
+            if (controller.selectedTool.editable && !controller.running) editRequested()
+        } else if (action === "delete") {
+            if (!controller.running) deleteRequested()
+        } else if (action === "share") {
+            shareSelectedTool()
+        } else if (action === "run") {
+            runSelectedTool()
+        }
     }
 
     ColumnLayout {
@@ -65,7 +98,12 @@ Rectangle {
                     listModel: root.controller.toolsModel
                     searchQuery: root.searchQuery
                     onSearchEdited: function(query) { root.searchEdited(query) }
-                    onToolActivated: function(toolId) { root.controller.selectTool(toolId) }
+                    onToolActivated: function(toolId) { root.selectTool(toolId) }
+                    onToolRunRequested: function(toolId) { root.requestQuickRun(toolId) }
+                    onToolActionRequested: function(toolId, action) {
+                        root.handleToolAction(toolId, action)
+                    }
+                    onReorderFailed: root.toastRequested("脚本排序保存失败，请重试。", true)
                 }
             }
 

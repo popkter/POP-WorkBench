@@ -6,6 +6,7 @@ Item {
     id: root
     property var options: []
     property string currentValue: ""
+    property real leftPadding: Theme.space4
     signal valueChanged(string value)
     implicitHeight: choices.height
 
@@ -28,6 +29,7 @@ Item {
                 checked: optionValue === root.currentValue
                 spacing: Theme.space8
                 padding: Theme.space4
+                leftPadding: root.leftPadding
                 font.pixelSize: Theme.fontBody
                 indicator: Rectangle {
                     x: control.leftPadding

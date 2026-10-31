@@ -72,6 +72,7 @@ def _file_picker_start_directory(value: str) -> str:
 class AppController(QObject):
     sectionChanged = Signal()
     sectionTitleChanged = Signal()
+    toolSearchQueryChanged = Signal()
     selectedToolChanged = Signal()
     selectedToolDataChanged = Signal()
     consoleTextChanged = Signal()
@@ -108,6 +109,10 @@ class AppController(QObject):
         self._section = ToolSection.CUSTOM
         self._selected: ToolDefinition | None = None
         self._section_selections: dict[str, str] = {
+            ToolSection.CUSTOM.value: "",
+            ToolSection.PRESET.value: "",
+        }
+        self._section_search_queries: dict[str, str] = {
             ToolSection.CUSTOM.value: "",
             ToolSection.PRESET.value: "",
         }
@@ -366,12 +371,30 @@ class AppController(QObject):
         self._tool_sort_mode = mode
         self.toolSortModeChanged.emit()
         selected_id = self._selected.id if self._selected is not None else ""
-        self._refresh(select_id=selected_id)
+        self._refresh(select_id=selected_id, notify_selected=False)
         return True
 
     @Slot(str)
     def setToolSearchQuery(self, query: str) -> None:
-        self._tools_model.set_filter(query)
+        self.setSectionSearchQuery(self._section.value, query)
+
+    @Property(str, notify=toolSearchQueryChanged)
+    def customScriptSearchQuery(self) -> str:
+        return self._section_search_queries[ToolSection.CUSTOM.value]
+
+    @Property(str, notify=toolSearchQueryChanged)
+    def presetSearchQuery(self) -> str:
+        return self._section_search_queries[ToolSection.PRESET.value]
+
+    @Slot(str, str)
+    def setSectionSearchQuery(self, section: str, query: str) -> None:
+        target = ToolSection(section)
+        if self._section_search_queries[target.value] == query:
+            return
+        self._section_search_queries[target.value] = query
+        if target == self._section:
+            self._tools_model.set_filter(query)
+        self.toolSearchQueryChanged.emit()
 
     @Slot(str, int, result=bool)
     def moveTool(self, tool_id: str, target_index: int) -> bool:
@@ -389,6 +412,33 @@ class AppController(QObject):
         except OSError:
             return False
         self._refresh(select_id=tool_id)
+        return True
+
+    @Slot(str, str, bool, result=bool)
+    def moveToolRelative(self, tool_id: str, anchor_id: str, after: bool) -> bool:
+        """Resolve a visible drop target against the complete saved order."""
+        if self._section != ToolSection.CUSTOM or self._tool_sort_mode != "custom":
+            return False
+        tools = self._sorted_tools(self.registry.for_section(self._section))
+        order = [tool.id for tool in tools]
+        if tool_id not in order or anchor_id not in order:
+            return False
+        if (self.execution_coordinator.running(tool_id)
+                or self.execution_coordinator.running(anchor_id)):
+            return False
+        if tool_id == anchor_id:
+            return True
+        updated = [item for item in order if item != tool_id]
+        updated.insert(updated.index(anchor_id) + int(after), tool_id)
+        if updated == order:
+            return True
+        try:
+            self.config_store.set_tool_order(updated)
+        except OSError:
+            return False
+        # Reordering must retain the current form, including unsaved parameters.
+        selected_id = self._selected.id if self._selected is not None else ""
+        self._refresh(select_id=selected_id, notify_selected=False)
         return True
 
     def attach_window(self, window: QWindow) -> None:
@@ -713,6 +763,7 @@ class AppController(QObject):
         if select_first and tools:
             target_id = tools[0].id
         self._selected = self.registry.get(target_id) if target_id else None
+        self._tools_model.set_filter(self._section_search_queries[self._section.value])
         self._tools_model.set_tools(tools, target_id, running_ids)
         self.customToolsChanged.emit()
         if notify_selected:

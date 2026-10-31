@@ -39,7 +39,7 @@ Item {
         radius: content.decadeCard ? Theme.decadeCardRadius : dialog.customScriptMode ? Theme.radiusMedium : Theme.radiusLarge
         color: content.decadeCard ? Theme.decadeCardSurface : dialog.customScriptMode ? Theme.chromeBackground
             : Theme.darkMode ? Theme.surfaceContainer : Theme.surface
-        border.width: content.decadeCard ? Theme.decadeCardBorderWidth : dialog.customScriptMode ? 1 : 0
+        border.width: content.decadeCard ? 0 : dialog.customScriptMode ? 1 : 0
         border.color: content.decadeCard ? Theme.primary : Theme.outlineVariant
         clip: true
 
@@ -126,8 +126,8 @@ Item {
 
                     // ── Custom command run button ─────────
                     PrimaryButton {
-                        objectName: "recentToolRunButton"
-                        visible: !dialog.presetMode
+                        objectName: content.decadeCard ? "recentToolHeaderRunButton" : "recentToolRunButton"
+                        visible: !dialog.presetMode && !content.decadeCard
                         width: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? 102 : 48
                         height: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? Theme.captionActionHeight : 32
                         anchors.verticalCenter: parent.verticalCenter
@@ -260,14 +260,6 @@ Item {
                         Keys.onReturnPressed: dialog.closeCardAnimated()
                         Keys.onSpacePressed: dialog.closeCardAnimated()
                     }
-                }
-                Rectangle {
-                    visible: content.decadeCard
-                    x: Theme.decadeCardPadding
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: Theme.space8
-                    width: 49; height: Theme.borderWidthMedium
-                    color: Theme.primary
                 }
             }
 
@@ -418,6 +410,41 @@ Item {
                     controller: dialog.toolController
                 }
             }
+
+            Item {
+                id: cardActionFooter
+                objectName: "recentToolActionFooter"
+                visible: content.decadeCard
+                Layout.fillWidth: true
+                Layout.preferredHeight: visible
+                    ? footerRunButton.height + Theme.space8 + Theme.decadeCardPadding : 0
+                MechanicalRunButton {
+                    id: footerRunButton
+                    objectName: content.decadeCard ? "recentToolRunButton" : "mechanicalFooterRunButton"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.leftMargin: Theme.decadeCardPadding
+                    anchors.rightMargin: Theme.decadeCardPadding
+                    anchors.topMargin: Theme.space8
+                    uiScale: dialog.cardUiScale
+                    running: dialog.operationRunning
+                    statusText: dialog.toolController.statusText
+                    enabled: !!dialog.selectedTool.id && !dialog.outgoing && !dialog.closing
+                    onClicked: dialog.runCustomScript()
+                }
+            }
+        }
+        // One continuous frame above the artwork and every content section.
+        Rectangle {
+            objectName: "recentToolCardOutline"
+            visible: content.decadeCard
+            anchors.fill: parent
+            z: 10
+            color: "transparent"
+            radius: contentRect.radius
+            border.width: Theme.decadeCardBorderWidth
+            border.color: Theme.primary
         }
     }
 

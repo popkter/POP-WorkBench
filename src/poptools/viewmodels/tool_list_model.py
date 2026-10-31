@@ -11,6 +11,7 @@ _EMPTY_INDEX = QModelIndex()
 
 class ToolListModel(QAbstractListModel):
     countChanged = Signal()
+    selectedToolIdChanged = Signal()
     IdRole = Qt.UserRole + 1
     TitleRole = Qt.UserRole + 2
     DescriptionRole = Qt.UserRole + 3
@@ -52,9 +53,16 @@ class ToolListModel(QAbstractListModel):
     def totalCount(self) -> int:
         return len(self._tools)
 
+    @Property(str, notify=selectedToolIdChanged)
+    def selectedToolId(self) -> str:
+        return self._selected_id
+
     @Slot(str, result=int)
-    def indexOfTool(self, tool_id: str) -> int:
-        return next((i for i, tool in enumerate(self._display_tools) if tool.id == tool_id), -1)
+    @Slot(str, str, result=int)
+    def indexOfTool(self, tool_id: str, kind_filter: str = "all") -> int:
+        return next((i for i, tool in enumerate(self._display_tools)
+                     if tool.id == tool_id and (
+                         kind_filter == "all" or tool.executor.kind.value == kind_filter)), -1)
 
     @Slot(str, result=int)
     def countForKind(self, kind: str) -> int:
@@ -144,6 +152,8 @@ class ToolListModel(QAbstractListModel):
                     self.dataChanged.emit(index, index, roles)
         if structural or reordered or kinds_changed or previous_total != len(tools):
             self.countChanged.emit()
+        if previous_selected != selected_id:
+            self.selectedToolIdChanged.emit()
 
     def set_filter(self, query: str) -> None:
         normalized = query.strip().casefold()
@@ -189,6 +199,7 @@ class ToolListModel(QAbstractListModel):
             if row >= 0:
                 index = self.index(row, 0)
                 self.dataChanged.emit(index, index, changed_roles)
+        self.selectedToolIdChanged.emit()
 
     @Slot(int, str, result=str)
     def adjacentToolId(self, direction: int, kind_filter: str) -> str:

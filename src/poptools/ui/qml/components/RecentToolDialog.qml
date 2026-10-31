@@ -22,6 +22,7 @@ Window {
     property bool handoffBlocked: false
     property bool outgoing: false
     property bool returnPending: false
+    property int returnGeneration: 0
     property bool recallQueued: false
     property bool presented: false
     property bool closing: false
@@ -47,6 +48,9 @@ Window {
     onClosing: {
         if (closing) return
         closing = true
+        closeDeadline.stop()
+        returnPending = false
+        returnGeneration++
         // Hide with the docking mask intact. finish() restores the normal
         // surface/mask and must not expose a closing full-size native window.
         visible = false
@@ -103,8 +107,24 @@ Window {
     onVisibilityChanged: if (root.visibility === Window.Minimized) cardMotion.finish()
 
     function settleCard() {
+        closeDeadline.stop()
         returnPending = false
+        returnGeneration++
         cardMotion.finish()
+    }
+
+    readonly property string cardTheme: Theme.zioMode ? "zio"
+        : Theme.decadeMode ? "decade" : "standard"
+    // Settle the old presentation before a new activation can start.
+    onCardThemeChanged: if (visible && !closing) settleThemeChange()
+    function settleThemeChange() {
+        if (!visible || closing) return
+        // A return belongs to the presentation that supplied its destination.
+        // Complete it before stale callbacks can hold the new presentation open.
+        if (closeDeadline.running || returnPending || cardMotion.recycling)
+            dismissCard()
+        else
+            settleCard()
     }
     function placeZioCard(origin, dockBounds) {
         cardMotion.finish()
@@ -190,8 +210,13 @@ Window {
     }
 
     function closeCardAnimated() {
+        // This deadline covers destination preparation, flight and face docking.
+        // Repeated X/bulk-close requests must not prolong a lost callback.
+        if (closing) return
+        if (!closeDeadline.running) closeDeadline.start()
         if (cardMotion.recycling || returnPending)
             return
+        const generation = ++returnGeneration
         if (!customScriptMode || !visible) {
             dismissCard()
             return
@@ -204,7 +229,8 @@ Window {
         if (prepareReturn) {
             returnPending = true
             if (prepareReturn(toolId, function(origin) {
-                if (root && root.visible && root.returnPending)
+                if (root && root.visible && !root.closing && root.returnPending
+                        && root.returnGeneration === generation)
                     root.startCardReturn(origin)
             }))
                 return
@@ -214,6 +240,7 @@ Window {
     }
 
     function startCardReturn(origin) {
+        if (closing || !visible) return
         returnPending = false
         if (!Theme.mechanicalMode) {
             cardMotion.fadeOut()
@@ -228,12 +255,22 @@ Window {
 
     function dismissCard() {
         if (closing) return
+        closeDeadline.stop()
+        returnPending = false
+        returnGeneration++
         if (visible) {
             close()
         } else {
             cardMotion.finish()
             dismissed(toolId)
         }
+    }
+
+    Timer {
+        id: closeDeadline
+        objectName: "cardCloseDeadline"
+        interval: 4000
+        onTriggered: root.dismissCard()
     }
 
     function toggleRecording() {
@@ -256,8 +293,20 @@ Window {
     function runCustomScript() {
         if (root.toolController.running)
             root.toolController.stopExecution()
+        else if (root.selectedTool.presentation && root.selectedTool.presentation.confirm_before_run) {
+            if (runConfirmationLoader.active) return
+            runConfirmationLoader.active = true
+            Qt.callLater(openRunConfirmation)
+        }
         else
             root.toolController.runSelected(root.parameterValues)
+    }
+
+    function openRunConfirmation() {
+        if (visible && !closing && !outgoing && runConfirmationLoader.item)
+            runConfirmationLoader.item.openForRun(parameterValues)
+        else
+            runConfirmationLoader.active = false
     }
 
     // ── Main content ───────────────────────────────────────
@@ -312,5 +361,15 @@ Window {
         parent: scaledForm
         anchors.fill: parent
         asynchronous: Theme.mechanicalMode && root.customScriptMode
+    }
+    Loader {
+        id: runConfirmationLoader
+        objectName: "recentToolConfirmRunLoader"
+        active: false
+        sourceComponent: ConfirmRunDialog {
+            controller: root.toolController
+            parentWindow: root
+            onClosed: runConfirmationLoader.active = false
+        }
     }
 }

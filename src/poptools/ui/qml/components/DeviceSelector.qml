@@ -121,21 +121,27 @@ Column {
                 color: root.compact ? Theme.chromeForeground : Theme.textSecondary
             }
         }
-        Image {
-            objectName: "decadeDeviceCamera"
-            visible: root.iconOnly && !Theme.zioMode
+        Item {
+            objectName: "deviceSelectorPhoneIcon"
+            visible: root.iconOnly
             anchors.centerIn: parent
-            width: 27; height: 29
-            source: "../../../resources/icons/decade-camera.svg"
-            sourceSize: Qt.size(width, height)
-            smooth: true
-        }
-        ZioDial {
-            objectName: "zioDeviceDial"
-            visible: root.iconOnly && Theme.zioMode
-            anchors.centerIn: parent
-            width: 27; height: 27
-            highlighted: selectorMouse.containsMouse || root.popupVisible
+            width: 24; height: 24
+            Rectangle {
+                objectName: "deviceSelectorPhoneFrame"
+                anchors.centerIn: parent
+                width: 13; height: 21
+                radius: 2
+                color: "transparent"
+                border.width: 1.5
+                border.color: Theme.textPrimary
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 3
+                    width: 2; height: 2; radius: 1
+                    color: Theme.textPrimary
+                }
+            }
         }
         MouseArea {
             id: selectorMouse

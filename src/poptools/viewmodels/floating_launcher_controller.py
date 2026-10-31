@@ -259,8 +259,12 @@ class FloatingLauncherController(QObject):
                    if self._backend.execution_coordinator.running(tool.id)}
         if self._settings.themeMode != "zio":
             tools.sort(key=lambda tool: tool.id not in running)
-        self._model.set_tools(tools, running_ids=running)
-        self._search_results.set_tools(tools, running_ids=running)
+        tool_ids = {tool.id for tool in tools}
+        for model in (self._model, self._search_results):
+            selected = model.selectedToolId
+            model.set_tools(
+                tools, selected_id=selected if selected in tool_ids else "", running_ids=running,
+            )
 
     def attach_main_window(self, window: QWindow) -> None:
         self._main_window = window
@@ -392,6 +396,20 @@ class FloatingLauncherController(QObject):
             for window in self._app.topLevelWindows()
         )
 
+    def _main_window_active(self) -> bool:
+        main = self._main_window
+        if (main is None or not main.isVisible()
+                or main.visibility() == QWindow.Visibility.Minimized):
+            return False
+        native = foreground_window() if self._app.platformName() == "windows" else None
+        if native is not None:
+            # Qt may retain the old active flag after Alt+Tab. Prefer the native
+            # foreground, including dialogs owned by the main window.
+            return (native.process_id == os.getpid()
+                    and int(main.winId()) in (native.handle, native.root_owner))
+        return (self._app.applicationState() == Qt.ApplicationState.ApplicationActive
+                and main.isActive())
+
     @Slot()
     def reconcile(self) -> None:
         self._sync_activation_focus()
@@ -408,15 +426,13 @@ class FloatingLauncherController(QObject):
                 self._foreground_timer.start()
         else:
             self._foreground_timer.stop()
-        if self._browsing_cards and not self._pointer_inside():
-            self._browsing_cards = False
+        # Drawing a card transfers focus programmatically. Pointer movement must
+        # not turn that handoff into dismissal; a later window switch does.
         browsing = (self._browsing_cards and self._card_window_active())
         if (enabled and not self._pinned and not self._dragging
                 and self._expanded and self._ordinary_window_active() and not browsing):
             self.collapse()
-        main_visible = (self._main_window is not None and self._main_window.isVisible()
-                        and self._main_window.visibility() != QWindow.Visibility.Minimized)
-        visible = enabled and not main_visible
+        visible = enabled and not self._main_window_active()
         if visible == self._visible:
             return
         self._visible = visible
@@ -474,8 +490,7 @@ class FloatingLauncherController(QObject):
 
     @Slot()
     def pointerChanged(self) -> None:
-        # A drawn card may own focus while the user keeps browsing the launcher.
-        # Moving away ends that browsing session; focus still governs dismissal.
+        # Hover changes can request a focus recheck, but never end browsing.
         self._schedule_reconcile()
 
     def _card_window_active(self) -> bool:
@@ -572,9 +587,9 @@ class FloatingLauncherController(QObject):
         if tool is None or tool.section != ToolSection.CUSTOM:
             return
         # All floating presentations open the same independent execution window.
-        if self._expanded and self._pointer_inside():
-            self._browsing_cards = True
         self._sync_activation_focus()
+        if self._expanded:
+            self._browsing_cards = True
         self._requesting_tool = tool_id
         try:
             self._backend.recentToolDialogRequested.emit(tool_id)
@@ -604,6 +619,7 @@ class FloatingLauncherController(QObject):
             handoff.setProperty("floatingFocusHandoff", False)
         else:
             self._activation_serial += 1
+            self._browsing_cards = False
         self._activation_owner = owner
 
     @Slot(str, result=int)
