@@ -22,7 +22,7 @@ HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT = 15, 16, 17
 CAPTION_HITS = (HTMINBUTTON, HTMAXBUTTON, HTCLOSE)
 
 
-def prepare_windows_frame(window: QWindow, border: int = 1, native_style: int = 0x00CF0000) -> None:
+def prepare_windows_frame(window: QWindow, border: int = 1, native_style: int = 0x000F0000) -> None:
     """Tell Qt about the caption removal before it creates the platform window.
 
     This is the Windows QPA custom-margin property supported by the pinned Qt
@@ -59,7 +59,7 @@ class _TrackMouseEvent(ctypes.Structure):
 
 
 class WindowsFrame:
-    def __init__(self, window: QWindow, native_style: int = 0x00CF0000) -> None:
+    def __init__(self, window: QWindow, native_style: int = 0x000F0000) -> None:
         self.window = window
         self.hwnd = int(window.winId())
         self.user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -90,6 +90,8 @@ class WindowsFrame:
         # frameless hint makes showMaximized() emulate maximization with a resize
         # instead of letting Windows set WS_MAXIMIZE, breaking restore and Snap.
         style = self.user32.GetWindowLongPtrW(self.hwnd, -16)
+        # Retain resize/system commands but remove WS_CAPTION. With full-client
+        # Acrylic, DWM otherwise paints a second caption button set on maximize.
         self.user32.SetWindowLongPtrW(self.hwnd, -16, (style & ~0x80CF0000) | native_style)
         self._extend_frame()
         self.user32.SetWindowPos(self.hwnd, None, 0, 0, 0, 0, 0x0037)

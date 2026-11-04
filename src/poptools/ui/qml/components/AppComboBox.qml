@@ -10,6 +10,18 @@ ComboBox {
     rightPadding: Theme.space40
     font.pixelSize: Theme.fontBody
 
+    function popupAnchorRect() {
+        // Floating cards scale their content. Popup geometry is in overlay
+        // coordinates, so use the transformed field bounds rather than width.
+        let item = control
+        let geometryRevision = 0
+        while (item) {
+            geometryRevision += item.x + item.y + item.width + item.height + item.scale
+            item = item.parent
+        }
+        return control.mapToItem(Overlay.overlay, 0, 0, control.width, control.height)
+    }
+
     contentItem: Text {
         text: control.displayText
         color: control.enabled ? Theme.textPrimary : Theme.textSecondary
@@ -61,10 +73,18 @@ ComboBox {
     }
 
     popup: Popup {
-        y: control.height + Theme.space8
-        width: Math.max(control.width, 160)
+        parent: Overlay.overlay
+        margins: 8
+        readonly property rect anchorRect: control.popupAnchorRect()
+        readonly property real spaceBelow: Math.max(0, parent.height - margins - anchorRect.bottom - Theme.space8)
+        readonly property real spaceAbove: Math.max(0, anchorRect.y - margins - Theme.space8)
+        x: Math.max(margins, Math.min(anchorRect.x, parent.width - margins - width))
+        y: spaceBelow >= height || spaceBelow >= spaceAbove
+            ? anchorRect.bottom + Theme.space8 : anchorRect.y - Theme.space8 - height
+        width: Math.min(Math.max(anchorRect.width, 160), Math.max(0, parent.width - margins * 2))
         padding: 6
         implicitHeight: Math.min(contentItem.implicitHeight + topPadding + bottomPadding, 280)
+        height: Math.min(implicitHeight, Math.max(spaceAbove, spaceBelow))
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         contentItem: ListView {

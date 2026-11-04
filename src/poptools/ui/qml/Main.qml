@@ -544,6 +544,8 @@ ApplicationWindow {
                         selected: window.settingsSelected
                         actionText: updateController.state === "available"
                                     ? "有新版本可用"
+                                    : updateController.state === "downloading"
+                                      ? "下载更新 " + updateController.downloadProgress + "%"
                                     : updateController.state === "downloaded"
                                       ? "更新已准备好" : ""
                         onActionClicked: window.queueUpdateDialog()
@@ -931,6 +933,10 @@ ApplicationWindow {
         target: updateController
         function onUpdateAvailable() {
             window.queueUpdateDialog()
+        }
+        function onBackgroundDownloadFinished() {
+            if (!updateDialogLoader.item || !updateDialogLoader.item.visible)
+                window.queueUpdateDialog()
         }
     }
 

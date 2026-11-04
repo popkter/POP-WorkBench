@@ -5,6 +5,8 @@ import os
 import sys
 
 import pytest
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from poptools.infrastructure.system_tray import SystemTrayController
@@ -35,6 +37,7 @@ def test_tray_popups_keep_raster_bitmap_without_disabling_glass(
     menus = (tray._menu, tray._preset_menu, tray._recent_menu)
     for menu in menus:
         qtbot.addWidget(menu)
+        menu.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     try:
         assert all(not no_bitmap(menu) for menu in menus)
         assert os.environ.get(variable) == setting
@@ -48,5 +51,18 @@ def test_tray_popups_keep_raster_bitmap_without_disabling_glass(
         assert len(tray._menu.actions()) == 5
         assert tray._preset_menu.actions()[0].text() == "(暂无预置功能)"
         assert tray._recent_menu.actions()[0].text() == "(暂无最近使用)"
+        for menu in menus:
+            menu.destroy()  # Qt can recreate popups after a platform/style change.
+            tray._menu.popup(QPoint(100, 100))
+            if menu is not tray._menu:
+                tray._menu.setActiveAction(menu.menuAction())
+                QTest.keyClick(tray._menu, Qt.Key_Right)
+            qtbot.waitUntil(menu.isVisible)
+            qtbot.wait(100)
+            assert menu.isVisible()
+            assert not no_bitmap(menu), menu.title()
+            menu.hide()
+            tray._menu.hide()
+            assert os.environ.get(variable) == setting
     finally:
         tray.deleteLater()

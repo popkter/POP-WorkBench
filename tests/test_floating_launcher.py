@@ -1214,6 +1214,10 @@ RecentToolDialog {
         Theme.darkMode = testDarkMode
         Theme.glassMode = testGlassMode
     }
+    function setCardTheme(mode: string) {
+        Theme.decadeMode = mode === "decade"
+        Theme.zioMode = mode === "zio"
+    }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/RecentScriptHarness.qml")))
     window = component.create()
@@ -1247,6 +1251,11 @@ RecentToolDialog {
         # Header and detail content share the card's only outer material.
         assert panel.property("color").alpha() == 0
         assert panel.property("sharedCardBackground")
+        assert items["recentToolTitle"].property("text") == tool.title
+        assert not panel.property("showHeading")
+        heading = items["customScriptHeading"]
+        assert not heading.isVisible() and heading.height() == 0
+        assert items["customParameterArea"].y() == 0
         card = items["recentToolCardSurface"]
         bounds = card.mapRectToItem(window.contentItem(), card.boundingRect())
         assert bounds.x() == pytest.approx(0, abs=0.01)
@@ -1265,12 +1274,31 @@ RecentToolDialog {
             assert window.grabWindow().pixelColor(0, 0).alpha() == 0
             assert not any(call[1] for call in native_calls)
         assert items["recentToolDeviceSelector"].property("compact")
+        run_host = items["recentToolRunButton"].parentItem()
+        for mode in ("decade", "default", "zio", "default", "decade", "zio", "default"):
+            assert QMetaObject.invokeMethod(window, "setCardTheme", Q_ARG(str, mode))
+            qtbot.wait(50)
+            assert items["recentToolRunButton"].parentItem() is run_host
+            if mode == "default":
+                run_button = items["recentToolRunButton"]
+                assert run_button.isVisible()
+                rect = run_button.mapRectToItem(window.contentItem(), run_button.boundingRect())
+                assert 0 <= rect.left() < rect.right() <= window.width()
+                assert rect.height() >= 32
+        qtbot.wait(500)
+        assert (items["recentToolRunButton"].property("labelFontSize")
+                * window.property("cardUiScale")) == pytest.approx(13)
+        assert items["recentToolDeviceSelector"].property("labelFontSize") == 12
+        assert items["recentToolRunButton"].property("compact")
+        assert items["recentToolRunButton"].width() == items["recentToolRunButton"].height()
         action_rects = {
             name: items[name].mapRectToItem(window.contentItem(), items[name].boundingRect())
             for name in ("recentToolRunButton", "recentToolDeviceSelector",
                          "recentToolPinButton", "recentToolCloseButton")
         }
         assert all(rect.height() >= 32 for rect in action_rects.values())
+        assert action_rects["recentToolPinButton"].top() >= 3.9
+        assert action_rects["recentToolCloseButton"].top() >= 3.9
         assert (action_rects["recentToolRunButton"].right() + 4
                 <= action_rects["recentToolDeviceSelector"].left())
         assert (action_rects["recentToolPinButton"].bottom()

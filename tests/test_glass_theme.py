@@ -306,6 +306,85 @@ Window {
 
 @pytest.mark.gui
 @pytest.mark.parametrize("dark", [False, True])
+@pytest.mark.parametrize("scaled_card", [False, True])
+def test_floating_card_combo_popup_blocks_underlying_content(qapp, qtbot, dark, scaled_card):
+    config = json.loads((package_root() / "ui/qml/theme/configs/glass.json").read_text())
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda errors: warnings.extend(e.toString() for e in errors))
+    component = QQmlComponent(engine)
+    component.setData('''
+import QtQuick
+import "components"
+import "theme"
+Window {
+    id: host; width: 320; height: 360; visible: true
+    property color scene: "white"
+    property var config: CONFIG
+    readonly property bool glassBackgroundReady: true
+    readonly property bool systemBackdropTinted: true
+    readonly property Item popupBackground: combo.popup.background
+    readonly property bool popupOpened: combo.popup.opened
+    readonly property int selectedIndex: combo.currentIndex
+    readonly property color ink: Theme.textPrimary
+    Binding { target: Theme; property: "glassMode"; value: true }
+    Binding { target: Theme; property: "darkMode"; value: DARK }
+    Binding { target: Theme; property: "glassPalette"
+        value: DARK ? host.config.darkColors : host.config.colors }
+    Binding { target: Theme; property: "glassMaterial"; value: host.config.material }
+    Rectangle { anchors.fill: parent; color: host.scene }
+    Item {
+        x: SCALED ? 120 : 20; y: SCALED ? 290 : 30
+        width: 240; height: 44; scale: SCALED ? 0.78 : 1
+        transformOrigin: Item.TopLeft
+        AppComboBox { id: combo; anchors.fill: parent; model: ["A", "B", "C"] }
+    }
+    function openCombo() { combo.popup.open() }
+}
+'''.replace("CONFIG", json.dumps(config)).replace("DARK", str(dark).lower())
+        .replace("SCALED", str(scaled_card).lower()).encode(),
+        QUrl.fromLocalFile(str(package_root() / "ui/qml/CardComboHarness.qml")))
+    window = component.create()
+    assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
+    try:
+        assert QTest.qWaitForWindowExposed(window)
+        QMetaObject.invokeMethod(window, "openCombo", Qt.DirectConnection)
+        qtbot.waitUntil(lambda: window.property("popupOpened"))
+        qtbot.wait(200)
+        background = window.property("popupBackground")
+        assert not background.property("usesPageBackground")
+        rect = background.mapRectToItem(window.contentItem(), background.boundingRect())
+        assert rect.left() >= 7 and rect.right() <= window.width() - 7
+        assert rect.top() >= 7 and rect.bottom() <= window.height() - 7
+        if scaled_card:
+            assert rect.width() == pytest.approx(240 * 0.78, abs=1)
+            assert rect.bottom() < 290  # Open upward when the field is near the bottom.
+        point = background.mapToItem(window.contentItem(), background.width() - 18, 75)
+        def sample():
+            frame = window.grabWindow()
+            dpr = frame.devicePixelRatio()
+            return frame.pixelColor(round(point.x() * dpr), round(point.y() * dpr))
+        light = sample()
+        window.setProperty("scene", QColor("black"))
+        qtbot.wait(100)
+        dark_background = sample()
+        assert max(abs(a - b) for a, b in zip(light.getRgb()[:3],
+                                             dark_background.getRgb()[:3], strict=True)) <= 10
+        assert _contrast(window.property("ink"), light) >= 4.5
+        assert _contrast(window.property("ink"), dark_background) >= 4.5
+        QTest.mouseClick(window, Qt.LeftButton, pos=QPoint(
+            round(rect.center().x()), round(rect.top() + 6 + 48 * 1.5)))
+        qtbot.waitUntil(lambda: not window.property("popupOpened"))
+        assert window.property("selectedIndex") == 1
+        assert not warnings, warnings
+    finally:
+        window.close()
+        window.deleteLater()
+        qapp.processEvents()
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("dark", [False, True])
 def test_glass_tooltip_blocks_underlying_content(qapp, qtbot, dark):
     config = json.loads((package_root() / "ui/qml/theme/configs/glass.json").read_text())
     engine = QQmlEngine()

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ctypes
 import os
 import sys
+from contextlib import AbstractContextManager, contextmanager
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Property, QObject, Qt, Signal, Slot
@@ -23,31 +25,82 @@ def create_app_icon() -> QIcon:
     return icon
 
 
+@contextmanager
+def _raster_menu_surface():
+    """Scope the QPA switch across creation, recreation and native show."""
+    setting = "QT_QPA_DISABLE_REDIRECTION_SURFACE"
+    previous = os.environ.pop(setting, None) if sys.platform == "win32" else None
+    try:
+        yield
+    finally:
+        if sys.platform == "win32" and previous is not None:
+            os.environ[setting] = previous
+
+
 class _TrayMenu(QMenu):
     """Use Qt's original menu painting, independently of the QML Glass theme."""
 
     def __init__(self, title: str = "") -> None:
         super().__init__(title)
+        self._surface_scope: AbstractContextManager | None = None
+        self.aboutToShow.connect(self._prepare_popup_surface)
         self.ensurePolished()
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         if sys.platform == "win32":
+            # Qt's fade/scroll helpers allocate separate raster HWNDs outside
+            # the menu's lifetime. QML transitions are unaffected by these flags.
+            QApplication.setEffectEnabled(Qt.UIEffect.UI_AnimateMenu, False)
+            QApplication.setEffectEnabled(Qt.UIEffect.UI_FadeMenu, False)
             # Qt's QPA switch affects raster popups too, not just D3D windows.
             # Allocate the menu HWND with its ordinary GDI bitmap, before the
             # first popup. Changing this native style after creation is rejected
             # by Windows. No event loop runs while the setting is overridden.
-            setting = "QT_QPA_DISABLE_REDIRECTION_SURFACE"
-            previous = os.environ.pop(setting, None)
-            try:
+            with _raster_menu_surface():
                 self.winId()
-            finally:
-                if previous is not None:
-                    os.environ[setting] = previous
+
+    def setVisible(self, visible: bool) -> None:
+        if not visible or sys.platform != "win32":
+            super().setVisible(visible)
+            return
+        # A theme, screen or native parent change can destroy the HWND after
+        # construction. QMenu::popup/exec call this virtual method on every show.
+        with _raster_menu_surface():
+            self.ensurePolished()
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+            self.winId()
+            super().setVisible(True)
+
+    def _prepare_popup_surface(self) -> None:
+        # QMenu can change screens/recreate its HWND *before* setVisible().
+        # Keep the override through that whole synchronous popup preparation.
+        if sys.platform == "win32" and self._surface_scope is None:
+            self._surface_scope = _raster_menu_surface()
+            self._surface_scope.__enter__()
+            # QMenu creates a window for screen metrics before aboutToShow.
+            # If that was a replacement HWND, it may already have inherited
+            # the D3D-only flag. Recreate it while hidden; changing this flag
+            # in place cannot restore the bitmap on Windows.
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
+            user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+            hwnd = int(self.winId())
+            if user32.GetWindowLongPtrW(hwnd, -20) & 0x00200000:
+                self.destroy()
+                self.winId()
+
+    def _finish_popup_surface(self) -> None:
+        scope, self._surface_scope = self._surface_scope, None
+        if scope is not None:
+            scope.__exit__(None, None, None)
 
     def showEvent(self, event: QShowEvent) -> None:
-        super().showEvent(event)
-        # Apply after Qt has created and polished the popup's native window.
-        disable_windows_system_backdrop(int(self.winId()))
-        self.update()
+        try:
+            super().showEvent(event)
+            # Apply after Qt has created and polished the popup's native window.
+            disable_windows_system_backdrop(int(self.winId()))
+            self.update()
+        finally:
+            self._finish_popup_surface()
 
 
 class SystemTrayController(QObject):

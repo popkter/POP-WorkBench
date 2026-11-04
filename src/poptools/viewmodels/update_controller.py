@@ -97,6 +97,7 @@ class UpdateDownloadThread(QThread):
 class UpdateController(QObject):
     stateChanged = Signal()
     updateAvailable = Signal()
+    backgroundDownloadFinished = Signal()
 
     def __init__(
         self,
@@ -130,6 +131,7 @@ class UpdateController(QObject):
         self._pending_version = ""
         self._check_thread: UpdateCheckThread | None = None
         self._download_thread: UpdateDownloadThread | None = None
+        self._background_download = False
         self._check_is_manual = False
         self._schedule_timer = QTimer(self)
         self._schedule_timer.setInterval(60_000)
@@ -271,6 +273,7 @@ class UpdateController(QObject):
         self._downloaded_path = ""
         self._downloaded_sha256 = ""
         self._pending_version = ""
+        self._background_download = False
         self._set_state("downloading", "正在下载更新…")
         thread = UpdateDownloadThread(self.client, release, destination, self)
         self._download_thread = thread
@@ -278,6 +281,13 @@ class UpdateController(QObject):
         thread.completed.connect(self._on_download_completed)
         thread.finished.connect(thread.deleteLater)
         thread.start()
+        return True
+
+    @Slot(result=bool)
+    def downloadInBackground(self) -> bool:
+        if self._state != "downloading" or self._download_thread is None:
+            return False
+        self._background_download = True
         return True
 
     @Slot(result=bool)
@@ -394,6 +404,8 @@ class UpdateController(QObject):
         checksum: str = "",
     ) -> None:
         self._download_thread = None
+        background = self._background_download
+        self._background_download = False
         if success:
             self._progress = 100
             self._downloaded_path = path
@@ -404,6 +416,8 @@ class UpdateController(QObject):
             self._set_state("available", message)
         else:
             self._set_state("error", message)
+        if background and self._state in {"downloaded", "error"}:
+            self.backgroundDownloadFinished.emit()
 
     def _set_state(self, state: str, status: str) -> None:
         self._state = state

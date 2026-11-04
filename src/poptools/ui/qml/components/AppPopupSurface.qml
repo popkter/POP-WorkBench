@@ -10,7 +10,9 @@ Item {
     property color outlineColor: Theme.outlineVariant
     property int cornerRadius: Theme.radiusMedium
     property bool dialogSurface: false
-    property real minimumOpacity: 0
+    // Hosts without an isolated page texture (e.g. floating cards) need an
+    // almost opaque popup so controls below it cannot bleed through.
+    property real minimumOpacity: 0.97
     property bool tooltipSurface: false
     readonly property var hostWindow: root.Window.window
     readonly property Item pageBackgroundSource: Theme.glassMode && hostWindow

@@ -40,6 +40,7 @@ Rectangle {
     property bool compactLayout: false
     property bool decadeCardLayout: false
     property bool sharedCardBackground: false
+    property bool showHeading: true
     readonly property bool cardTypography: sharedCardBackground || decadeCardLayout
     readonly property real panelPadding: decadeCardLayout ? Theme.decadeCardPadding : compactLayout ? Theme.space8 : Theme.detailPanelPadding
     property real minimumFormReservedHeight: Theme.detailFormReservedHeight
@@ -121,11 +122,12 @@ Rectangle {
 
         Item {
             id: header
-            visible: !root.decadeCardLayout
+            objectName: "customScriptHeading"
+            visible: root.showHeading && !root.decadeCardLayout
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: root.decadeCardLayout ? 0 : headingRow.implicitHeight + root.panelPadding * 2
+            height: visible ? headingRow.implicitHeight + root.panelPadding * 2 : 0
 
             RowLayout {
                 id: headingRow
@@ -208,7 +210,7 @@ Rectangle {
             objectName: "customParameterArea"
             x: root.panelPadding
             anchors.top: header.bottom
-            anchors.topMargin: root.decadeCardLayout ? 0 : root.compactLayout ? Theme.space8 : Theme.space12
+            anchors.topMargin: header.visible ? (root.compactLayout ? Theme.space8 : Theme.space12) : 0
             width: parent.width - root.panelPadding * 2
             height: Math.max(0, actionArea.y - y - Theme.space8)
             clip: true

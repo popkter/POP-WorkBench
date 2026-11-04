@@ -526,8 +526,9 @@ def test_windows_frame_and_system_commands(native_window, qtbot):
     user32.SendMessageW.restype = ctypes.c_ssize_t
     hwnd = ctypes.c_void_p(int(window.winId()))
     style = user32.GetWindowLongPtrW(hwnd, -16)
-    for expected in (0x00C00000, 0x00080000, 0x00040000, 0x00020000, 0x00010000):
-        assert style & expected == expected  # caption, menu, resize, minimize, maximize
+    assert not style & 0x00C00000  # QML owns the caption, including over Acrylic.
+    for expected in (0x00080000, 0x00040000, 0x00020000, 0x00010000):
+        assert style & expected == expected  # menu, resize, minimize, maximize
     for command, state in (
         (0xF020, Qt.WindowState.WindowMinimized),
         (0xF120, Qt.WindowState.WindowNoState),
@@ -537,6 +538,7 @@ def test_windows_frame_and_system_commands(native_window, qtbot):
         user32.SendMessageW(hwnd, 0x0112, command, 0)  # WM_SYSCOMMAND
         qtbot.waitUntil(lambda expected=state: window.windowState() == expected)
         style = user32.GetWindowLongPtrW(hwnd, -16)
+        assert not style & 0x00C00000
         assert bool(style & 0x01000000) == (state == Qt.WindowState.WindowMaximized)
     tray.setProperty("available", True)
     user32.SendMessageW(hwnd, 0x0112, 0xF060, 0)  # SC_CLOSE keeps close-to-tray behavior

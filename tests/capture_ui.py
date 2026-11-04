@@ -334,6 +334,8 @@ def main() -> int:
                     and QMetaObject.invokeMethod(custom_scripts_page, "closeDrawer"),
                 )
     capture_dialog = os.environ.get("POPTOOLS_CAPTURE_DIALOG")
+    if os.environ.get("POPTOOLS_CAPTURE_MAXIMIZED") == "1":
+        QTimer.singleShot(150, window.showMaximized)
     if capture_dialog == "user-guide":
         QTimer.singleShot(250, lambda: QMetaObject.invokeMethod(window, "openUserGuideDialog"))
         if os.environ.get("POPTOOLS_CAPTURE_GUIDE_PREVIEW") == "1":

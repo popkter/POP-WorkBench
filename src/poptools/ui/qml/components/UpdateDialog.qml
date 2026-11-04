@@ -211,9 +211,19 @@ AppDialog {
                 onClicked: root.controller.cancelDownload()
             }
             DialogActionButton {
+                visible: root.controller.state === "downloading"
+                implicitWidth: 128; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
+                primaryAction: true
+                text: "后台下载"; iconName: "download"
+                onClicked: {
+                    if (root.controller.downloadInBackground())
+                        root.close()
+                }
+            }
+            DialogActionButton {
                 visible: root.controller.state === "downloaded"
-                implicitWidth: 116; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
-                text: "稍后安装"; iconName: "schedule"; tonal: true
+                implicitWidth: 148; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
+                text: "下次启动更新"; iconName: "schedule"; tonal: true
                 onClicked: {
                     if (root.controller.installLater())
                         root.close()
@@ -223,7 +233,7 @@ AppDialog {
                 visible: root.controller.state === "downloaded"
                 implicitWidth: 150; implicitHeight: Theme.controlHeight; radius: Theme.radiusControl
                 primaryAction: true
-                text: "安装并重启"; iconName: "restart_alt"
+                text: "立即重启更新"; iconName: "restart_alt"
                 onClicked: root.controller.installAndRestart()
             }
             DialogActionButton {

@@ -1,6 +1,7 @@
 import pytest
 from PySide6.QtCore import QMetaObject, QObject, Qt, QUrl
 from PySide6.QtQml import QQmlComponent, QQmlEngine
+from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
 from poptools.paths import package_root
@@ -23,7 +24,9 @@ from poptools.paths import package_root
      "dialog.packageNames = host.longText; dialog.open()", "确认安装", "python"),
     ("UpdateDialog", "dialog.open()", "立即更新", "download"),
     ("UpdateDialog", "backend.state = 'downloading'; dialog.open()", "取消下载", "cancel"),
-    ("UpdateDialog", "backend.state = 'downloaded'; dialog.open()", "安装并重启", "restart"),
+    ("UpdateDialog", "backend.state = 'downloading'; dialog.open()", "后台下载", "background"),
+    ("UpdateDialog", "backend.state = 'downloaded'; dialog.open()", "立即重启更新", "restart"),
+    ("UpdateDialog", "backend.state = 'downloaded'; dialog.open()", "下次启动更新", "later"),
     ("UpdateDialog", "backend.state = 'error'; backend.status = host.longText; "
      "dialog.open()", "重试", "retry"),
 ])
@@ -86,8 +89,9 @@ ApplicationWindow {
         }
         function downloadUpdate() { host.operation = "download" }
         function cancelDownload() { host.operation = "cancel" }
+        function downloadInBackground() { host.operation = "background"; return true }
         function skipVersion() {}
-        function installLater() { return true }
+        function installLater() { host.operation = "later"; return true }
         function installAndRestart() { host.operation = "restart" }
         function retryUpdate() { host.operation = "retry" }
     }
@@ -108,6 +112,7 @@ ApplicationWindow {
         qtbot.waitUntil(lambda: dialog.property("opened"))
         qtbot.wait(50)
         content = dialog.property("contentItem")
+        assert isinstance(content, QQuickItem)
 
         def descendants(item):
             yield item
@@ -129,6 +134,8 @@ ApplicationWindow {
             rect = button.mapRectToItem(window.contentItem(), button.boundingRect())
             QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
         assert window.property("operation") == expected
+        if dialog_type == "UpdateDialog" and expected in {"background", "later"}:
+            qtbot.waitUntil(lambda: not dialog.property("visible"))
         if dialog_type == "PythonDoctorDialog":
             assert dialog.property("installing")
             assert not button.isEnabled()
