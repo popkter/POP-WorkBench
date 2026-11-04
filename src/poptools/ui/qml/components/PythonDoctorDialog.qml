@@ -67,7 +67,8 @@ AppDialog {
                     AppTextEditMenu { target: environmentField }
                     background: Rectangle {
                         radius: Theme.radiusControl
-                        color: Theme.surfaceContainer
+                        color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                         border.color: Theme.outlineVariant
                     }
                 }
@@ -90,7 +91,8 @@ AppDialog {
                     selectByMouse: true
                     background: Rectangle {
                         radius: Theme.radiusControl
-                        color: Theme.surfaceContainer
+                        color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                         border.color: Theme.outlineVariant
                     }
                 }

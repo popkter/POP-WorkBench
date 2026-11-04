@@ -15,7 +15,7 @@ Rectangle {
     property bool iconSpinning: false
     property color foregroundColor: "transparent"
     property real labelFontSize: Theme.fontButton
-    property int labelFontWeight: Font.DemiBold
+    property int labelFontWeight: Theme.glassMode ? Font.Bold : Font.DemiBold
     property real glyphSize: Theme.iconMedium
     property real contentSpacing: compact ? 0 : Theme.controlSpacing
     property real disabledOpacity: 1
@@ -26,7 +26,7 @@ Rectangle {
     readonly property bool pressed: mouseArea.pressed
     readonly property color contentColor: foregroundColor.a > 0 ? foregroundColor
                                           : !enabled ? Theme.textSecondary
-                                          : dangerStyle ? Theme.primaryForeground
+                                          : dangerStyle ? (Theme.glassMode && Theme.darkMode ? Theme.surface : Theme.primaryForeground)
                                           : successStyle ? Theme.successForeground
                                           : tonal ? Theme.primaryText : Theme.primaryForeground
     signal clicked()
@@ -35,17 +35,26 @@ Rectangle {
     implicitWidth: compact ? Theme.controlHeight : Math.max(Theme.controlHeight, buttonLabel.implicitWidth + (iconName.length > 0 ? glyphSize + contentSpacing : 0) + Theme.space32)
     opacity: enabled ? 1 : disabledOpacity
     radius: Theme.radiusControl
-    color: !enabled ? (Theme.buttonDisabled || Theme.surfaceContainerHigh)
+    readonly property color regularBackground: !enabled ? (Theme.buttonDisabled || Theme.surfaceContainerHigh)
                     : dangerStyle ? (mouseArea.containsMouse ? Qt.darker(Theme.errorColor, 1.08) : Theme.errorColor)
                     : successStyle ? (mouseArea.containsMouse ? Qt.darker(Theme.success, 1.08) : Theme.success)
                     : tonal ? (mouseArea.containsMouse ? Theme.primaryContainerHover : Theme.primaryContainer)
                             : (mouseArea.containsMouse ? Theme.primaryHover : Theme.primary)
+    color: Theme.glassMode ? Qt.rgba(regularBackground.r, regularBackground.g,
+                                    regularBackground.b, 0.6) : regularBackground
     border.width: mouseArea.pressed ? Theme.borderWidthMedium : Theme.borderWidthThin
     border.color: !enabled ? Theme.outline
                     : mouseArea.pressed ? Theme.buttonShadow
                     : dangerStyle ? Theme.errorColor
                     : mouseArea.containsMouse ? Theme.primaryHover
                     : Theme.primary
+
+    GlassSurface {
+        anchors.fill: parent; cornerRadius: root.radius
+        tintColor: root.color; pressed: root.pressed
+        minimumTintOpacity: 0.96
+        visible: Theme.glassMode && root.color.a > 0
+    }
 
     RowLayout {
         anchors.verticalCenter: parent.verticalCenter

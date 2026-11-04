@@ -1,6 +1,7 @@
 """A client-drawn caption backed by the Windows non-client window protocol.
 
-Keep an opaque, rectangular HWND and a one-physical-pixel non-client border.
+Keep the normal Win32 frame styles and a one-physical-pixel non-client border.
+Glass uses a transparent DirectComposition surface over DWM Desktop Acrylic.
 Windows owns resizing, moving, snapping, the system menu, shadow and rounding;
 QML only paints the caption and its controls (as in JetBrains Runtime).
 """
@@ -21,7 +22,7 @@ HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT = 15, 16, 17
 CAPTION_HITS = (HTMINBUTTON, HTMAXBUTTON, HTCLOSE)
 
 
-def prepare_windows_frame(window: QWindow) -> None:
+def prepare_windows_frame(window: QWindow, border: int = 1, native_style: int = 0x00CF0000) -> None:
     """Tell Qt about the caption removal before it creates the platform window.
 
     This is the Windows QPA custom-margin property supported by the pinned Qt
@@ -36,11 +37,11 @@ def prepare_windows_frame(window: QWindow) -> None:
     user32.AdjustWindowRectExForDpi.restype = wintypes.BOOL
     rect = wintypes.RECT()
     if not user32.AdjustWindowRectExForDpi(
-        ctypes.byref(rect), 0x00CF0000, False, 0, round(window.devicePixelRatio() * 96),
+        ctypes.byref(rect), native_style, False, 0, round(window.devicePixelRatio() * 96),
     ):
         raise ctypes.WinError(ctypes.get_last_error())
     window.setProperty("_q_windowsCustomMargins", QMargins(
-        rect.left + 1, rect.top + 1, 1 - rect.right, 1 - rect.bottom))
+        rect.left + border, rect.top + border, border - rect.right, border - rect.bottom))
 
 
 class _Margins(ctypes.Structure):
@@ -58,7 +59,7 @@ class _TrackMouseEvent(ctypes.Structure):
 
 
 class WindowsFrame:
-    def __init__(self, window: QWindow) -> None:
+    def __init__(self, window: QWindow, native_style: int = 0x00CF0000) -> None:
         self.window = window
         self.hwnd = int(window.winId())
         self.user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -89,7 +90,7 @@ class WindowsFrame:
         # frameless hint makes showMaximized() emulate maximization with a resize
         # instead of letting Windows set WS_MAXIMIZE, breaking restore and Snap.
         style = self.user32.GetWindowLongPtrW(self.hwnd, -16)
-        self.user32.SetWindowLongPtrW(self.hwnd, -16, (style & ~0x80000000) | 0x00CF0000)
+        self.user32.SetWindowLongPtrW(self.hwnd, -16, (style & ~0x80CF0000) | native_style)
         self._extend_frame()
         self.user32.SetWindowPos(self.hwnd, None, 0, 0, 0, 0, 0x0037)
 
@@ -139,7 +140,9 @@ class WindowsFrame:
         self.dwmapi.DwmSetWindowAttribute(self.hwnd, 2, ctypes.byref(policy), 4)
         corners = ctypes.c_int(2)  # DWMWCP_ROUND; Windows flattens maximized windows.
         self.dwmapi.DwmSetWindowAttribute(self.hwnd, 33, ctypes.byref(corners), 4)
-        self.dwmapi.DwmExtendFrameIntoClientArea(self.hwnd, ctypes.byref(_Margins(1, 1, 1, 1)))
+        margin = -1 if self.window.property("glassEnabled") else 1
+        self.dwmapi.DwmExtendFrameIntoClientArea(
+            self.hwnd, ctypes.byref(_Margins(margin, margin, margin, margin)))
 
     def detach(self, *_args: object) -> None:
         if self.hwnd:
@@ -314,5 +317,27 @@ class WindowsFrame:
             if self.user32.GetCapture() == self.hwnd:
                 self.user32.ReleaseCapture()
         if code in (0x031E, 0x031A):  # DWM composition / theme changed
+            self._extend_frame()
+        return False, 0
+
+
+class WindowsCardFrame(WindowsFrame):
+    """Full-client card HWND with DWM rounding, without Qt's layered style.
+
+    The card already provides its own drag, pin and close controls. Retain the
+    native frame protocol solely for compositor clipping and Desktop Acrylic.
+    """
+
+    def __init__(self, window: QWindow) -> None:
+        # WS_THICKFRAME keeps compositor clipping without native caption
+        # controls. Its metrics must match prepare_windows_frame exactly.
+        super().__init__(window, native_style=0x00040000)
+
+    def _handle_message(self, msg: wintypes.MSG) -> tuple[bool, int]:
+        if not self.hwnd or int(msg.hWnd or 0) != self.hwnd:
+            return False, 0
+        if msg.message == 0x0083:  # WM_NCCALCSIZE: the whole window is client.
+            return True, 0
+        if msg.message in (0x031E, 0x031A):
             self._extend_frame()
         return False, 0

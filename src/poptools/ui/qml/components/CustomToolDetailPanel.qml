@@ -39,6 +39,8 @@ Rectangle {
     property bool submitParametersOnEnter: false
     property bool compactLayout: false
     property bool decadeCardLayout: false
+    property bool sharedCardBackground: false
+    readonly property bool cardTypography: sharedCardBackground || decadeCardLayout
     readonly property real panelPadding: decadeCardLayout ? Theme.decadeCardPadding : compactLayout ? Theme.space8 : Theme.detailPanelPadding
     property real minimumFormReservedHeight: Theme.detailFormReservedHeight
     readonly property bool narrowManagementLayout: allowManagement && width < Theme.detailCompactWidth
@@ -57,7 +59,11 @@ Rectangle {
     signal toastRequested(string message, bool error)
 
     radius: Theme.radiusMedium
-    color: splitConsole || decadeCardLayout ? "transparent" : Theme.surfaceContainerLow
+    color: sharedCardBackground || Theme.glassMode || splitConsole || decadeCardLayout ? "transparent" : Theme.surfaceContainerLow
+    GlassSurface {
+        anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
+        visible: Theme.glassMode && !root.sharedCardBackground && !root.splitConsole && !root.decadeCardLayout
+    }
     border.width: 0
     clip: true
 
@@ -105,7 +111,11 @@ Rectangle {
         width: parent.width
         height: Math.max(0, consolePanel.y - root.separatorHeight)
         radius: Theme.radiusMedium
-        color: root.splitConsole ? Theme.surfaceContainerLow : "transparent"
+        color: !Theme.glassMode && root.splitConsole ? Theme.surfaceContainerLow : "transparent"
+        GlassSurface {
+            anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
+            visible: Theme.glassMode && root.splitConsole
+        }
         border.width: 0
         clip: true
 
@@ -148,7 +158,8 @@ Rectangle {
                         Layout.fillWidth: true
                         text: root.displayedTool.title || "请选择脚本"
                         color: Theme.textPrimary
-                        font.pixelSize: root.compactLayout ? Theme.fontSectionTitle : Theme.fontDetailTitle
+                        font.pixelSize: root.cardTypography ? Theme.decadeCardTitleSize
+                            : root.compactLayout ? Theme.fontSectionTitle : Theme.fontDetailTitle
                         font.weight: Font.Bold
                         elide: Text.ElideRight
                     }
@@ -156,7 +167,8 @@ Rectangle {
                         Layout.fillWidth: true
                         text: root.displayedTool.description || "选择脚本以查看参数、运行状态和输出"
                         color: Theme.textSecondary
-                        font.pixelSize: root.compactLayout ? Theme.fontSupporting : Theme.fontBody
+                        font.pixelSize: root.cardTypography ? Theme.decadeCardTextSize
+                            : root.compactLayout ? Theme.fontSupporting : Theme.fontBody
                         wrapMode: root.compactLayout ? Text.Wrap : Text.NoWrap
                         maximumLineCount: root.compactLayout ? 2 : 1
                         elide: Text.ElideRight
@@ -218,6 +230,7 @@ Rectangle {
                     parameterValues: root.parameterValues
                     compactLayout: root.compactLayout
                     decadeCardLayout: root.decadeCardLayout
+                    cardTypography: root.cardTypography
                     submitOnEnter: root.submitParametersOnEnter
                     onSubmitRequested: {
                         if (root.displayedTool.id && !root.controller.running)
@@ -405,7 +418,11 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: root.splitConsole ? 0 : root.panelPadding
         radius: 9
-        color: Theme.consoleBackground
+        color: Theme.glassMode ? "transparent" : Theme.consoleBackground
+        GlassSurface {
+            anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
+            tintColor: Theme.consoleBackground; tintStrength: 0.94
+        }
         border.width: root.decadeCardLayout ? Theme.borderWidthThin : 0
         border.color: Theme.outline
         clip: true
@@ -426,7 +443,12 @@ Rectangle {
             anchors.top: parent.top
             height: Theme.consoleHeaderHeight
             radius: Theme.radiusConsole
-            color: Theme.consoleHeaderBackground
+            color: Theme.glassMode ? "transparent" : Theme.consoleHeaderBackground
+            GlassSurface {
+                anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
+                tintColor: Theme.consoleHeaderBackground
+                tintStrength: 0.82; minimumTintOpacity: 0.74
+            }
             RowLayout {
                 objectName: "customConsoleHeader"
                 anchors.fill: parent
@@ -439,8 +461,8 @@ Rectangle {
                 }
                 Text {
                     text: "控制台输出"; color: Theme.consoleText
-                    font.pixelSize: root.decadeCardLayout ? Theme.decadeCardTextSize : Theme.fontSupporting
-                    font.weight: Font.DemiBold
+                    font.pixelSize: root.cardTypography ? Theme.decadeCardTextSize : Theme.fontSupporting
+                    font.weight: Theme.glassMode && root.cardTypography ? Font.Bold : Font.DemiBold
                     MouseArea {
                         anchors.fill: parent
                         enabled: root.decadeCardLayout
@@ -620,9 +642,10 @@ Rectangle {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: root.decadeCardLayout ? 0 : Theme.consoleFooterHeight
-            color: Theme.consoleBackground
+            color: Theme.glassMode ? "transparent" : Theme.consoleBackground
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 }
             border.color: Theme.darkMode ? "#2A3442" : "#25303D"
-            border.width: 1
+            border.width: Theme.glassMode ? 0 : 1
             Text { anchors.left: parent.left; anchors.leftMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: "脚本输出"; color: Theme.consoleMuted; font.pixelSize: Theme.fontSmall }
             Text { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: root.controller.statusText; color: Theme.consoleMuted; font.pixelSize: Theme.fontSmall }
         }

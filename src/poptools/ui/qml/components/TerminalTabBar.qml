@@ -207,9 +207,16 @@ Item {
                     width: root.responsiveTerminalTabWidth
                     height: root.height
                     radius: Theme.radiusSmall
-                    color: modelData.active ? Theme.terminalTabSelected
+                    color: Theme.glassMode ? "transparent" : modelData.active ? Theme.terminalTabSelected
                         : tabHover.hovered ? Theme.terminalTabHover : "transparent"
-                    border.width: Theme.darkMode && modelData.active ? 1 : 0
+                    GlassSurface {
+                        anchors.fill: parent; cornerRadius: parent.radius
+                        visible: Theme.glassMode && (tab.modelData.active || tabHover.hovered)
+                        tintColor: tab.modelData.active ? Theme.terminalBackground : Theme.terminalTabHover
+                        tintStrength: 0.86
+                        minimumTintOpacity: 0.65
+                    }
+                    border.width: !Theme.glassMode && Theme.darkMode && modelData.active ? 1 : 0
                     border.color: Theme.terminalTabBorder
                     objectName: "terminalTab_" + modelData.tabId
                     Accessible.role: Accessible.PageTab

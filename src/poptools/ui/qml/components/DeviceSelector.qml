@@ -15,6 +15,10 @@ Column {
     property bool showHoverTips: true
     property bool inlineMode: false
     property bool inlineExpanded: false
+    property real uiScale: 1
+    property real controlHeight: iconOnly ? Theme.decadeCardActionSize : compact ? Theme.captionActionHeight : 41
+    property real labelFontSize: Theme.fontSupporting
+    property bool outlined: false
     readonly property bool popupVisible: inlineMode ? inlineExpanded : devicePopup.opened
     property int stateRevision: 0
     readonly property var deviceState: {
@@ -72,13 +76,21 @@ Column {
     Rectangle {
         id: selector
         width: parent.width
-        height: root.iconOnly ? Theme.decadeCardActionSize : root.compact ? Theme.captionActionHeight : 41
-        radius: root.iconOnly ? Theme.radiusSmall : root.compact ? Theme.radiusTiny : Theme.radiusConsole
-        color: root.iconOnly ? (selectorMouse.containsMouse || root.popupVisible ? Theme.primaryContainer : Theme.decadeCardActionFill) : root.compact
+        height: root.controlHeight
+        radius: root.outlined ? Theme.radiusControl * root.uiScale
+            : root.iconOnly ? Theme.radiusSmall : root.compact ? Theme.radiusTiny : Theme.radiusConsole
+        color: root.outlined ? (Theme.glassMode ? "transparent" : selectorMouse.containsMouse
+            || root.popupVisible ? Theme.surfaceContainer : Theme.surfaceContainerLow)
+            : root.iconOnly ? (selectorMouse.containsMouse || root.popupVisible ? Theme.primaryContainer : Theme.decadeCardActionFill) : root.compact
             ? (selectorMouse.containsMouse || root.popupVisible ? Theme.navigationHover : "transparent")
             : selectorMouse.containsMouse ? Theme.surfaceContainer : Theme.surfaceContainerLow
-        border.width: root.iconOnly ? Theme.borderWidthThin : root.compact ? 0 : 1
+        border.width: root.outlined ? 1 : root.iconOnly ? Theme.borderWidthThin : root.compact ? 0 : 1
         border.color: root.iconOnly ? Theme.decadeCardActionBorder : Theme.outlineVariant
+        GlassSurface {
+            anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
+            visible: Theme.glassMode && root.outlined
+            tintColor: Theme.surfaceContainerLow
+        }
         activeFocusOnTab: true
         Accessible.role: Accessible.ComboBox
         Accessible.name: "目标设备：" + root.deviceState.label
@@ -88,11 +100,11 @@ Column {
         RowLayout {
             visible: !root.iconOnly
             anchors.fill: parent
-            anchors.leftMargin: root.compact ? 8 : 13
-            anchors.rightMargin: root.compact ? 6 : 10
-            spacing: root.compact ? 6 : 10
+            anchors.leftMargin: (root.compact ? 8 : 13) * root.uiScale
+            anchors.rightMargin: (root.compact ? 6 : 10) * root.uiScale
+            spacing: (root.compact ? 6 : 10) * root.uiScale
             MaterialIcon {
-                icon: "smartphone"; iconSize: root.compact ? 16 : 19
+                icon: "smartphone"; iconSize: (root.compact ? 16 : 19) * root.uiScale
                 color: root.deviceState.available ? Theme.success : Theme.textSecondary
             }
             Text {
@@ -105,7 +117,7 @@ Column {
                       : root.deviceState.available
                         ? (root.deviceState.name || root.deviceState.label) : root.deviceState.label
                 color: root.compact ? Theme.chromeForeground : Theme.textPrimary
-                font.pixelSize: Theme.fontSupporting
+                font.pixelSize: root.labelFontSize * root.uiScale
                 elide: root.compact ? Text.ElideRight : Text.ElideMiddle
             }
             Text {
@@ -117,7 +129,7 @@ Column {
             }
             MaterialIcon {
                 icon: root.popupVisible ? "expand_less" : "expand_more"
-                iconSize: root.compact ? 14 : 18
+                iconSize: (root.compact ? 14 : 18) * root.uiScale
                 color: root.compact ? Theme.chromeForeground : Theme.textSecondary
             }
         }
@@ -177,7 +189,9 @@ Column {
         padding: Theme.space8
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: AppPopupSurface {
-            fillColor: Theme.surfaceContainerLow
+            fillColor: Theme.glassMode ? Theme.popupSurface : Theme.surfaceContainerLow
+            minimumOpacity: Theme.glassMaterial.tooltipOpacity === undefined
+                ? 0.97 : Theme.glassMaterial.tooltipOpacity
             outlineColor: Theme.outlineVariant
             cornerRadius: Theme.radiusMedium
         }

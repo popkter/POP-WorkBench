@@ -27,7 +27,9 @@ ColumnLayout {
             Layout.fillWidth: true
             implicitHeight: pluginContent.implicitHeight + Theme.space24
             radius: Theme.radiusSmall
-            color: Theme.surfaceContainerLow
+            color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
             border.width: 1
             border.color: Theme.inputBorder
 

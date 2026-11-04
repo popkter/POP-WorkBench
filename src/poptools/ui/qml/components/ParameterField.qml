@@ -32,7 +32,8 @@ Loader {
         z: -1
         visible: root.framed
         radius: Theme.radiusMedium
-        color: Theme.surface
+        color: Theme.glassMode ? "transparent" : Theme.surface
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius }
         border.color: root.item && root.item.activeFocus ? Theme.primary : Theme.outline
     }
     component ParameterDefaultButton: PrimaryButton {
@@ -70,6 +71,9 @@ Loader {
                 || root.parameter.kind === "directory"
             text: String(root.initialValue ?? "")
             placeholderText: root.parameter.placeholder || ""
+            placeholderTextColor: Theme.textSecondary
+            selectionColor: Theme.primary
+            selectedTextColor: Theme.primaryForeground
             color: Theme.textPrimary
             font.pixelSize: Theme.fontBody
             leftPadding: root.contentLeftPadding
@@ -147,6 +151,9 @@ Loader {
             Accessible.name: root.parameter.label
             text: String(root.initialValue ?? "")
             placeholderText: root.parameter.placeholder || ""
+            placeholderTextColor: Theme.textSecondary
+            selectionColor: Theme.primary
+            selectedTextColor: Theme.primaryForeground
             color: Theme.textPrimary
             font.pixelSize: Theme.fontBody
             leftPadding: root.contentLeftPadding

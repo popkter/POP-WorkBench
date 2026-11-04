@@ -10,6 +10,7 @@ Column {
     required property var parameterValues
     property bool compactLayout: false
     property bool decadeCardLayout: false
+    property bool cardTypography: decadeCardLayout
     property bool inlineLabels: true
     property bool submitOnEnter: false
     signal submitRequested()
@@ -38,7 +39,8 @@ Column {
                     ? Math.max(root.inlineLabels ? Theme.inputHeight : 54, parameterInput.item.implicitHeight + 2)
                     : (root.inlineLabels ? Theme.inputHeight : 54)
                 radius: Theme.radiusSmall
-                color: Theme.surfaceContainerLow
+                color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
                 readonly property bool inputFocused: parameterInput.item
                     ? parameterInput.item.activeFocus : false
                 border.color: inputFocused ? Theme.primary : Theme.inputBorder
@@ -68,8 +70,8 @@ Column {
                         anchors.verticalCenter: parent.verticalCenter
                         text: parameterItem.modelData.label
                         color: Theme.textPrimary
-                        font.pixelSize: root.decadeCardLayout ? Theme.decadeCardTextSize : Theme.fontCaption
-                        font.weight: Font.DemiBold
+                        font.pixelSize: root.cardTypography ? Theme.decadeCardTextSize : Theme.fontCaption
+                        font.weight: Theme.glassMode && root.cardTypography ? Font.Bold : Font.DemiBold
                         elide: Text.ElideRight
                         HoverHandler { id: labelHover }
                         HoverTips {
@@ -85,7 +87,7 @@ Column {
                         visible: !!parameterItem.modelData.required && !root.decadeCardLayout
                         text: visible ? "必填" : ""
                         color: Theme.textSecondary
-                        font.pixelSize: Theme.fontCaption
+                        font.pixelSize: root.cardTypography ? Theme.decadeCardTextSize : Theme.fontCaption
                     }
                 }
 

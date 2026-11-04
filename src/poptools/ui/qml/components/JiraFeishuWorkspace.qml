@@ -93,7 +93,8 @@ ColumnLayout {
         font.pixelSize: Theme.fontBody
         background: Rectangle {
             radius: Theme.radiusMedium
-            color: Theme.surface
+            color: Theme.glassMode ? "transparent" : Theme.surface
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
             border.color: parent.activeFocus ? Theme.primary : Theme.outline
             border.width: parent.activeFocus ? 2 : 1
         }
@@ -126,7 +127,9 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 68
         radius: Theme.radiusLarge
-        color: Theme.surfaceContainerLow
+        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
         border.width: 0
 
         RowLayout {
@@ -225,7 +228,9 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: 42
             radius: Theme.radiusMedium
-            color: Theme.surfaceContainerLow
+            color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
             border.width: 0
             RowLayout {
                 anchors.fill: parent
@@ -265,7 +270,8 @@ ColumnLayout {
             Layout.maximumHeight: 42
             Layout.alignment: Qt.AlignVCenter
             radius: Theme.radiusMedium
-            color: Theme.surfaceContainer
+            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
 
             RowLayout {
                 anchors.fill: parent
@@ -307,7 +313,9 @@ ColumnLayout {
                 Layout.fillHeight: true
                 Layout.minimumHeight: 0
                 radius: Theme.radiusLarge
-                color: Theme.surfaceContainerLow
+                color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
                 border.width: 0
 
                 StackLayout {
@@ -453,7 +461,8 @@ ColumnLayout {
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         background: Rectangle {
                             radius: Theme.radiusMedium
-                            color: Theme.surface
+                            color: Theme.glassMode ? "transparent" : Theme.surface
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
                             border.color: jiraJql.activeFocus ? Theme.primary : Theme.outline
                             border.width: jiraJql.activeFocus ? 2 : 1
                         }
@@ -702,7 +711,8 @@ ColumnLayout {
                     }
                     Text { text: "多个时刻使用逗号分隔；每个时刻当天只触发一次。"; color: Theme.textSecondary; font.pixelSize: Theme.fontSupporting }
                     Rectangle {
-                        Layout.fillWidth: true; Layout.preferredHeight: 76; radius: Theme.radiusMedium; color: Theme.surface
+                        Layout.fillWidth: true; Layout.preferredHeight: 76; radius: Theme.radiusMedium; color: Theme.glassMode ? "transparent" : Theme.surface
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
                         border.width: 0
                         RowLayout { anchors.fill: parent; anchors.margins: Theme.space16; spacing: Theme.space12
                             MaterialIcon { icon: controller.scheduleRunning ? "schedule" : "schedule_send"; iconSize: 26; color: controller.scheduleRunning ? Theme.success : Theme.textSecondary }
@@ -737,7 +747,8 @@ ColumnLayout {
             anchors.bottom: parent.bottom
             height: root.outputPanelCollapsedHeight
                     + root.outputLogMaxHeight * root.outputReveal
-            color: Theme.surface
+            color: Theme.glassMode ? "transparent" : Theme.surface
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
 
         Item {
             id: outputToggle
@@ -822,7 +833,8 @@ ColumnLayout {
             anchors.topMargin: Theme.space8
             anchors.bottom: parent.bottom
             radius: Theme.radiusLarge
-            color: Theme.consoleBackground
+            color: Theme.glassMode ? "transparent" : Theme.consoleBackground
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 }
             border.width: 0
             clip: true
             visible: height > 0

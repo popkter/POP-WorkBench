@@ -10,6 +10,7 @@ Rectangle {
     required property var controller
     required property var updateBackend
     property var terminalBackend: null
+    property string glassCaptureError: ""
     signal pluginManageRequested()
     signal terminalEnableRequested()
     signal userHelpRequested()
@@ -42,7 +43,9 @@ Rectangle {
         Layout.fillWidth: true
         implicitHeight: sectionLayout.implicitHeight + Theme.detailPanelPadding * 2
         radius: Theme.radiusMedium
-        color: Theme.surfaceContainerLow
+        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
         border.width: 0
 
         ColumnLayout {
@@ -59,7 +62,8 @@ Rectangle {
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
                     radius: Theme.radiusMedium
-                    color: Theme.runtimeBadge
+                    color: Theme.glassMode ? "transparent" : Theme.runtimeBadge
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.runtimeBadge; z: -0.5 }
                     MaterialIcon {
                         anchors.centerIn: parent
                         icon: section.iconName
@@ -110,7 +114,9 @@ Rectangle {
         Layout.fillWidth: true
         implicitHeight: Math.max(Theme.inputHeight, rowGrid.implicitHeight + Theme.space16)
         radius: Theme.radiusSmall
-        color: Theme.surfaceContainerLow
+        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
         border.width: 1
         border.color: Theme.inputBorder
 
@@ -164,7 +170,9 @@ Rectangle {
         Layout.fillWidth: true
         implicitHeight: Math.max(Theme.inputHeight, toggleText.implicitHeight + Theme.space16)
         radius: Theme.radiusSmall
-        color: Theme.surfaceContainerLow
+        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
         border.color: Theme.inputBorder
         border.width: 1
         RowLayout {
@@ -266,7 +274,7 @@ Rectangle {
                             model: [
                                 {label: "浅色", value: "light", icon: "light_mode"},
                                 {label: "深色", value: "dark", icon: "dark_mode"},
-                                {label: "跟随系统", value: "system", icon: "computer"},
+                                {label: "系统", value: "system", icon: "computer"},
                                 {label: "Decade", value: "decade", icon: "style"},
                                 {label: "ZIO", value: "zio", icon: "watch"}
                             ]
@@ -296,6 +304,16 @@ Rectangle {
                                 Accessible.name: modelData.label + "主题"
                                 onClicked: root.controller.saveThemeMode(modelData.value)
                             }
+                        }
+                    }
+                    ToggleRow {
+                        objectName: "glassMaterialToggle"
+                        label: "Glass 液态玻璃"
+                        description: root.glassCaptureError || "由 Windows 系统合成器模糊桌面和后方窗口，无需抓帧"
+                        visible: !Theme.mechanicalMode
+                        checked: root.controller.themeStyle === "glass"
+                        onToggled: function(value) {
+                            root.controller.saveThemeStyle(value ? "glass" : "material3")
                         }
                     }
                     ToggleRow {
@@ -399,7 +417,8 @@ Rectangle {
                             Layout.minimumWidth: 0
                             implicitHeight: 34
                             radius: Theme.radiusControl
-                            color: Theme.surfaceContainer
+                            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                             RowLayout {
                                 anchors.fill: parent
                                 anchors.margins: 2

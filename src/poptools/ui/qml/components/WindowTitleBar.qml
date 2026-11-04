@@ -144,6 +144,7 @@ Item {
                 Layout.leftMargin: Theme.space8
                 Layout.rightMargin: Theme.space8
                 color: Theme.navigationBorder
+                visible: !Theme.glassMode
             }
             ChromeAction {
                 objectName: "titleBarShareScript"

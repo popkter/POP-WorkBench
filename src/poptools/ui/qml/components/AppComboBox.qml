@@ -28,12 +28,13 @@ ComboBox {
 
     background: Rectangle {
         radius: Theme.radiusMedium
-        color: control.enabled ? Theme.popupSurface
+        color: Theme.glassMode ? "transparent" : control.enabled ? Theme.popupSurface
                : (Theme.inputDisabled || Theme.surfaceContainerLow)
         border.color: control.activeFocus ? (Theme.borderColorFocused || Theme.primary)
                     : control.enabled ? (Theme.borderColorDefault || Theme.outline)
                     : Theme.outline
         border.width: control.activeFocus ? 2 : 1
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5; pressed: control.down }
     }
 
     delegate: ItemDelegate {

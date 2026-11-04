@@ -137,7 +137,7 @@ for i in range(count):
 </td>
 <td valign="top">
 <p><strong>1 · 外观与交互</strong><br>
-选择浅色、深色、跟随系统、Decade 或 ZIO 主题，开启或关闭后台悬浮入口</p>
+选择浅色、深色、系统、Decade 或 ZIO 主题；常规主题可叠加 <a href="docs/Glass-Theme.md">Glass 液态玻璃材质</a>，开启或关闭后台悬浮入口</p>
 <p><strong>2 · 脚本与数据</strong><br>
 打开存储目录，导出脚本作为完整备份，或导入已有脚本迁移到当前电脑</p>
 <p><strong>3 · 应用更新</strong><br>

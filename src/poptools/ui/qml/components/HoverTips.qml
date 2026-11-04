@@ -4,6 +4,7 @@ import "../theme"
 
 ToolTip {
     id: root
+    popupType: Popup.Item
 
     property int maximumWidth: 360
 
@@ -32,6 +33,9 @@ ToolTip {
     }
 
     background: AppPopupSurface {
+        tooltipSurface: true
+        minimumOpacity: Theme.glassMaterial.tooltipOpacity === undefined
+            ? 0.97 : Theme.glassMaterial.tooltipOpacity
         fillColor: Theme.popupSurface
         outlineColor: Theme.outline
         cornerRadius: Theme.radiusSmall

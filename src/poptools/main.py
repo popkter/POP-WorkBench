@@ -17,6 +17,10 @@ from poptools.application import build_components
 from poptools.infrastructure.app_logging import configure_application_logging
 from poptools.infrastructure.app_updater import apply_pending_update
 from poptools.infrastructure.config_store import ConfigStore
+from poptools.infrastructure.desktop_backdrop import (
+    SystemBackdropController,
+    prepare_system_backdrops,
+)
 from poptools.infrastructure.python_environment import prepare_managed_python
 from poptools.infrastructure.single_instance import SingleInstanceLock
 from poptools.infrastructure.system_tray import SystemTrayController
@@ -208,7 +212,11 @@ def main() -> int:
         if python_setup_error:
             settings_controller.setStatus(f"运行环境初始化失败：{python_setup_error}")
 
+        prepare_system_backdrops()
         engine = QQmlApplicationEngine()
+        desktop_backdrop = SystemBackdropController(app)
+        app.aboutToQuit.connect(desktop_backdrop.shutdown)
+        engine.rootContext().setContextProperty("systemBackdropController", desktop_backdrop)
         engine.addImageProvider("video", video_preview_controller.images)
         engine.rootContext().setContextProperty("videoPreviewController", video_preview_controller)
         engine.rootContext().setContextProperty("appController", controller)
@@ -241,10 +249,15 @@ def main() -> int:
                 dark_mode=settings_controller.darkTheme,
                 background_color=cast(QColor, window.property("chromeBackgroundColor")),
                 foreground_color=cast(QColor, window.property("chromeForegroundColor")),
+                draw_border=bool(window.property("drawWindowBorder")),
+                system_caption=bool(window.property("glassBackgroundReady")),
             )
 
         sync_title_bar_theme()
-        for property_name in ("chromeBackgroundColor", "chromeForegroundColor"):
+        for property_name in (
+            "chromeBackgroundColor", "chromeForegroundColor",
+            "drawWindowBorder", "glassBackgroundReady",
+        ):
             getattr(window, f"{property_name}Changed").connect(sync_title_bar_theme)
         tray_controller.attach_window(window)
         floating_controller.attach_main_window(window)

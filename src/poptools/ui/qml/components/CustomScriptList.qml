@@ -131,7 +131,8 @@ Item {
                 root.searchEdited(text)
             background: Rectangle {
                 radius: Theme.radiusSmall
-                color: Theme.surfaceContainer
+                color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                 border.color: searchField.activeFocus ? Theme.primary : "transparent"
                 border.width: searchField.activeFocus ? 1 : 0
                 MaterialIcon {
@@ -175,7 +176,13 @@ Item {
                     width: filterChip.modelData.value === "powershell" ? 95 : filterChip.modelData.value === "python" ? 69 : filterChip.modelData.value === "all" ? 52 : 54
                     height: 28
                     radius: Theme.radiusSmall
-                    color: root.kindFilter === modelData.value ? Theme.primaryContainer : Theme.surfaceContainerLow
+                    color: Theme.glassMode ? "transparent"
+                        : root.kindFilter === modelData.value ? Theme.primaryContainer : Theme.surfaceContainerLow
+                    GlassSurface {
+                        anchors.fill: parent; cornerRadius: parent.radius
+                        tintColor: root.kindFilter === filterChip.modelData.value
+                            ? Theme.primaryContainer : Theme.surfaceContainerLow
+                    }
                     border.color: root.kindFilter === modelData.value ? Theme.listSelected : Theme.outline
                     Text {
                         anchors.centerIn: parent

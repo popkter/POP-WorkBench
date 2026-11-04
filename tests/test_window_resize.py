@@ -6,7 +6,7 @@ from ctypes import wintypes
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QMargins, QObject, QSize, Qt, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QMargins, QObject, QSize, Qt, QUrl
 from PySide6.QtQml import QQmlComponent, QQmlEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
@@ -120,6 +120,9 @@ def native_window(qapp):
         window.close()
         window.deleteLater()
         engine.deleteLater()
+        # Destroy the HWND while its Python-owned native subclass callback is
+        # still retained by this fixture's WindowChromeController.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 @pytest.mark.gui

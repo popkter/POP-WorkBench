@@ -36,7 +36,9 @@ AppDialog {
         }
         Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: Theme.controlHeightLarge
-            radius: Theme.radiusControl; color: Theme.surfaceContainer; border.color: Theme.outlineVariant
+            radius: Theme.radiusControl; color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
+            border.color: Theme.outlineVariant
             Text { anchors.left: parent.left; anchors.leftMargin: Theme.space16; anchors.verticalCenter: parent.verticalCenter; text: root.controller.pluginVersion; color: Theme.textPrimary; font.pixelSize: Theme.fontBody }
         }
         DialogMessage {

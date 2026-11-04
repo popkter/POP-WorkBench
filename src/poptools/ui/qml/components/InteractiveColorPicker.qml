@@ -10,7 +10,8 @@ DesktopScrollView {
     padding: Theme.detailPanelPadding
     background: Rectangle {
         radius: Theme.radiusMedium
-        color: Theme.surfaceContainerLow
+        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainerLow; z: -0.5 }
     }
 
     required property var utilities
@@ -98,13 +99,16 @@ DesktopScrollView {
                 Layout.preferredWidth: 48
                 Layout.preferredHeight: 48
                 radius: Theme.radiusSmall
-                color: Theme.surface
+                color: Theme.glassMode ? "transparent" : Theme.surface
+                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
                 border.color: Theme.outline
 
                 Canvas {
                     id: colorPreviewCanvas
                     anchors.fill: parent
                     anchors.margins: Theme.space4
+                    onWidthChanged: requestPaint()
+                    onHeightChanged: requestPaint()
                     onPaint: {
                         const ctx = getContext("2d")
                         const cornerRadius = Math.min(
@@ -162,7 +166,8 @@ DesktopScrollView {
                 }
                 background: Rectangle {
                     radius: Theme.radiusMedium
-                    color: Theme.surface
+                    color: Theme.glassMode ? "transparent" : Theme.surface
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
                     border.color: Theme.outline
                 }
             }
@@ -189,7 +194,10 @@ DesktopScrollView {
 
             Canvas {
                 id: saturationValueCanvas
+                objectName: "saturationValueCanvas"
                 anchors.fill: parent
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
                 onPaint: {
                     const ctx = getContext("2d")
                     const cornerRadius = Math.min(

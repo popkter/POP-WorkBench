@@ -34,7 +34,9 @@ ColumnLayout {
         wrapMode: TextEdit.Wrap; selectByMouse: true; textFormat: TextEdit.PlainText
         font.family: "Cascadia Mono"; font.pixelSize: Theme.fontCode
         color: Theme.textPrimary; padding: Theme.space12
-        background: Rectangle { radius: Theme.radiusControl; color: Theme.inputDefault; border.color: editor.activeFocus ? Theme.primary : Theme.outline }
+        background: Rectangle { radius: Theme.radiusControl; color: Theme.glassMode ? "transparent" : Theme.inputDefault
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.inputDefault; z: -0.5 }
+            border.color: editor.activeFocus ? Theme.primary : Theme.outline }
         onTextChanged: root.parseTemplate()
     }
     Repeater {
@@ -52,7 +54,9 @@ ColumnLayout {
                     text: String(modelData.default ?? ""); color: Theme.textPrimary; selectByMouse: true
                     echoMode: modelData.kind === "secret" ? TextInput.Password : TextInput.Normal
                     font.pixelSize: Theme.fontBody
-                    background: Rectangle { radius: Theme.radiusControl; color: Theme.inputDefault; border.color: Theme.outline }
+                    background: Rectangle { radius: Theme.radiusControl; color: Theme.glassMode ? "transparent" : Theme.inputDefault
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.inputDefault; z: -0.5 }
+                        border.color: Theme.outline }
                     onTextEdited: root.setValue(modelData.id, text)
                 }
                 AppComboBox {
@@ -82,7 +86,9 @@ ColumnLayout {
                 color: Theme.textPrimary
                 wrapMode: TextEdit.Wrap
                 background: Rectangle {
-                    color: Theme.inputDefault; radius: Theme.radiusControl
+                    color: Theme.glassMode ? "transparent" : Theme.inputDefault
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.inputDefault; z: -0.5 }
+                    radius: Theme.radiusControl
                     border.color: Theme.outline
                 }
                 onTextChanged: if (visible) root.setValue(modelData.id, text)
@@ -117,7 +123,8 @@ ColumnLayout {
         readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap
         textFormat: TextEdit.PlainText; color: Theme.consoleText
         font.family: "Cascadia Mono"; font.pixelSize: Theme.fontCode; padding: Theme.space12
-        background: Rectangle { radius: Theme.radiusConsole; color: Theme.consoleBackground }
+        background: Rectangle { radius: Theme.radiusConsole; color: Theme.glassMode ? "transparent" : Theme.consoleBackground
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 } }
     }
     Component.onCompleted: parseTemplate()
 }

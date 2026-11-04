@@ -25,7 +25,7 @@ PrimaryButton {
     compact: true
     text: "排序：" + root.controller.toolSortModeLabel
     iconName: cycleOnClick ? options[modeIndex].icon : "sort"
-    showHoverTips: !cycleOnClick && compact
+    showHoverTips: false
     glyphSize: 24
     tonal: true
     foregroundColor: Theme.primary
@@ -57,14 +57,17 @@ PrimaryButton {
 
     Popup {
         id: sortPopup
-        popupType: root.popupAbove ? Popup.Window : Popup.Item
+        popupType: Theme.glassMode ? Popup.Item : root.popupAbove ? Popup.Window : Popup.Item
         parent: Overlay.overlay
         width: 188
         height: contentColumn.implicitHeight + 16
         padding: Theme.space8
         modal: false
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: AppPopupSurface { }
+        background: AppPopupSurface {
+            minimumOpacity: Theme.glassMaterial.tooltipOpacity === undefined
+                ? 0.97 : Theme.glassMaterial.tooltipOpacity
+        }
 
         contentItem: ColumnLayout {
             id: contentColumn

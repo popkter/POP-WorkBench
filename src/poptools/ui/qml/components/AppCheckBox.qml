@@ -16,6 +16,11 @@ CheckBox {
         color: control.checked ? Theme.primary : Theme.inputDefault
         border.color: control.activeFocus ? Theme.primary : Theme.outline
         border.width: control.activeFocus ? 2 : 1
+        GlassSurface {
+            anchors.fill: parent; cornerRadius: parent.radius; pressed: control.down
+            tintColor: control.checked ? Theme.primary : Theme.surfaceContainerLow
+            minimumTintOpacity: 0.96
+        }
         MaterialIcon {
             anchors.centerIn: parent; icon: "check"; iconSize: 18
             visible: control.checked; color: Theme.primaryForeground

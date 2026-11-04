@@ -30,3 +30,15 @@ def test_release_bundles_images_referenced_by_qml():
             referenced.add(asset.name)
     # Guard against an empty scan without coupling this check to a specific UI icon.
     assert referenced, "No QML image references found; check the resource reference matcher"
+    # Missing a compiled shader only breaks the frozen app on a GPU renderer.
+    shaders = set()
+    for qml in (package / "ui/qml").rglob("*.qml"):
+        for reference in re.findall(r'fragmentShader:\s*"([^"\n]+\.qsb)"',
+                                    qml.read_text(encoding="utf-8")):
+            asset = (qml.parent / reference).resolve()
+            destination = (Path("poptools") / asset.relative_to(package)).as_posix()
+            assert destination in bundled, f"{qml.name}: missing bundled shader {reference}"
+            assert bundled[destination].is_file()
+            shaders.add(asset.name)
+    assert "liquidglass.frag.qsb" in shaders
+    assert "nativeglass.frag.qsb" in shaders

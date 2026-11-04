@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import os
 import sys
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Property, QObject, Signal, Slot
-from PySide6.QtGui import QIcon, QWindow
+from PySide6.QtCore import Property, QObject, Qt, Signal, Slot
+from PySide6.QtGui import QIcon, QShowEvent, QWindow
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
+from poptools.infrastructure.windows_integration import disable_windows_system_backdrop
 from poptools.paths import resource_path
 
 if TYPE_CHECKING:
@@ -19,6 +21,33 @@ def create_app_icon() -> QIcon:
     if icon.isNull():
         raise RuntimeError("应用图标资源无法加载")
     return icon
+
+
+class _TrayMenu(QMenu):
+    """Use Qt's original menu painting, independently of the QML Glass theme."""
+
+    def __init__(self, title: str = "") -> None:
+        super().__init__(title)
+        self.ensurePolished()
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        if sys.platform == "win32":
+            # Qt's QPA switch affects raster popups too, not just D3D windows.
+            # Allocate the menu HWND with its ordinary GDI bitmap, before the
+            # first popup. Changing this native style after creation is rejected
+            # by Windows. No event loop runs while the setting is overridden.
+            setting = "QT_QPA_DISABLE_REDIRECTION_SURFACE"
+            previous = os.environ.pop(setting, None)
+            try:
+                self.winId()
+            finally:
+                if previous is not None:
+                    os.environ[setting] = previous
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        # Apply after Qt has created and polished the popup's native window.
+        disable_windows_system_backdrop(int(self.winId()))
+        self.update()
 
 
 class SystemTrayController(QObject):
@@ -38,13 +67,13 @@ class SystemTrayController(QObject):
         self.icon = create_app_icon()
         self._tray = QSystemTrayIcon(self.icon, self)
         self._tray.setToolTip("泡泡的工作台")
-        self._menu = QMenu()
+        self._menu = _TrayMenu()
         self._show_action = self._menu.addAction("显示主界面")
         self._show_action.triggered.connect(self.show_window)
-        self._preset_menu = QMenu("预置功能")
+        self._preset_menu = _TrayMenu("预置功能")
         self._preset_menu.aboutToShow.connect(self._build_preset_menu)
         self._menu.addMenu(self._preset_menu)
-        self._recent_menu = QMenu("最近使用")
+        self._recent_menu = _TrayMenu("最近使用")
         self._recent_menu.aboutToShow.connect(self._build_recent_menu)
         self._menu.addMenu(self._recent_menu)
         self._menu.addSeparator()

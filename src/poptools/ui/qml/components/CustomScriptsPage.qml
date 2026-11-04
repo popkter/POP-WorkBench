@@ -88,7 +88,9 @@ Rectangle {
                 Layout.maximumWidth: Theme.scriptListMaximumWidth
                 Layout.fillHeight: true
                 radius: Theme.radiusMedium
-                color: Theme.surfaceContainerLow
+                color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
                 border.width: 0
 
                 CustomScriptList {

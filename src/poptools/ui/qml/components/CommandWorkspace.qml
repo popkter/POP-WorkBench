@@ -60,7 +60,8 @@ ColumnLayout {
         Layout.fillHeight: true
         Layout.minimumHeight: 180
         radius: Theme.radiusLarge
-        color: Theme.consoleBackground
+        color: Theme.glassMode ? "transparent" : Theme.consoleBackground
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 }
         clip: true
 
         MouseArea {

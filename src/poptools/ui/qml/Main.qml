@@ -24,13 +24,20 @@ ApplicationWindow {
     readonly property int captionControlWidth: Theme.captionControlWidth
     readonly property color chromeBackgroundColor: Theme.chromeBackground
     readonly property color chromeForegroundColor: Theme.chromeForeground
+    readonly property bool drawWindowBorder: !Theme.glassMode
+    readonly property bool glassEnabled: Theme.glassMode
+    readonly property Item popupBackgroundSource: pageContent
+    readonly property string glassCaptureError: desktopBackground.error
+    readonly property bool glassBackgroundReady: desktopBackground.ready
+    readonly property bool systemBackdropTinted: desktopBackground.drawBackground
+    DesktopBackground { id: desktopBackground; hostWindow: window; anchors.fill: parent; z: -10 }
     property real nativeTitleBarHeight: 0
     readonly property real titleBarHeight: customTitleBar ? Theme.navigationRailWidth
         : Math.max(Theme.navigationRailWidth, nativeTitleBarHeight)
     readonly property real titleBarContentInset: customTitleBar ? titleBarHeight
         : titleBarHeight - nativeTitleBarHeight
-    color: chromeBackgroundColor
-    palette.window: chromeBackgroundColor
+    color: glassEnabled && desktopBackground.ready ? "transparent" : chromeBackgroundColor
+    palette.window: glassEnabled && desktopBackground.ready ? "transparent" : chromeBackgroundColor
     palette.windowText: Theme.textPrimary
     palette.base: Theme.surfaceContainerLow
     palette.text: Theme.textPrimary
@@ -50,6 +57,17 @@ ApplicationWindow {
         property: "decadeMode"
         value: settingsController.themeMode === "decade"
     }
+
+    readonly property var glassConfig: {
+        const revision = settingsController.themeStyles
+        const raw = settingsController.themeConfigJson("glass")
+        return raw ? JSON.parse(raw) : ({})
+    }
+    Binding { target: Theme; property: "glassMode"
+        value: settingsController.themeStyle === "glass" && !Theme.mechanicalMode }
+    Binding { target: Theme; property: "glassPalette"
+        value: (Theme.darkMode ? window.glassConfig.darkColors : window.glassConfig.colors) || ({}) }
+    Binding { target: Theme; property: "glassMaterial"; value: window.glassConfig.material || ({}) }
 
     Binding {
         target: Theme
@@ -189,18 +207,36 @@ ApplicationWindow {
     }
 
     function openCommandEditorForCreate(command, kind) {
-        commandEditorDialogLoader.active = true
-        Qt.callLater(function () { commandEditorDialogLoader.item.openForCreate(command, kind) })
+        openPreparedDialog(commandEditorDialogLoader, function(dialog) { dialog.openForCreate(command, kind) })
     }
 
     function openCommandEditorForEdit() {
-        commandEditorDialogLoader.active = true
-        Qt.callLater(function () { commandEditorDialogLoader.item.openForEdit() })
+        openPreparedDialog(commandEditorDialogLoader, function(dialog) { dialog.openForEdit() })
     }
 
     function openDeleteCommandDialog() {
-        deleteCommandDialogLoader.active = true
-        Qt.callLater(function () { deleteCommandDialogLoader.item.open() })
+        openPreparedDialog(deleteCommandDialogLoader, function(dialog) { dialog.open() })
+    }
+
+    function openPreparedDialog(loader, callback) {
+        if (loader.status === Loader.Ready) {
+            Qt.callLater(function() { callback(loader.item) })
+        } else {
+            loader.pendingOpen = callback
+            loader.active = true
+        }
+    }
+
+    // Incubate common dialogs over idle frames instead of building them on click.
+    Timer {
+        interval: 350
+        running: window.visible && nextDialog < 3
+        repeat: true
+        property int nextDialog: 0
+        onTriggered: {
+            const loaders = [commandEditorDialogLoader, deleteCommandDialogLoader, confirmRunDialogLoader]
+            loaders[nextDialog++].active = true
+        }
     }
 
     function importCustomScriptFromClipboard() {
@@ -216,10 +252,7 @@ ApplicationWindow {
     }
 
     function openConfirmRunDialog(values) {
-        confirmRunDialogLoader.active = true
-        Qt.callLater(function () {
-            confirmRunDialogLoader.item.openForRun(values)
-        })
+        openPreparedDialog(confirmRunDialogLoader, function(dialog) { dialog.openForRun(values) })
     }
 
     function openUserGuideDialog() {
@@ -394,231 +427,242 @@ ApplicationWindow {
             updateController.checkForUpdatesAutomatically()
     }
 
-    WindowTitleBar {
-        id: titleBar
-        objectName: "windowTitleBar"
-        hostWindow: window
-        androidBackend: androidController
-        selectedScript: appController.selectedTool
-        terminalController: developerConsoleController
-        terminalTabsVisible: window.developerSelected && !window.settingsSelected
-        terminalTabsEnabled: !window.applicationOverlayVisible
-        onTerminalFocusRequested: Qt.callLater(terminalPage.focusTerminal)
-        scriptActionsVisible: !window.settingsSelected && !window.developerSelected
-            && appController.section === "custom"
-        scriptActionsEnabled: !window.applicationOverlayVisible
-        scriptSelected: !!appController.selectedTool.id
-        scriptEditable: !!appController.selectedTool.editable
-        scriptRunning: appController.running
-        presetActionsVisible: !window.settingsSelected && !window.developerSelected
-            && appController.section === "preset"
-            && (window.scrcpySelected || recordingSelected)
-        presetActionsEnabled: !window.applicationOverlayVisible
-        recordingSelected: !!appController.selectedTool.executor
-            && appController.selectedTool.executor.command === "recording"
-        presetToolController: appController
-        recordingController: presetController
-        videoController: window.videoBackend
-        videoActionsVisible: window.videoSelected
-        onImportRequested: window.importCustomScriptFromClipboard()
-        onCreateRequested: window.openCommandEditorForCreate()
-        onShareRequested: customScriptsPage.shareSelectedTool()
-        onEditRequested: window.openCommandEditorForEdit()
-        onDeleteRequested: window.openDeleteCommandDialog()
-        onRunRequested: customScriptsPage.runSelectedTool()
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: window.titleBarContentInset
-        visible: window.customTitleBar
-    }
-
-    RowLayout {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.topMargin: window.titleBarContentInset
-        anchors.rightMargin: Theme.space8
-        anchors.bottomMargin: Theme.space8
-        spacing: 0
-
-        Rectangle {
-            Layout.preferredWidth: window.primaryNavWidth
-            Layout.minimumWidth: window.primaryNavWidth
-            Layout.maximumWidth: window.primaryNavWidth
-            Layout.fillHeight: true
-            color: Theme.sidebar
-            clip: false
-            z: 2
-
-            ColumnLayout {
-                anchors.fill: parent
-                spacing: 0
-
-                NavItem {
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    visible: true
-                    label: "终端"
-                    shortcutText: "Alt+1"
-                    iconName: "terminal"
-                    compact: window.compactPrimaryNav
-                    dense: window.compactHeight
-                    selected: window.developerSelected && !window.settingsSelected
-                    onClicked: window.openTerminalPage()
-                }
-                NavItem {
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    label: "自定义"
-                    shortcutText: "Alt+2"
-                    iconName: "code"
-                    compact: window.compactPrimaryNav
-                    dense: window.compactHeight
-                    selected: !window.developerSelected && !window.settingsSelected
-                        && appController.section === "custom"
-                    onClicked: window.openCustomScriptsPage()
-                }
-
-                NavItem {
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    label: "预设"
-                    shortcutText: "Alt+3"
-                    iconName: "widgets"
-                    compact: window.compactPrimaryNav
-                    dense: window.compactHeight
-                    selected: !window.developerSelected && !window.settingsSelected
-                        && appController.section === "preset"
-                    onClicked: window.openPresetFunctionsPage()
-                }
-
-                NavItem {
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    label: "设置"
-                    shortcutText: "Alt+4"
-                    iconName: "settings"
-                    compact: window.compactPrimaryNav
-                    dense: window.compactHeight
-                    selected: window.settingsSelected
-                    actionText: updateController.state === "available"
-                                ? "有新版本可用"
-                                : updateController.state === "downloaded"
-                                  ? "更新已准备好" : ""
-                    onActionClicked: window.queueUpdateDialog()
-                    onClicked: window.openSettingsDialog()
-                }
-
-                Item {
-                    Layout.fillHeight: true
-                }
-            }
+    // Only page content is sampled. Popups live in Overlay outside this tree.
+    Item {
+        id: pageContent
+        objectName: "mainPageBackdrop"
+        anchors.fill: parent
+        WindowTitleBar {
+            id: titleBar
+            objectName: "windowTitleBar"
+            hostWindow: window
+            androidBackend: androidController
+            selectedScript: appController.selectedTool
+            terminalController: developerConsoleController
+            terminalTabsVisible: window.developerSelected && !window.settingsSelected
+            terminalTabsEnabled: !window.applicationOverlayVisible
+            onTerminalFocusRequested: Qt.callLater(terminalPage.focusTerminal)
+            scriptActionsVisible: !window.settingsSelected && !window.developerSelected
+                && appController.section === "custom"
+            scriptActionsEnabled: !window.applicationOverlayVisible
+            scriptSelected: !!appController.selectedTool.id
+            scriptEditable: !!appController.selectedTool.editable
+            scriptRunning: appController.running
+            presetActionsVisible: !window.settingsSelected && !window.developerSelected
+                && appController.section === "preset"
+                && (window.scrcpySelected || recordingSelected)
+            presetActionsEnabled: !window.applicationOverlayVisible
+            recordingSelected: !!appController.selectedTool.executor
+                && appController.selectedTool.executor.command === "recording"
+            presetToolController: appController
+            recordingController: presetController
+            videoController: window.videoBackend
+            videoActionsVisible: window.videoSelected
+            onImportRequested: window.importCustomScriptFromClipboard()
+            onCreateRequested: window.openCommandEditorForCreate()
+            onShareRequested: customScriptsPage.shareSelectedTool()
+            onEditRequested: window.openCommandEditorForEdit()
+            onDeleteRequested: window.openDeleteCommandDialog()
+            onRunRequested: customScriptsPage.runSelectedTool()
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: window.titleBarContentInset
+            visible: window.customTitleBar
         }
 
-        Rectangle {
-            id: workspaceSurface
-            objectName: "workspaceSurface"
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            color: workspacePages.currentIndex === 2 ? Theme.workspaceBackground : "transparent"
-            radius: Theme.radiusSmall
-            clip: true
+        RowLayout {
+            id: mainContent
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.topMargin: window.titleBarContentInset
+            anchors.rightMargin: Theme.space8
+            anchors.bottomMargin: Theme.space8
+            spacing: 0
 
-            StackLayout {
-                id: workspacePages
-                anchors.fill: parent
-                currentIndex: window.settingsSelected ? 3
-                    : window.developerSelected ? 2
-                    : (appController.section === "custom" ? 0 : 1)
+            Rectangle {
+                Layout.preferredWidth: window.primaryNavWidth
+                Layout.minimumWidth: window.primaryNavWidth
+                Layout.maximumWidth: window.primaryNavWidth
+                Layout.fillHeight: true
+                color: Theme.glassMode ? "transparent" : Theme.sidebar
+                clip: false
+                z: 2
 
-                CustomScriptsPage {
-                    id: customScriptsPage
-                    color: "transparent"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    controller: appController
-                    androidBackend: androidController
-                    parentWindow: window
-                    parameterValues: window.parameterValues
-                    searchQuery: appController.customScriptSearchQuery
-                    compact: window.compactContentActions
-                    compactHeight: window.compactHeight
-                    overlaysVisible: window.applicationOverlayVisible
-                    deviceInTitleBar: window.customTitleBar
-                    onSearchEdited: function(query) {
-                        appController.setSectionSearchQuery("custom", query)
-                    }
-                    onCreateRequested: window.openCommandEditorForCreate()
-                    onImportRequested: window.importCustomScriptFromClipboard()
-                    onEditRequested: window.openCommandEditorForEdit()
-                    onDeleteRequested: window.openDeleteCommandDialog()
-                    onConfirmRunRequested: function(values) {
-                        window.openConfirmRunDialog(values)
-                    }
-                    onToastRequested: function(message, error) {
-                        customTransferToast.showMessage(message, error)
-                    }
-                }
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 0
 
-                PresetFunctionsPage {
-                    id: presetFunctionsPage
-                    actionsInTitleBar: window.customTitleBar
-                    color: "transparent"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    controller: appController
-                    parentWindow: window
-                    parameterValues: window.parameterValues
-                    presetUtilities: presetController
-                    androidBackend: androidController
-                    jiraFeishuBackend: jiraFeishuController
-                    videoBackend: window.videoBackend
-                    toolListWidth: window.toolListWidth
-                    searchQuery: appController.presetSearchQuery
-                    compact: window.compactContentActions
-                    overlaysVisible: window.applicationOverlayVisible || titleBar.presetDevicePopupVisible
-                    onSearchEdited: function(query) {
-                        appController.setSectionSearchQuery("preset", query)
+                    NavItem {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        visible: true
+                        label: "终端"
+                        shortcutText: "Alt+1"
+                        iconName: "terminal"
+                        compact: window.compactPrimaryNav
+                        dense: window.compactHeight
+                        selected: window.developerSelected && !window.settingsSelected
+                        onClicked: window.openTerminalPage()
                     }
-                }
-
-                TerminalPage {
-                    id: terminalPage
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    controller: developerConsoleController
-                    parentWindow: window
-                    tabsInTitleBar: window.customTitleBar
-                    onCreateScriptRequested: function(command, kind) {
-                        window.openCommandEditorForCreate(command, kind)
+                    NavItem {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        label: "自定义"
+                        shortcutText: "Alt+2"
+                        iconName: "code"
+                        compact: window.compactPrimaryNav
+                        dense: window.compactHeight
+                        selected: !window.developerSelected && !window.settingsSelected
+                            && appController.section === "custom"
+                        onClicked: window.openCustomScriptsPage()
                     }
-                }
 
-                SettingsPage {
-                    id: settingsPage
-                    color: "transparent"
-                    objectName: "settingsDialog"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    controller: settingsController
-                    updateBackend: updateController
-                    terminalBackend: developerConsoleController
-                    onPluginManageRequested: powershellPluginDialog.open()
-                    onTerminalEnableRequested: window.requestTerminalEnable()
-                    onUserHelpRequested: window.openUserGuideDialog()
+                    NavItem {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        label: "预设"
+                        shortcutText: "Alt+3"
+                        iconName: "widgets"
+                        compact: window.compactPrimaryNav
+                        dense: window.compactHeight
+                        selected: !window.developerSelected && !window.settingsSelected
+                            && appController.section === "preset"
+                        onClicked: window.openPresetFunctionsPage()
+                    }
+
+                    NavItem {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        label: "设置"
+                        shortcutText: "Alt+4"
+                        iconName: "settings"
+                        compact: window.compactPrimaryNav
+                        dense: window.compactHeight
+                        selected: window.settingsSelected
+                        actionText: updateController.state === "available"
+                                    ? "有新版本可用"
+                                    : updateController.state === "downloaded"
+                                      ? "更新已准备好" : ""
+                        onActionClicked: window.queueUpdateDialog()
+                        onClicked: window.openSettingsDialog()
+                    }
+
+                    Item {
+                        Layout.fillHeight: true
+                    }
                 }
             }
 
-            RoundedViewportCorners {
-                anchors.fill: parent
-                z: 1
-                cornerRadius: workspaceSurface.radius
-                outsideColor: Theme.chromeBackground
+            Rectangle {
+                id: workspaceSurface
+                objectName: "workspaceSurface"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: !Theme.glassMode && workspacePages.currentIndex === 2 ? Theme.workspaceBackground : "transparent"
+                radius: Theme.radiusSmall
+                clip: true
+
+                StackLayout {
+                    id: workspacePages
+                    anchors.fill: parent
+                    currentIndex: window.settingsSelected ? 3
+                        : window.developerSelected ? 2
+                        : (appController.section === "custom" ? 0 : 1)
+
+                    CustomScriptsPage {
+                        id: customScriptsPage
+                        color: "transparent"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        controller: appController
+                        androidBackend: androidController
+                        parentWindow: window
+                        parameterValues: window.parameterValues
+                        searchQuery: appController.customScriptSearchQuery
+                        compact: window.compactContentActions
+                        compactHeight: window.compactHeight
+                        overlaysVisible: window.applicationOverlayVisible
+                        deviceInTitleBar: window.customTitleBar
+                        onSearchEdited: function(query) {
+                            appController.setSectionSearchQuery("custom", query)
+                        }
+                        onCreateRequested: window.openCommandEditorForCreate()
+                        onImportRequested: window.importCustomScriptFromClipboard()
+                        onEditRequested: window.openCommandEditorForEdit()
+                        onDeleteRequested: window.openDeleteCommandDialog()
+                        onConfirmRunRequested: function(values) {
+                            window.openConfirmRunDialog(values)
+                        }
+                        onToastRequested: function(message, error) {
+                            customTransferToast.showMessage(message, error)
+                        }
+                    }
+
+                    PresetFunctionsPage {
+                        id: presetFunctionsPage
+                        actionsInTitleBar: window.customTitleBar
+                        color: "transparent"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        controller: appController
+                        parentWindow: window
+                        parameterValues: window.parameterValues
+                        presetUtilities: presetController
+                        androidBackend: androidController
+                        jiraFeishuBackend: jiraFeishuController
+                        videoBackend: window.videoBackend
+                        toolListWidth: window.toolListWidth
+                        searchQuery: appController.presetSearchQuery
+                        compact: window.compactContentActions
+                        overlaysVisible: window.applicationOverlayVisible || titleBar.presetDevicePopupVisible
+                        onSearchEdited: function(query) {
+                            appController.setSectionSearchQuery("preset", query)
+                        }
+                    }
+
+                    TerminalPage {
+                        id: terminalPage
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        controller: developerConsoleController
+                        parentWindow: window
+                        tabsInTitleBar: window.customTitleBar
+                        onCreateScriptRequested: function(command, kind) {
+                            window.openCommandEditorForCreate(command, kind)
+                        }
+                    }
+
+                    SettingsPage {
+                        id: settingsPage
+                        color: "transparent"
+                        objectName: "settingsDialog"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        controller: settingsController
+                        glassCaptureError: window.glassCaptureError
+                        updateBackend: updateController
+                        terminalBackend: developerConsoleController
+                        onPluginManageRequested: powershellPluginDialog.open()
+                        onTerminalEnableRequested: window.requestTerminalEnable()
+                        onUserHelpRequested: window.openUserGuideDialog()
+                    }
+                }
+
+                RoundedViewportCorners {
+                    anchors.fill: parent
+                    z: 1
+                    // Glass panels already round their own material. A flat cover
+                    // cannot match the live desktop at the four viewport corners.
+                    visible: !Theme.glassMode
+                    cornerRadius: workspaceSurface.radius
+                    outsideColor: Theme.chromeBackground
+                }
             }
+
         }
-
     }
 
     ExecutionCapacityDialog {
@@ -694,6 +738,23 @@ ApplicationWindow {
         }
     }
 
+    // Prime the glass shaders with a tiny surface before the first dialog opens.
+    Loader {
+        id: popupGlassWarmup
+        width: 4; height: 4
+        z: -0.5
+        asynchronous: true
+        property bool finished: false
+        active: window.visible && Theme.glassMode && !finished
+        sourceComponent: AppPopupSurface { width: 4; height: 4; opacity: 0.001 }
+        onLoaded: popupGlassWarmupRelease.start()
+    }
+    Timer {
+        id: popupGlassWarmupRelease
+        interval: 250
+        onTriggered: popupGlassWarmup.finished = true
+    }
+
     Loader {
         id: updateDialogLoader
         active: false
@@ -707,27 +768,33 @@ ApplicationWindow {
     Loader {
         id: deleteCommandDialogLoader
         active: false
+        asynchronous: true
+        property var pendingOpen: null
+        onLoaded: { if (pendingOpen) { const callback = pendingOpen; pendingOpen = null; Qt.callLater(function() { callback(item) }) } }
         sourceComponent: DeleteToolDialog {
             controller: appController
             parentWindow: window
-            onClosed: deleteCommandDialogLoader.active = false
         }
     }
     Loader {
         id: confirmRunDialogLoader
         active: false
+        asynchronous: true
+        property var pendingOpen: null
+        onLoaded: { if (pendingOpen) { const callback = pendingOpen; pendingOpen = null; Qt.callLater(function() { callback(item) }) } }
         sourceComponent: ConfirmRunDialog {
             controller: appController
             parentWindow: window
-            onClosed: confirmRunDialogLoader.active = false
         }
     }
     Loader {
         id: commandEditorDialogLoader
         active: false
+        asynchronous: true
+        property var pendingOpen: null
+        onLoaded: { if (pendingOpen) { const callback = pendingOpen; pendingOpen = null; Qt.callLater(function() { callback(item) }) } }
         sourceComponent: CommandEditorDialog {
             controller: appController
-            onClosed: commandEditorDialogLoader.active = false
         }
     }
     Loader {

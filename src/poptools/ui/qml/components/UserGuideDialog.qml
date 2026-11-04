@@ -85,7 +85,9 @@ AppDialog {
                         required property var modelData
                         Layout.fillWidth: true
                         implicitHeight: cardContent.implicitHeight + Theme.space32
-                        radius: Theme.radiusMedium; color: Theme.surfaceContainer; border.color: Theme.outlineVariant
+                        radius: Theme.radiusMedium; color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
+                        border.color: Theme.outlineVariant
                         ColumnLayout {
                             id: cardContent
                             anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.space16 }
@@ -115,7 +117,8 @@ AppDialog {
                                 wrapMode: TextEdit.Wrap; textFormat: TextEdit.PlainText
                                 font.family: "Cascadia Mono"; font.pixelSize: Theme.fontCode
                                 color: Theme.consoleText; padding: Theme.space12
-                                background: Rectangle { radius: Theme.radiusConsole; color: Theme.consoleBackground }
+                                background: Rectangle { radius: Theme.radiusConsole; color: Theme.glassMode ? "transparent" : Theme.consoleBackground
+                                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 } }
                             }
                         }
                     }

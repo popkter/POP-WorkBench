@@ -99,3 +99,17 @@ LICENSE.txt and ThirdPartyNotices.txt files.
 - Release: https://github.com/PowerShell/PowerShell/releases/tag/v7.6.6
 - License: MIT License
 - Copyright: Microsoft Corporation and PowerShell contributors
+
+## liquidglass — Qt Quick port
+
+Source: https://github.com/shayann07/liquidglass/tree/main/ports/qt
+Revision: 2e4849fb75ab3299978825985193cf41dba4a061
+Copyright 2026 Shayan. Apache License 2.0.
+Vendored source, full LICENSE and NOTICE: src/poptools/ui/qml/components/glass/LiquidGlass/.
+The QML material, JavaScript material parameters, vertex and fragment shaders are included.
+Local QML modifications add pointer illumination controls, theme lift, synchronous lens-size updates
+and an optional Qt MultiEffect Gaussian pre-blur for in-app popup backdrops.
+The optical material is available for explicit in-app textures. External desktop blur is owned by
+Windows DWM Desktop Acrylic. PopToolProject's sampler-free nativeglass overlay draws only control
+tints, contours and pointer highlights; it does not capture or refract desktop pixels.
+Qt QSB shader packs are compiled from these sources for GLSL, HLSL and Metal.

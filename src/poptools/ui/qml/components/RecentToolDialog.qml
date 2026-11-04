@@ -5,6 +5,24 @@ import "../theme"
 
 Window {
     id: root
+    readonly property bool glassBackgroundReady: desktopBackground.ready
+    readonly property bool glassEnabled: Theme.glassMode && !Theme.mechanicalMode
+    readonly property bool systemBackdropTinted: desktopBackground.drawBackground
+    readonly property var backdropBackend: typeof systemBackdropController !== "undefined"
+        ? systemBackdropController : null
+    readonly property bool nativeCardFrame: !Theme.mechanicalMode && !!backdropBackend
+        && backdropBackend.cardFramesSupported === true
+    function prepareNativeCardFrame() {
+        if (backdropBackend && backdropBackend.prepareCardWindow)
+            backdropBackend.prepareCardWindow(root)
+    }
+    Component.onCompleted: prepareNativeCardFrame()
+    onNativeCardFrameChanged: Qt.callLater(prepareNativeCardFrame)
+    DesktopBackground {
+        id: desktopBackground; hostWindow: root
+        enabledForWindow: root.nativeCardFrame
+        anchors.fill: parent; z: -10
+    }
     objectName: "recentToolWindow"
     transientParent: null
     title: root.selectedTool.title || "运行工具"
@@ -100,7 +118,8 @@ Window {
     height: Math.min(customScriptMode ? Math.round(680 * cardUiScale)
                                     : presetMode ? 560 : 600, Screen.height - 48)
     visible: false
-    flags: Qt.Window | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
+    flags: Qt.Window | (nativeCardFrame ? Qt.CustomizeWindowHint
+        : Qt.FramelessWindowHint) | Qt.NoDropShadowWindowHint
         | (pinned ? Qt.WindowStaysOnTopHint : 0)
     color: "transparent"
     onVisibleChanged: if (!visible) cardMotion.finish()

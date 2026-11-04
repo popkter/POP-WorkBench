@@ -11,6 +11,9 @@ Item {
     required property var dialog
     property alias workspace: workspaceLoader
     readonly property bool decadeCard: dialog.customScriptMode && Theme.mechanicalMode
+    readonly property bool standardCard: dialog.customScriptMode && !content.decadeCard
+    readonly property real cardScale: Math.max(0.1, dialog.cardUiScale)
+    readonly property real cardActionSize: 36 / cardScale
     Keys.onEscapePressed: function(event) {
         if (titleDevicePicker.inlineExpanded)
             titleDevicePicker.closeDeviceMenu()
@@ -34,14 +37,21 @@ Item {
 
     Rectangle {
         id: contentRect
+        objectName: "recentToolCardSurface"
         anchors.fill: parent
-        anchors.margins: content.decadeCard ? 0 : dialog.customScriptMode ? Theme.space4 : Theme.space8
+        anchors.margins: dialog.customScriptMode ? 0 : Theme.space8
         radius: content.decadeCard ? Theme.decadeCardRadius : dialog.customScriptMode ? Theme.radiusMedium : Theme.radiusLarge
-        color: content.decadeCard ? Theme.decadeCardSurface : dialog.customScriptMode ? Theme.chromeBackground
+        color: Theme.glassMode ? "transparent" : content.decadeCard ? Theme.decadeCardSurface : dialog.customScriptMode ? Theme.surfaceContainerLow
             : Theme.darkMode ? Theme.surfaceContainer : Theme.surface
-        border.width: content.decadeCard ? 0 : dialog.customScriptMode ? 1 : 0
+        border.width: 0
         border.color: content.decadeCard ? Theme.primary : Theme.outlineVariant
         clip: true
+
+        GlassSurface {
+            anchors.fill: parent; cornerRadius: parent.radius
+            tintColor: content.decadeCard ? Theme.decadeCardSurface : Theme.surfaceContainerLow
+            z: -0.5
+        }
 
         DecadeCardArtwork {
             anchors.fill: parent
@@ -58,7 +68,8 @@ Item {
             Rectangle {
                 id: dialogTitleBar
                 Layout.fillWidth: true
-                Layout.preferredHeight: content.decadeCard ? Theme.decadeCardHeaderHeight : dialog.customScriptMode ? 40 : 56
+                Layout.preferredHeight: content.standardCard ? content.cardActionSize
+                    : content.decadeCard ? Theme.decadeCardHeaderHeight : 56
                 color: "transparent"
 
                 // Drag-to-move area (covers title bar, behind interactive elements)
@@ -89,10 +100,10 @@ Item {
                 Image {
                     visible: dialog.customScriptMode && !content.decadeCard
                     anchors.left: parent.left
-                    anchors.leftMargin: Theme.space12
+                    anchors.leftMargin: content.standardCard ? Theme.space8 / content.cardScale : Theme.space12
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 20
-                    height: 20
+                    width: content.standardCard ? 20 / content.cardScale : 20
+                    height: width
                     source: "../../../resources/icons/app-icon-ui.png"
                     sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
                     smooth: true
@@ -101,16 +112,18 @@ Item {
                 // Title text
                 Text {
                     objectName: "recentToolTitle"
-                    visible: content.decadeCard || !dialog.customScriptMode
+                    visible: true
                     anchors.left: parent.left
-                    anchors.leftMargin: content.decadeCard ? Theme.decadeCardPadding : dialog.customScriptMode ? 40 : Theme.space20
+                    anchors.leftMargin: content.standardCard ? 40 / content.cardScale
+                        : content.decadeCard ? Theme.decadeCardPadding : Theme.space20
                     anchors.right: titleButtons.left
                     anchors.rightMargin: Theme.space12
                     anchors.verticalCenter: parent.verticalCenter
-                    text: content.decadeCard ? dialog.selectedTool.title || "运行脚本" : dialog.customScriptMode ? "泡泡的工作台"
+                    text: content.decadeCard ? dialog.selectedTool.title || "运行脚本" : content.standardCard ? "脚本卡片"
                         : dialog.selectedTool.title || "运行工具"
                     color: dialog.customScriptMode ? Theme.chromeForeground : Theme.textPrimary
-                    font.pixelSize: content.decadeCard ? Theme.decadeCardTitleSize : dialog.customScriptMode ? Theme.fontSupporting : Theme.fontSectionTitle
+                    font.pixelSize: content.standardCard ? Theme.fontCaption / content.cardScale
+                        : content.decadeCard ? Theme.decadeCardTitleSize : Theme.fontSectionTitle
                     font.weight: content.decadeCard ? Font.DemiBold : dialog.customScriptMode ? Font.Medium : Font.Bold
                     elide: Text.ElideRight
                 }
@@ -126,29 +139,35 @@ Item {
 
                     // ── Custom command run button ─────────
                     PrimaryButton {
+                        id: headerRunButton
+                        parent: content.standardCard ? standardActions : titleButtons
+                        anchors.left: content.standardCard ? parent.left : undefined
                         objectName: content.decadeCard ? "recentToolHeaderRunButton" : "recentToolRunButton"
                         visible: !dialog.presetMode && !content.decadeCard
-                        width: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? 102 : 48
-                        height: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? Theme.captionActionHeight : 32
+                        width: content.standardCard ? 96 / content.cardScale : content.decadeCard ? Theme.decadeCardActionSize : 48
+                        height: content.standardCard ? content.cardActionSize : content.decadeCard ? Theme.decadeCardActionSize : 32
                         anchors.verticalCenter: parent.verticalCenter
                         compact: content.decadeCard || !dialog.customScriptMode
                         showHoverTips: !content.decadeCard && compact
                         text: dialog.operationRunning ? "停止运行"
                             : dialog.customScriptMode ? "运行脚本" : "运行工具"
                         iconName: dialog.operationRunning ? "stop" : "play_arrow"
-                        glyphSize: dialog.customScriptMode ? 20 : 24
+                        glyphSize: content.standardCard ? 20 / content.cardScale : dialog.customScriptMode ? 20 : 24
                         tonal: true
-                        foregroundColor: content.decadeCard ? Theme.primaryText : dialog.customScriptMode
+                        foregroundColor: content.standardCard ? (dialog.operationRunning ? Theme.errorColor : Theme.primaryText)
+                            : content.decadeCard ? Theme.primaryText : dialog.customScriptMode
                             ? (dialog.operationRunning ? Theme.errorColor : Theme.success) : "white"
                         border.width: content.decadeCard ? Theme.borderWidthThin : 0
                         border.color: Theme.decadeCardActionBorder
-                        radius: content.decadeCard ? Theme.radiusSmall : dialog.customScriptMode ? Theme.radiusTiny : Theme.radiusMedium
-                        color: content.decadeCard ? (hovered ? Theme.primaryContainer : Theme.decadeCardActionFill) : dialog.customScriptMode
+                        radius: content.standardCard ? Theme.radiusControl / content.cardScale : content.decadeCard ? Theme.radiusSmall : Theme.radiusMedium
+                        color: content.standardCard ? (hovered ? Theme.primaryContainerHover : Theme.primaryContainer)
+                            : content.decadeCard ? (hovered ? Theme.primaryContainer : Theme.decadeCardActionFill) : dialog.customScriptMode
                             ? (hovered ? Theme.navigationHover : "transparent")
                             : dialog.operationRunning
                             ? (hovered ? Qt.darker(Theme.errorColor, 1.1) : Theme.errorColor)
                             : (hovered ? Theme.primaryHover : Theme.primary)
-                        labelFontSize: Theme.fontSupporting
+                        labelFontSize: content.standardCard ? Theme.fontButton / content.cardScale
+                            : dialog.customScriptMode ? Theme.decadeCardTextSize : Theme.fontSupporting
                         labelFontWeight: Font.Normal
                         Accessible.role: Accessible.Button
                         Accessible.name: text
@@ -158,9 +177,17 @@ Item {
 
                     DeviceSelector {
                         id: titleDevicePicker
+                        parent: content.standardCard ? standardActions : titleButtons
+                        anchors.right: content.standardCard ? parent.right : undefined
                         objectName: "recentToolDeviceSelector"
                         visible: dialog.customScriptMode && !!dialog.deviceController
-                        width: content.decadeCard ? Theme.decadeCardActionSize : dialog.customScriptMode ? 148 : 160
+                        width: content.standardCard ? Math.max(0, standardActions.width - headerRunButton.width - standardActions.spacing)
+                            : content.decadeCard ? Theme.decadeCardActionSize : 160
+                        uiScale: content.standardCard ? 1 / content.cardScale : 1
+                        controlHeight: content.standardCard ? content.cardActionSize
+                            : iconOnly ? Theme.decadeCardActionSize : compact ? Theme.captionActionHeight : 41
+                        outlined: content.standardCard
+                        labelFontSize: content.standardCard ? Theme.fontBody : Theme.fontSupporting
                         anchors.verticalCenter: parent.verticalCenter
                         compact: true
                         iconOnly: content.decadeCard
@@ -191,8 +218,8 @@ Item {
                     ToolButton {
                         id: pinButton
                         objectName: "recentToolPinButton"
-                        width: content.decadeCard ? Theme.decadeCardActionSize : 32
-                        height: content.decadeCard ? Theme.decadeCardActionSize : 32
+                        width: content.standardCard ? content.cardActionSize : content.decadeCard ? Theme.decadeCardActionSize : 32
+                        height: width
                         anchors.verticalCenter: parent.verticalCenter
                         checkable: true
                         checked: dialog.pinned
@@ -201,7 +228,7 @@ Item {
                         onClicked: dialog.pinned = checked
                         contentItem: MaterialIcon {
                             icon: "push_pin"
-                            iconSize: 19
+                            iconSize: content.standardCard ? 20 / content.cardScale : 19
                             color: pinButton.checked ? Theme.primaryText : Theme.textPrimary
                         }
                         background: Rectangle {
@@ -234,7 +261,7 @@ Item {
                     // Close
                     Rectangle {
                         objectName: "recentToolCloseButton"
-                        width: content.decadeCard ? Theme.decadeCardActionSize : 42
+                        width: content.standardCard ? content.cardActionSize : content.decadeCard ? Theme.decadeCardActionSize : 42
                         height: content.decadeCard ? Theme.decadeCardActionSize : parent.height
                         anchors.verticalCenter: parent.verticalCenter
                         radius: content.decadeCard ? Theme.radiusSmall : 0
@@ -246,7 +273,7 @@ Item {
                         MaterialIcon {
                             anchors.centerIn: parent
                             icon: "close"
-                            iconSize: 19
+                            iconSize: content.standardCard ? 20 / content.cardScale : 19
                             color: closeArea.containsMouse ? "white" : Theme.textPrimary
                         }
                         MouseArea {
@@ -260,6 +287,22 @@ Item {
                         Keys.onReturnPressed: dialog.closeCardAnimated()
                         Keys.onSpacePressed: dialog.closeCardAnimated()
                     }
+                }
+            }
+
+            Item {
+                visible: content.standardCard
+                Layout.fillWidth: true
+                Layout.preferredHeight: visible ? content.cardActionSize + Theme.space12 / content.cardScale : 0
+                Item {
+                    id: standardActions
+                    objectName: "recentToolActionRow"
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.space8 / content.cardScale
+                    anchors.rightMargin: Theme.space8 / content.cardScale
+                    anchors.topMargin: Theme.space4 / content.cardScale
+                    anchors.bottomMargin: Theme.space8 / content.cardScale
+                    readonly property real spacing: Theme.space8 / content.cardScale
                 }
             }
 
@@ -281,7 +324,8 @@ Item {
                     x: Theme.decadeCardPadding
                     width: parent.width - x * 2
                     height: inlineDeviceChoices.implicitHeight + Theme.space16
-                    color: Theme.surfaceContainerLow
+                    color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainerLow; z: -0.5 }
                     border.color: Theme.outlineVariant
                     radius: Theme.radiusSmall
                     AndroidDevicePicker {
@@ -332,6 +376,7 @@ Item {
                     submitParametersOnEnter: true
                     compactLayout: true
                     decadeCardLayout: content.decadeCard
+                    sharedCardBackground: true
                     minimumFormReservedHeight: 0
                     onRunRequested: dialog.runCustomScript()
                 }

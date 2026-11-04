@@ -189,7 +189,8 @@ Item {
             Layout.bottomMargin: root.outputOuterMargin
             Layout.topMargin: Theme.space0
             radius: Theme.radiusMedium
-            color: Theme.consoleBackground
+            color: Theme.glassMode ? "transparent" : Theme.consoleBackground
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 }
 
             DesktopScrollView {
                 anchors.fill: parent

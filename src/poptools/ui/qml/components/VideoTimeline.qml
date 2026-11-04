@@ -146,7 +146,8 @@ ColumnLayout {
         Rectangle {
             y: 34; width: parent.width; height: 66
             radius: 4
-            color: Theme.surfaceContainerHigh
+            color: Theme.glassMode ? "transparent" : Theme.surfaceContainerHigh
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainerHigh; z: -0.5 }
         }
         Rectangle {
             x: -root.viewStart * root.pixelsPerSecond
@@ -330,10 +331,10 @@ ColumnLayout {
         visible: root.hovering && !pointer.pressed && root.visible && root.duration > 0
         x: Math.max(8, Math.min(parent.width - width - 8, root.previewPoint.x - width / 2))
         y: Math.max(8, root.previewPoint.y - height - 10)
-        background: Rectangle {
-            color: Theme.popupSurface
-            radius: Theme.radiusSmall
-            border.color: Theme.outline
+        background: AppPopupSurface {
+            fillColor: Theme.popupSurface
+            cornerRadius: Theme.radiusSmall
+            outlineColor: Theme.outline
         }
         contentItem: ColumnLayout {
             spacing: 5

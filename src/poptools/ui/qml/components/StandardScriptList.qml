@@ -156,7 +156,18 @@ ScriptCollectionView {
         visible: height > 0
         opacity: root.reordering && root.draggedToolId === toolId ? 0.45 : 1
         radius: Theme.radiusControl
-        color: selected ? Theme.listSelected : rowMouse.containsMouse ? Theme.surfaceContainer : index % 2 === 0 ? Theme.listAlternate : "transparent"
+        color: selected ? Theme.listSelected : rowMouse.containsMouse ? Theme.surfaceContainer
+            : Theme.darkMode && index % 2 === 0 ? Theme.listAlternate : "transparent"
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: Theme.space12
+            anchors.rightMargin: Theme.space8
+            height: 1
+            color: Theme.outlineVariant
+            visible: !Theme.darkMode && scriptRow.index < root.count - 1
+        }
         RowLayout {
             z: 1
             anchors.fill: parent

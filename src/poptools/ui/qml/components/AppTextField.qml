@@ -10,8 +10,8 @@ TextField {
     font.pixelSize: Theme.fontBody
     color: enabled ? Theme.textPrimary : Theme.textSecondary
     placeholderTextColor: Theme.textSecondary
-    selectionColor: Theme.primaryContainer
-    selectedTextColor: Theme.textPrimary
+    selectionColor: Theme.glassMode ? Theme.primary : Theme.primaryContainer
+    selectedTextColor: Theme.glassMode ? Theme.primaryForeground : Theme.textPrimary
     selectByMouse: true
     leftPadding: Theme.space12
     rightPadding: clearButton.visible ? clearButton.width + 8 : baseRightPadding
@@ -44,7 +44,8 @@ TextField {
     }
     background: Rectangle {
         radius: Theme.radiusControl
-        color: control.enabled ? Theme.inputDefault : Theme.inputDisabled
+        color: Theme.glassMode ? "transparent" : control.enabled ? Theme.inputDefault : Theme.inputDisabled
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
         border.color: control.activeFocus ? Theme.primary : Theme.outline
         border.width: control.activeFocus ? 2 : 1
     }

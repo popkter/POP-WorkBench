@@ -4,6 +4,7 @@ import "../theme"
 
 Dialog {
     id: control
+    popupType: Popup.Item
 
     property bool compactLayout: false
 

@@ -84,10 +84,16 @@ Item {
         spacing: 0
 
         Rectangle {
+            objectName: "terminalMaterialSurface"
             Layout.fillWidth: true
             Layout.fillHeight: true
             radius: Theme.radiusSmall
-            color: Theme.terminalBackground
+            color: Theme.glassMode ? "transparent" : Theme.terminalBackground
+            GlassSurface {
+                anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
+                tintColor: Theme.terminalBackground
+                tintStrength: 0.86
+            }
             clip: true
 
             ColumnLayout {
@@ -108,6 +114,7 @@ Item {
 
                     TerminalView {
                         id: terminalView
+                        objectName: "terminalView"
                         visible: root.controller.terminalTabs.length > 0
                         anchors.fill: parent
                         anchors.leftMargin: Theme.space8
@@ -115,7 +122,12 @@ Item {
                         anchors.topMargin: Theme.space8
                         anchors.bottomMargin: 10
                         sessionId: root.controller.activeTerminalTabId
-                        fillColor: Theme.terminalBackground
+                        // Paint only terminal ink over the one shared glass
+                        // surface, including the padding around the viewport.
+                        fillColor: Theme.glassMode
+                            ? Qt.rgba(Theme.terminalBackground.r, Theme.terminalBackground.g,
+                                      Theme.terminalBackground.b, 0)
+                            : Theme.terminalBackground
                         fontSize: Theme.fontBody
                         focus: true
                         Accessible.role: Accessible.EditableText

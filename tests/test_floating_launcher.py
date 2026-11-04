@@ -6,6 +6,7 @@ import sys
 from ctypes import wintypes
 from pathlib import Path
 from time import perf_counter
+from types import SimpleNamespace
 
 import pytest
 from PySide6.QtCore import (
@@ -28,6 +29,7 @@ from PySide6.QtTest import QTest
 
 from poptools.infrastructure.android_device_service import AndroidDevice
 from poptools.infrastructure.config_store import ConfigStore
+from poptools.infrastructure.desktop_backdrop import SystemBackdropController
 from poptools.infrastructure.foreground_window import ForegroundWindow
 from poptools.infrastructure.json_tool_repository import JsonToolRepository
 from poptools.infrastructure.python_environment import PythonEnvironment
@@ -1160,9 +1162,12 @@ RecentToolDialog {
 
 
 @pytest.mark.gui
-@pytest.mark.parametrize("dark,window_width", [(False, 440), (True, 480)])
+@pytest.mark.parametrize(
+    "dark,window_width", [(False, 315), (True, 315), (False, 440), (True, 480)],
+)
+@pytest.mark.parametrize("glass", [False, True])
 def test_recent_script_window_uses_shared_form_and_console(launcher, qapp, qtbot, monkeypatch,
-                                                         dark, window_width):
+                                                         dark, window_width, glass):
     _, backend, _, _ = launcher
     tool = create_tool(backend, "Script execution", kind="powershell",
                        command="Write-Output ${path@dir:C:/work} ${message}")
@@ -1190,6 +1195,12 @@ def test_recent_script_window_uses_shared_form_and_console(launcher, qapp, qtbot
     engine.rootContext().setContextProperty("appController", backend)
     engine.rootContext().setContextProperty("androidBackend", backend.android_controller)
     engine.rootContext().setContextProperty("testDarkMode", dark)
+    engine.rootContext().setContextProperty("testGlassMode", glass)
+    native_calls = []
+    backdrop = SystemBackdropController()
+    backdrop._supported = True
+    backdrop._native = SimpleNamespace(apply=lambda *args: native_calls.append(args) or "")
+    engine.rootContext().setContextProperty("systemBackdropController", backdrop)
     component = QQmlComponent(engine)
     component.setData(b'''
 import QtQuick
@@ -1199,7 +1210,10 @@ RecentToolDialog {
     deviceController: androidBackend
     presetUtilities: null
     jiraFeishuBackend: null
-    Component.onCompleted: Theme.darkMode = testDarkMode
+    Component.onCompleted: {
+        Theme.darkMode = testDarkMode
+        Theme.glassMode = testGlassMode
+    }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/RecentScriptHarness.qml")))
     window = component.create()
@@ -1230,8 +1244,37 @@ RecentToolDialog {
         assert panel.property("deviceInTitleBar")
         assert panel.property("compactLayout")
         assert panel.width() >= window.width() - 8
-        assert panel.property("color").name() == ("#171e28" if dark else "#ffffff")
+        # Header and detail content share the card's only outer material.
+        assert panel.property("color").alpha() == 0
+        assert panel.property("sharedCardBackground")
+        card = items["recentToolCardSurface"]
+        bounds = card.mapRectToItem(window.contentItem(), card.boundingRect())
+        assert bounds.x() == pytest.approx(0, abs=0.01)
+        assert bounds.y() == pytest.approx(0, abs=0.01)
+        assert bounds.width() == pytest.approx(window.width(), abs=0.01)
+        assert bounds.height() == pytest.approx(window.height(), abs=0.01)
+        if glass:
+            assert card.property("color").alpha() == 0
+        else:
+            assert card.property("color").name() == ("#171e28" if dark else "#ffffff")
+        if window.property("nativeCardFrame"):
+            # DWM owns corner clipping; grabWindow excludes that compositor
+            # output. The live desktop proof verifies the native rounded edge.
+            assert any(call[1] for call in native_calls) == glass
+        else:
+            assert window.grabWindow().pixelColor(0, 0).alpha() == 0
+            assert not any(call[1] for call in native_calls)
         assert items["recentToolDeviceSelector"].property("compact")
+        action_rects = {
+            name: items[name].mapRectToItem(window.contentItem(), items[name].boundingRect())
+            for name in ("recentToolRunButton", "recentToolDeviceSelector",
+                         "recentToolPinButton", "recentToolCloseButton")
+        }
+        assert all(rect.height() >= 32 for rect in action_rects.values())
+        assert (action_rects["recentToolRunButton"].right() + 4
+                <= action_rects["recentToolDeviceSelector"].left())
+        assert (action_rects["recentToolPinButton"].bottom()
+                <= action_rects["recentToolRunButton"].top())
         assert console.height() >= 200
         assert console.width() >= panel.width() - 16
         for name in ("recentToolRunButton", "recentToolDeviceSelector",
@@ -1275,6 +1318,7 @@ RecentToolDialog {
         window.close()
         window.deleteLater()
         engine.deleteLater()
+        backdrop.shutdown()
 
 
 @pytest.mark.gui

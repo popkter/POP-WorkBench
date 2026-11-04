@@ -4,6 +4,7 @@ import "../theme"
 
 Menu {
     id: control
+    popupType: Popup.Item
 
     implicitWidth: Theme.menuWidth
     padding: Theme.space8

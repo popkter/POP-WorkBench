@@ -269,6 +269,9 @@ TerminalItem::TerminalItem(QQuickItem *parent)
     setFillColor(kDefaultBackground);
     connect(this, &QQuickPaintedItem::fillColorChanged, this, [this] {
         const QColor backgroundColor = fillColor();
+        // Glass supplies its background behind this item's text texture.
+        // Marking that texture opaque would hide the material beneath it.
+        setOpaquePainting(backgroundColor.alpha() == 255);
         for (auto *session : m_sessions) {
             VTermColor foreground;
             VTermColor background;
@@ -550,6 +553,7 @@ int TerminalItem::viewportFirstLine(const TerminalSession *session) const
 void TerminalItem::paint(QPainter *painter)
 {
     const QColor backgroundColor = fillColor();
+    const QColor inkBackground = QColor::fromRgb(backgroundColor.rgb());
     painter->fillRect(boundingRect(), backgroundColor);
     painter->setFont(m_font);
     painter->setPen(kDefaultForeground);
@@ -607,7 +611,7 @@ void TerminalItem::paint(QPainter *painter)
 
             QColor foreground = kDefaultForeground;
             if (cell.attrs.reverse)
-                foreground = terminalColor(session->screen, cell.bg, backgroundColor);
+                foreground = terminalColor(session->screen, cell.bg, inkBackground);
             else if (!(cell.fg.type & VTERM_COLOR_DEFAULT_MASK))
                 foreground = terminalColor(session->screen, cell.fg, kDefaultForeground);
             if (cell.attrs.faint)
@@ -647,7 +651,7 @@ void TerminalItem::paint(QPainter *painter)
                                       &cursorCell)
                 && cursorCell.width > 0) {
                 painter->setFont(m_font);
-                painter->setPen(backgroundColor);
+                painter->setPen(inkBackground);
                 painter->drawText(QPointF(cursorRect.left(), cursorRect.top() + m_baseline),
                                   cellText(cursorCell));
             }

@@ -20,6 +20,22 @@ _DWMWCP_ROUND = 2
 _DWMWA_BORDER_COLOR = 34
 _DWMWA_CAPTION_COLOR = 35
 _DWMWA_TEXT_COLOR = 36
+_DWMWA_COLOR_NONE = 0xFFFFFFFE
+
+
+def disable_windows_system_backdrop(window_id: int) -> None:
+    """Keep native tray menus on their ordinary Qt-painted background."""
+    if sys.platform != "win32":
+        return
+    dwmapi = ctypes.WinDLL("dwmapi", use_last_error=True)
+    dwmapi.DwmSetWindowAttribute.argtypes = [
+        ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint,
+    ]
+    dwmapi.DwmSetWindowAttribute.restype = ctypes.c_long
+    kind = ctypes.c_int(1)  # DWMSBT_NONE; never auto-select a popup Acrylic sheet.
+    dwmapi.DwmSetWindowAttribute(
+        ctypes.c_void_p(window_id), 38, ctypes.byref(kind), ctypes.sizeof(kind),
+    )
 
 
 def configure_windows_app_identity() -> None:
@@ -71,6 +87,8 @@ def apply_windows_title_bar_theme(
     dark_mode: bool,
     background_color: QColor | None = None,
     foreground_color: QColor | None = None,
+    draw_border: bool = True,
+    system_caption: bool = False,
 ) -> None:
     """Match the native caption and frame to the navigation rail's palette."""
     if sys.platform != "win32":
@@ -102,6 +120,22 @@ def apply_windows_title_bar_theme(
         (_DWMWA_BORDER_COLOR, background_color),
         (_DWMWA_TEXT_COLOR, foreground_color),
     ):
+        if attribute == _DWMWA_CAPTION_COLOR and system_caption:
+            # Reset an earlier solid COLORREF so the system backdrop can also
+            # cover the native caption. COLOR_NONE is only defined for borders.
+            caption_color = ctypes.c_uint(0xFFFFFFFF)
+            dwmapi.DwmSetWindowAttribute(
+                ctypes.c_void_p(window_id), attribute,
+                ctypes.byref(caption_color), ctypes.sizeof(caption_color),
+            )
+            continue
+        if attribute == _DWMWA_BORDER_COLOR and not draw_border:
+            border_color = ctypes.c_uint(_DWMWA_COLOR_NONE)
+            dwmapi.DwmSetWindowAttribute(
+                ctypes.c_void_p(window_id), attribute,
+                ctypes.byref(border_color), ctypes.sizeof(border_color),
+            )
+            continue
         if color is None:
             continue
         color_ref = ctypes.c_uint(color.red() | (color.green() << 8) | (color.blue() << 16))

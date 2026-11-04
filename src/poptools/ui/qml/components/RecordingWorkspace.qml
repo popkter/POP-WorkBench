@@ -47,7 +47,9 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 190
         radius: Theme.radiusLarge
-        color: Theme.surfaceContainerLow
+        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
         border.width: 0
 
         ColumnLayout {
@@ -98,7 +100,9 @@ ColumnLayout {
         rightPadding: 45
         background: Rectangle {
             radius: Theme.radiusSmall
-            color: Theme.surfaceContainerLow
+            color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
             border.color: parent.activeFocus ? Theme.primary : "#A8CFFF"
             border.width: parent.activeFocus ? 2 : 1
         }

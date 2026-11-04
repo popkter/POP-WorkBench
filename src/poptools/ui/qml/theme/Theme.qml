@@ -4,10 +4,15 @@ import QtQuick
 QtObject {
     property bool darkMode: false
     property bool decadeMode: false
+    property bool glassMode: false
+    property var glassPalette: ({})
+    property var glassMaterial: ({})
     property bool zioMode: false
     readonly property bool mechanicalMode: decadeMode || zioMode
     property var zioPalette: ({})
     function zioColor(name, fallback) {
+        if (glassMode && glassPalette[name] !== undefined)
+            return glassPalette[name]
         return zioMode && zioPalette[name] !== undefined ? zioPalette[name] : fallback
     }
 
@@ -36,25 +41,25 @@ QtObject {
     readonly property int captionControlWidth: 47
     readonly property int captionGlyphSize: 10
     readonly property int captionActionHeight: 28
-    readonly property color sidebar: chromeBackground
-    readonly property color workspaceBackground: darkMode ? surface : "#FBFCFE"
+    readonly property color sidebar: zioColor("sidebar", chromeBackground)
+    readonly property color workspaceBackground: zioColor("workspaceBackground", darkMode ? surface : "#FBFCFE")
     readonly property color navigationHover: zioColor("navigationHover", decadeMode ? "#302631" : darkMode ? "#393B40" : "#E9EAEC")
-    readonly property color navigationBorder: darkMode ? outlineVariant : "#E0E5EB"
+    readonly property color navigationBorder: zioColor("navigationBorder", darkMode ? outlineVariant : "#E0E5EB")
     readonly property color navigationActiveBorder: zioColor("navigationActiveBorder", decadeMode ? "#F12786" : darkMode ? primary : "#88BFFF")
     readonly property color navigationIcon: zioColor("navigationIcon", decadeMode ? "#BDB6C2" : darkMode ? "#CED0D6" : "#6C707E")
-    readonly property color navigationActiveIcon: "#FFFFFF"
-    readonly property color listSelected: darkMode ? primaryContainer : "#E5F0FF"
-    readonly property color listAlternate: darkMode ? "transparent" : "#FAFBFC"
-    readonly property color inputBorder: darkMode ? outline : "#A8CFFF"
-    readonly property color terminalToolbar: darkMode ? surface : "#FFFFFF"
+    readonly property color navigationActiveIcon: zioColor("navigationActiveIcon", "#FFFFFF")
+    readonly property color listSelected: zioColor("listSelected", darkMode ? primaryContainer : "#E5F0FF")
+    readonly property color listAlternate: zioColor("listAlternate", darkMode ? "transparent" : "#FAFBFC")
+    readonly property color inputBorder: zioColor("inputBorder", darkMode ? outline : "#A8CFFF")
+    readonly property color terminalToolbar: zioColor("terminalToolbar", darkMode ? surface : "#FFFFFF")
     readonly property color terminalBackground: zioColor("terminalBackground", decadeMode ? "#121216" : darkMode ? "#171C24" : "#2B313D")
     readonly property color terminalTabSelected: zioColor("terminalTabSelected", decadeMode ? "#42182E" : darkMode ? "#43546A" : terminalBackground)
     readonly property color terminalTabBorder: zioColor("terminalTabBorder", decadeMode ? "#82516D" : darkMode ? "#647D9B" : "#E1E5EA")
-    readonly property color terminalTabText: darkMode ? textPrimary : "#404750"
-    readonly property color terminalTabMuted: darkMode ? textSecondary : "#6B737D"
-    readonly property color terminalTabAction: darkMode ? "#C3CDDA" : "#7A838D"
+    readonly property color terminalTabText: zioColor("terminalTabText", darkMode ? textPrimary : "#404750")
+    readonly property color terminalTabMuted: zioColor("terminalTabMuted", darkMode ? textSecondary : "#6B737D")
+    readonly property color terminalTabAction: zioColor("terminalTabAction", darkMode ? "#C3CDDA" : "#7A838D")
     readonly property color terminalTabHover: zioColor("terminalTabHover", decadeMode ? "#302631" : darkMode ? "#39424F" : "#E8ECF1")
-    readonly property color terminalTabDivider: darkMode ? outlineVariant : "#D8DDE3"
+    readonly property color terminalTabDivider: zioColor("terminalTabDivider", darkMode ? outlineVariant : "#D8DDE3")
     readonly property color terminalDropHighlight: zioColor("terminalDropHighlight", decadeMode ? "#33F12786" : "#331B78F2")
     readonly property color navigationSelected: zioColor("navigationSelected", decadeMode ? "#C81768" : "#3574F0")
     readonly property color surfaceContainerLow: zioColor("surfaceContainerLow", decadeMode ? "#17171D" : darkMode ? "#171E28" : "#FFFFFF")
@@ -65,9 +70,9 @@ QtObject {
     readonly property color popupSurface: zioColor("popupSurface", decadeMode ? "#1D1B23" : darkMode ? "#1B232E" : "#FFFFFF")
     readonly property color popupHover: zioColor("popupHover", decadeMode ? "#302631" : darkMode ? "#26313F" : "#F4F6F9")
     readonly property color popupSelected: zioColor("popupSelected", decadeMode ? "#42182E" : darkMode ? "#173A66" : "#E8F2FF")
-    readonly property color popupShadow: darkMode ? "#99000000" : "#290F172A"
-    readonly property color dialogShadow: darkMode ? "#B3000000" : "#380F172A"
-    readonly property color scrim: darkMode ? "#8F070B12" : "#470F172A"
+    readonly property color popupShadow: zioColor("popupShadow", darkMode ? "#99000000" : "#290F172A")
+    readonly property color dialogShadow: zioColor("dialogShadow", darkMode ? "#B3000000" : "#380F172A")
+    readonly property color scrim: zioColor("scrim", darkMode ? "#8F070B12" : "#470F172A")
     readonly property color textPrimary: zioColor("textPrimary", decadeMode ? "#F8F2F7" : darkMode ? "#F3F6FA" : "#0B0F17")
     readonly property color textSecondary: zioColor("textSecondary", decadeMode ? "#B6A9B7" : darkMode ? "#93A0B3" : "#7B8496")
     readonly property color success: zioColor("success", darkMode ? "#5FD49A" : "#29AF6F")
@@ -173,19 +178,19 @@ QtObject {
     readonly property color buttonHover: zioColor("buttonHover", primaryHover)
     readonly property color buttonPressed: zioColor("buttonPressed", decadeMode ? "#C81768" : darkMode ? "#2578E8" : "#005AC7")
     readonly property color buttonDisabled: zioColor("buttonDisabled", surfaceContainerHigh)
-    readonly property color inputDefault: surfaceContainerLow
-    readonly property color inputHover: surfaceContainer
-    readonly property color inputFocused: primaryContainer
-    readonly property color inputError: errorColor
-    readonly property color inputDisabled: surfaceContainer
-    readonly property color cardDefault: surfaceContainerLow
-    readonly property color cardHover: surfaceContainer
+    readonly property color inputDefault: zioColor("inputDefault", surfaceContainerLow)
+    readonly property color inputHover: zioColor("inputHover", surfaceContainer)
+    readonly property color inputFocused: zioColor("inputFocused", primaryContainer)
+    readonly property color inputError: zioColor("inputError", errorColor)
+    readonly property color inputDisabled: zioColor("inputDisabled", surfaceContainer)
+    readonly property color cardDefault: zioColor("cardDefault", surfaceContainerLow)
+    readonly property color cardHover: zioColor("cardHover", surfaceContainer)
     readonly property color cardSelected: zioColor("cardSelected", primaryContainer)
-    readonly property color cardDisabled: surfaceContainerHigh
-    readonly property color borderColorDefault: outline
-    readonly property color borderColorHover: primary
-    readonly property color borderColorFocused: primary
-    readonly property color borderColorError: errorColor
+    readonly property color cardDisabled: zioColor("cardDisabled", surfaceContainerHigh)
+    readonly property color borderColorDefault: zioColor("borderColorDefault", outline)
+    readonly property color borderColorHover: zioColor("borderColorHover", primary)
+    readonly property color borderColorFocused: zioColor("borderColorFocused", primary)
+    readonly property color borderColorError: zioColor("borderColorError", errorColor)
     readonly property color buttonShadow: zioColor("buttonShadow", primaryHover)
     readonly property color buttonHighlight: zioColor("buttonHighlight", "transparent")
     property int unit: 8
@@ -209,9 +214,9 @@ QtObject {
     readonly property int compactDialogWidth: 420
     readonly property int fontDialogDescription: 18
     readonly property int fontPageDescription: 15
-    readonly property color runtimeBadge: darkMode ? primaryContainer : "#EFF4FC"
-    readonly property color runtimeBadgeText: darkMode ? primaryText : "#4D75A9"
-    readonly property color dangerAction: darkMode ? errorContainer : "#33FF0000"
+    readonly property color runtimeBadge: zioColor("runtimeBadge", darkMode ? primaryContainer : "#EFF4FC")
+    readonly property color runtimeBadgeText: zioColor("runtimeBadgeText", darkMode ? primaryText : "#4D75A9")
+    readonly property color dangerAction: zioColor("dangerAction", darkMode ? errorContainer : "#33FF0000")
     readonly property int pageHeaderHeight: 66
     readonly property int pageHeaderCompactHeight: 54
     readonly property int workspaceTitleSize: 36

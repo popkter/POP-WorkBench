@@ -49,7 +49,9 @@ Rectangle {
                 Layout.maximumWidth: Math.max(250, root.width * 0.46)
                 Layout.fillHeight: true
                 radius: Theme.radiusMedium
-                color: Theme.surfaceContainerLow
+                color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
+
                 border.width: 0
                 clip: true
 
@@ -73,7 +75,8 @@ Rectangle {
                         onTextChanged: if (root.searchQuery !== text) root.searchEdited(text)
                         background: Rectangle {
                             radius: Theme.radiusSmall
-                            color: Theme.surfaceContainer
+                            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                             border.color: presetSearch.activeFocus ? Theme.primary : "transparent"
                             border.width: presetSearch.activeFocus ? 1 : 0
                             MaterialIcon {
@@ -128,7 +131,8 @@ Rectangle {
                                     Layout.preferredWidth: 30
                                     Layout.preferredHeight: 30
                                     radius: Theme.radiusSmall
-                                    color: Theme.surface
+                                    color: Theme.glassMode ? "transparent" : Theme.surface
+                                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
                                     MaterialIcon { anchors.centerIn: parent; icon: toolRow.iconName || "terminal"; iconSize: 19; color: toolRow.selected ? Theme.primary : Theme.secondary }
                                 }
                                 ColumnLayout {

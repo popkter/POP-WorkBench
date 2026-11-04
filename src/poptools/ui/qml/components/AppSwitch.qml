@@ -13,11 +13,21 @@ Switch {
         color: control.checked ? Theme.primary : Theme.outline
         border.width: control.activeFocus ? 2 : 0
         border.color: Theme.textPrimary
+        GlassSurface {
+            anchors.fill: parent; cornerRadius: parent.radius; pressed: control.down
+            tintColor: control.checked ? Theme.primary : Theme.surfaceContainerHigh
+            minimumTintOpacity: 0.96
+        }
         Rectangle {
             width: 22; height: 22; radius: width / 2
             x: control.checked ? parent.width - width - 3 : 3
             anchors.verticalCenter: parent.verticalCenter
             color: Theme.primaryForeground
+            GlassSurface {
+                anchors.fill: parent; cornerRadius: parent.radius
+                tintColor: Theme.primaryForeground; pressed: control.down
+                minimumTintOpacity: 0.96
+            }
             Behavior on x { NumberAnimation { duration: Theme.motionFast } }
         }
     }

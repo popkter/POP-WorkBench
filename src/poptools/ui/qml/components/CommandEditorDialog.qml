@@ -319,7 +319,8 @@ AppDialog {
                             color: Theme.textPrimary
                             background: Rectangle {
                                 radius: Theme.radiusControl
-                                color: Theme.surfaceContainer
+                                color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                                 border.color: titleField.activeFocus || iconPopup.opened
                                               ? Theme.primary : Theme.outlineVariant
                                 border.width: titleField.activeFocus || iconPopup.opened ? 2 : 1
@@ -418,7 +419,8 @@ AppDialog {
                             leftPadding: 14
                             background: Rectangle {
                                 radius: Theme.radiusControl
-                                color: Theme.surfaceContainer
+                                color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                                 border.color: kindBox.activeFocus ? Theme.primary : Theme.outlineVariant
                                 border.width: kindBox.activeFocus ? 2 : 1
                             }
@@ -448,7 +450,8 @@ AppDialog {
                         color: Theme.textPrimary
                         background: Rectangle {
                             radius: Theme.radiusControl
-                            color: Theme.surfaceContainer
+                            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                             border.color: descriptionField.activeFocus ? Theme.primary : Theme.outlineVariant
                             border.width: descriptionField.activeFocus ? 2 : 1
                         }
@@ -477,7 +480,8 @@ AppDialog {
                         valueRole: "value"
                         background: Rectangle {
                             radius: Theme.radiusControl
-                            color: Theme.surfaceContainer
+                            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                             border.color: androidModeBox.activeFocus ? Theme.primary : Theme.outlineVariant
                             border.width: androidModeBox.activeFocus ? 2 : 1
                         }
@@ -498,7 +502,8 @@ AppDialog {
                     Layout.leftMargin: Theme.space24
                     Layout.rightMargin: Theme.space24
                     radius: Theme.radiusMedium
-                    color: Theme.surfaceContainerLow
+                    color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainerLow; z: -0.5 }
                     border.color: Theme.outlineVariant
                     border.width: 1
                     clip: true
@@ -578,7 +583,8 @@ AppDialog {
                     Layout.rightMargin: Theme.space24
                     Layout.preferredHeight: helperText.implicitHeight + 22
                     radius: Theme.radiusMedium
-                    color: Theme.surfaceContainer
+                    color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 13

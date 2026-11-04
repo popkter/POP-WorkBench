@@ -38,11 +38,19 @@ Item {
                     color: Theme.inputDefault
                     border.color: control.checked || control.activeFocus ? Theme.primary : Theme.outline
                     border.width: 2
+                    GlassSurface {
+                        anchors.fill: parent; cornerRadius: parent.radius
+                        tintColor: Theme.inputDefault; pressed: control.down
+                    }
                     Rectangle {
                         anchors.centerIn: parent
                         width: 12; height: 12; radius: 6
                         color: Theme.primary
                         visible: control.checked
+                        GlassSurface {
+                            anchors.fill: parent; cornerRadius: parent.radius
+                            tintColor: Theme.primary; minimumTintOpacity: 0.96
+                        }
                     }
                 }
                 contentItem: Text {

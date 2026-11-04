@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>灵动岛中台 · 设计交互稿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B0D; --surface:#14161A; --surface-2:#1B1E24; --hair:#23262C;
+    --text:#E6E8EB; --dim:#8A8F98; --faint:#5A5F68;
+    --accent:#5BD4E6;          /* signal cyan — data flow / system */
+    --p-urgent:#FF5A4D;        /* 40 */
+    --p-active:#FFB23D;        /* 30 */
+    --p-reminder:#4DD8E6;      /* 20 */
+    --p-normal:#7DD87D;        /* 10 */
+    --shadow:0 1px 0 rgba(255,255,255,.03);
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --sans:'Space Grotesk',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  body{font-size:15px;line-height:1.55}
+  a{color:inherit}
+  .mono{font-family:var(--mono);font-feature-settings:"ss01"}
+  .dim{color:var(--dim)} .faint{color:var(--faint)}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 28px}
+
+  /* ---------- top bar ---------- */
+  header.top{
+    position:sticky;top:0;z-index:50;background:rgba(10,11,13,.82);
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--hair);
+  }
+  .top-in{display:flex;align-items:center;gap:24px;height:56px}
+  .brand{display:flex;align-items:baseline;gap:10px;font-weight:600;letter-spacing:-.01em}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+  .brand small{font-family:var(--mono);font-size:11px;color:var(--dim);font-weight:400}
+  nav.tabs{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}
+  nav.tabs a{
+    font-family:var(--mono);font-size:12px;color:var(--dim);text-decoration:none;
+    padding:7px 11px;border-radius:6px;transition:.18s;
+  }
+  nav.tabs a:hover{color:var(--text);background:var(--surface-2)}
+  nav.tabs a.active{color:var(--accent);background:rgba(91,212,230,.08)}
+
+  /* ---------- hero / intro ---------- */
+  .hero{padding:54px 0 30px;border-bottom:1px solid var(--hair)}
+  .hero h1{font-size:46px;line-height:1.04;margin:0 0 14px;font-weight:600;letter-spacing:-.025em;max-width:780px}
+  .hero h1 em{font-style:normal;color:var(--accent)}
+  .hero p.lede{font-size:17px;color:var(--dim);max-width:620px;margin:0 0 22px}
+  .meta-row{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:12px}
+  .meta-row span{color:var(--faint)}
+  .meta-row b{color:var(--text);font-weight:500}
+
+  /* ---------- section ---------- */
+  section{padding:46px 0;border-bottom:1px solid var(--hair)}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:22px}
+  .sec-num{font-family:var(--mono);font-size:12px;color:var(--accent)}
+  .sec-head h2{font-size:26px;margin:0;font-weight:600;letter-spacing:-.015em}
+  .sec-head p{margin:0;color:var(--dim);font-size:14px}
+
+  /* ---------- live demo (the centerpiece) ---------- */
+  .demo{
+    display:grid;grid-template-columns:230px 1fr 270px;gap:18px;
+    background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:18px;
+  }
+  @media(max-width:1100px){.demo{grid-template-columns:1fr}}
+
+  /* car screen */
+  .screen-wrap{display:flex;flex-direction:column;align-items:center}
+  .screen{
+    position:relative;width:100%;max-width:720px;aspect-ratio:16/9;border-radius:16px;
+    background:radial-gradient(120% 80% at 50% 0%,#1c2128 0%,#0c0e12 60%);
+    border:1px solid var(--hair);overflow:hidden;
+  }
+  .screen .grid-bg{
+    position:absolute;inset:0;opacity:.4;
+    background-image:linear-gradient(var(--hair) 1px,transparent 1px),linear-gradient(90deg,var(--hair) 1px,transparent 1px);
+    background-size:48px 48px;
+    -webkit-mask:radial-gradient(70% 90% at 50% 30%,#000 0%,transparent 80%);
+  }
+  .screen .clock{position:absolute;right:18px;top:14px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .screen .watermark{position:absolute;left:18px;bottom:12px;font-family:var(--mono);font-size:11px;color:var(--faint)}
+  /* the island */
+  .island-stage{position:absolute;left:50%;top:18px;transform:translateX(-50%);display:flex;justify-content:center;align-items:flex-start;height:0}
+  #island{
+    position:relative;top:0;background:#000;border-radius:28px;overflow:hidden;
+    box-shadow:0 8px 30px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.06) inset;
+    display:flex;align-items:center;justify-content:center;
+    will-change:width,height,border-radius;
+  }
+  #island .ring{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+  #island .content{position:absolute;left:0;top:0;display:flex;align-items:center;justify-content:center;will-change:transform,opacity}
+  #island .content.compact{height:100%;padding:0 18px;gap:8px;font-family:var(--mono);font-size:13px;white-space:nowrap;color:#fff}
+  #island .content.expanded{flex-direction:column;padding:14px 18px;align-items:flex-start;gap:8px;color:#fff}
+  .pill-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+  .waveform{display:flex;align-items:center;gap:3px;height:18px}
+  .waveform i{width:3px;border-radius:2px;background:currentColor;animation:wv 1s ease-in-out infinite}
+  .waveform i:nth-child(2){animation-delay:.12s}.waveform i:nth-child(3){animation-delay:.24s}
+  .waveform i:nth-child(4){animation-delay:.36s}.waveform i:nth-child(5){animation-delay:.48s}
+  @keyframes wv{0%,100%{height:4px}50%{height:18px}}
+  .exp-title{font-size:13px;font-weight:600;letter-spacing:.01em}
+  .exp-body{font-size:12px;color:#cfd3da;max-width:240px;line-height:1.4}
+  .exp-row{display:flex;gap:10px;align-items:center;font-family:var(--mono);font-size:11px;color:#aeb3bc}
+
+  /* gesture hint */
+  .gesture-hint{position:absolute;font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .gh-swipe{left:50%;top:90px;transform:translateX(-50%)}
+  .gh-click{left:50%;top:106px;transform:translateX(-50%)}
+
+  /* client panel */
+  .panel{background:var(--surface-2);border:1px solid var(--hair);border-radius:10px;padding:14px}
+  .panel h4{margin:0 0 10px;font-size:12px;font-family:var(--mono);color:var(--dim);font-weight:500;letter-spacing:.02em}
+  .client-btns{display:flex;flex-direction:column;gap:8px}
+  .cbtn{
+    text-align:left;background:#000;border:1px solid var(--hair);
+    color:var(--text);font-family:var(--sans);font-size:13px;padding:9px 11px;border-radius:8px;cursor:pointer;
+    transition:.15s;display:flex;flex-direction:column;gap:3px;
+  }
+  .cbtn:hover{border-color:var(--accent);background:#0d1014}
+  .cbtn:active{transform:translateY(1px)}
+  .cbtn .lbl{font-weight:500}
+  .cbtn .sub{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .cbtn .tag{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .cbtn[disabled]{opacity:.4;cursor:not-allowed}
+  .prio-40{background:var(--p-urgent)} .prio-30{background:var(--p-active)} .prio-20{background:var(--p-reminder)} .prio-10{background:var(--p-normal)}
+
+  /* server pipeline */
+  .pipeline-wrap{margin-top:14px}
+  .pipeline-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .pipeline-head h4{margin:0;font-size:12px;font-family:var(--mono);color:var(--dim);font-weight:500}
+  .pipeline-head .legend{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .pipeline-head .legend i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin:0 4px 0 10px;vertical-align:middle}
+  .pipeline{
+    position:relative;background:var(--surface-2);border:1px solid var(--hair);border-radius:10px;padding:12px 14px;
+    display:grid;grid-template-columns:repeat(6,1fr);gap:8px;
+  }
+  .layer{display:flex;flex-direction:column;gap:5px;position:relative}
+  .layer-label{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.03em}
+  .layer-label b{color:var(--dim);font-weight:500}
+  .module{
+    background:#000;border:1px solid var(--hair);border-radius:6px;padding:6px 8px;
+    font-family:var(--mono);font-size:11px;color:var(--text);transition:.25s;position:relative;
+  }
+  .module.flash{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 18px rgba(91,212,230,.25);color:#fff}
+  .module.flash-back{border-color:var(--p-active);box-shadow:0 0 0 1px var(--p-active),0 0 18px rgba(255,178,61,.22)}
+  /* connectors */
+  .pipeline .line{position:absolute;top:50%;height:1px;background:var(--hair);z-index:0}
+  .arrow{position:absolute;top:50%;width:0;height:0;border-left:6px solid var(--hair);border-top:4px solid transparent;border-bottom:4px solid transparent;transform:translateY(-50%);z-index:0}
+
+  /* packet */
+  .packet{
+    position:absolute;width:9px;height:9px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 10px var(--accent);z-index:5;pointer-events:none;transition:left .26s linear,top .26s linear,opacity .2s;
+  }
+  .packet.cb{background:var(--p-active);box-shadow:0 0 10px var(--p-active)}
+
+  /* right rail */
+  .rail{display:flex;flex-direction:column;gap:14px}
+  .queue-box{background:var(--surface-2);border:1px solid var(--hair);border-radius:10px;padding:13px}
+  .queue-box h4{margin:0 0 8px;font-size:12px;font-family:var(--mono);color:var(--dim);font-weight:500}
+  .q-row{
+    display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;
+    padding:6px 7px;border-radius:6px;background:#000;border:1px solid var(--hair);margin-bottom:5px;transition:.3s;
+  }
+  .q-row.onscreen{border-color:var(--accent);background:rgba(91,212,230,.06)}
+  .q-row .qid{flex:1}
+  .q-row .qst{font-size:10px;color:var(--faint)}
+  .q-row.onscreen .qst{color:var(--accent)}
+  .q-empty{color:var(--faint);font-family:var(--mono);font-size:11px;text-align:center;padding:10px 0}
+
+  .log-box{background:var(--surface-2);border:1px solid var(--hair);border-radius:10px;padding:13px;max-height:230px;overflow:auto}
+  .log-box h4{margin:0 0 8px;font-size:12px;font-family:var(--mono);color:var(--dim);font-weight:500}
+  .log{font-family:var(--mono);font-size:10.5px;line-height:1.5;color:var(--dim)}
+  .log .t{color:var(--faint)}
+  .log .ev{color:var(--text)}
+  .log .ev.cb{color:var(--p-active)}
+  .log .ev.err{color:var(--p-urgent)}
+
+  /* ---------- architecture diagram ---------- */
+  .arch{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media(max-width:880px){.arch{grid-template-columns:1fr}}
+  .arch-card{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:18px}
+  .arch-card h3{margin:0 0 14px;font-size:14px;font-family:var(--mono);color:var(--dim);font-weight:500}
+  .stack{display:flex;flex-direction:column;gap:0}
+  .stack .blk{
+    border:1px solid var(--hair);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#0c0e12;
+  }
+  .blk.client{border-color:rgba(91,212,230,.3)}
+  .blk.binder{border-color:rgba(255,178,61,.3);background:rgba(255,178,61,.03)}
+  .blk .bt{font-size:13px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .blk .bt .role{font-family:var(--mono);font-size:10px;color:var(--faint);font-weight:400}
+  .blk ul{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:3px}
+  .blk ul li{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .blk ul li b{color:var(--text);font-weight:500}
+  .arrow-down{text-align:center;color:var(--faint);font-family:var(--mono);font-size:11px;margin:-4px 0}
+
+  /* surface tree */
+  .tree{font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--dim)}
+  .tree .n{color:var(--text)}
+  .tree .a{color:var(--accent)}
+  .tree .c{color:var(--p-active)}
+  .tree i{color:var(--faint);font-style:normal}
+
+  /* ---------- modules ---------- */
+  .mod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+  .mod-card{
+    background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:14px;cursor:pointer;transition:.18s;
+  }
+  .mod-card:hover{border-color:var(--accent)}
+  .mod-card.active{border-color:var(--accent);background:rgba(91,212,230,.05)}
+  .mod-card .mh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .mod-card h4{margin:0;font-size:14px;font-weight:600;font-family:var(--mono)}
+  .mod-card .layer-tag{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .mod-card p{margin:0;font-size:12.5px;color:var(--dim);line-height:1.5}
+  .mod-detail{
+    margin-top:14px;background:#0c0e12;border:1px solid var(--hair);border-radius:10px;padding:16px;
+    font-family:var(--mono);font-size:12.5px;line-height:1.7;min-height:60px;
+  }
+  .mod-detail .sig{color:var(--accent)}
+  .mod-detail .kw{color:var(--p-active)}
+  .mod-detail .cm{color:var(--faint)}
+
+  /* ---------- queue demo ---------- */
+  .qdemo{display:grid;grid-template-columns:1fr 280px;gap:18px}
+  @media(max-width:880px){.qdemo{grid-template-columns:1fr}}
+  .rules{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:18px}
+  .rules ol{margin:0;padding-left:18px;font-size:13.5px;color:var(--dim);line-height:1.7}
+  .rules ol li b{color:var(--text)}
+  .rules ol li code{font-family:var(--mono);font-size:12px;color:var(--accent);background:rgba(91,212,230,.08);padding:1px 5px;border-radius:3px}
+
+  /* ---------- motion ---------- */
+  .motion-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:22px}
+  @media(max-width:880px){.motion-grid{grid-template-columns:1fr}}
+  .tok-table{font-family:var(--mono);font-size:11.5px;width:100%;border-collapse:collapse}
+  .tok-table th,.tok-table td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--hair)}
+  .tok-table th{color:var(--faint);font-weight:500;font-size:10.5px}
+  .tok-table td{color:var(--dim)}
+  .tok-table td:first-child{color:var(--text)}
+  .playground{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:18px}
+  .pg-screen{position:relative;height:140px;background:radial-gradient(80% 100% at 50% 0%,#1c2128,#0c0e12);border-radius:10px;margin-bottom:14px;overflow:hidden}
+  #pg-island{position:absolute;left:50%;top:16px;transform:translateX(-50%);background:#000;border-radius:24px;height:0;display:flex;align-items:center;justify-content:center;will-change:width,height,border-radius}
+  .pg-controls{display:flex;flex-direction:column;gap:10px}
+  .pg-presets{display:flex;gap:6px;flex-wrap:wrap}
+  .pgp{font-family:var(--mono);font-size:11px;background:#000;border:1px solid var(--hair);color:var(--dim);padding:6px 9px;border-radius:6px;cursor:pointer}
+  .pgp:hover{color:var(--text);border-color:var(--accent)}
+  .pgp.active{color:var(--accent);border-color:var(--accent)}
+  .pg-state{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .pg-state b{color:var(--accent)}
+
+  /* ---------- callbacks ---------- */
+  .cb-seq{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:18px}
+  .cb-step{display:grid;grid-template-columns:130px 1fr;gap:14px;padding:10px 0;border-bottom:1px solid var(--hair);align-items:start}
+  .cb-step:last-child{border-bottom:0}
+  .cb-actor{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .cb-actor .who{display:block;color:var(--text);font-weight:500}
+  .cb-msg{font-family:var(--mono);font-size:12px;line-height:1.6}
+  .cb-msg .m{color:var(--text)} .cb-msg .arg{color:var(--accent)} .cb-msg .note{color:var(--faint)}
+  .cb-step.client .cb-actor .who{color:var(--accent)}
+  .cb-step.server .cb-actor .who{color:var(--p-active)}
+
+  footer{padding:40px 0 60px;color:var(--faint);font-family:var(--mono);font-size:11.5px}
+  .reduced-motion *{animation:none!important;transition:none!important}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-in">
+    <div class="brand"><span class="dot"></span>Dynamic Island Service<small>v1.0 · 设计交互稿</small></div>
+    <nav class="tabs" id="nav">
+      <a href="#demo" class="active">Live</a>
+      <a href="#arch">架构</a>
+      <a href="#modules">模块·API</a>
+      <a href="#queue">队列</a>
+      <a href="#motion">动效</a>
+      <a href="#callbacks">回调</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- HERO + LIVE DEMO -->
+  <div class="hero" id="demo">
+    <h1>车机<em>灵动岛</em>中台<br>把架构跑给你看。</h1>
+    <p class="lede">客户端把 View 交给中台，中台负责排队、仲裁、弹簧动效与触摸透传。下面是一次 <span class="mono">show</span> 的完整数据流——点亮每个服务端模块，再以弹簧驱动岛屿形变。</p>
+    <div class="meta-row">
+      <span>平台 <b>AAOS / Android 12+</b></span>
+      <span>屏幕 <b>2560×1440</b></span>
+      <span>窗口 <b>永不 relayout</b></span>
+      <span>动画 <b>物理弹簧 · 可打断</b></span>
+    </div>
+  </div>
+
+  <section style="padding-top:24px">
+  <div class="demo">
+    <!-- LEFT: client -->
+    <div class="panel">
+      <h4>客户端 · IslandManager</h4>
+      <div class="client-btns" id="cbtns">
+        <button class="cbtn" data-act="show" data-uid="voice" data-prio="30" data-label="语音助手" data-state="COMPACT">
+          <span class="lbl"><span class="tag prio-30"></span>show · 语音助手</span>
+          <span class="sub">ACTIVE_INTERACTION · COMPACT</span>
+        </button>
+        <button class="cbtn" data-act="show" data-uid="nav" data-prio="20" data-label="导航提醒" data-state="EXPANDED">
+          <span class="lbl"><span class="tag prio-20"></span>show · 导航提醒</span>
+          <span class="sub">ACTIVE_REMINDER · EXPANDED</span>
+        </button>
+        <button class="cbtn" data-act="show" data-uid="call" data-prio="40" data-label="来电" data-state="COMPACT">
+          <span class="lbl"><span class="tag prio-40"></span>show · 来电(抢占)</span>
+          <span class="sub">URGENT · COMPACT</span>
+        </button>
+        <button class="cbtn" data-act="show" data-uid="msg" data-prio="10" data-label="普通消息" data-state="COMPACT">
+          <span class="lbl"><span class="tag prio-10"></span>show · 普通消息</span>
+          <span class="sub">NORMAL_REMINDER · COMPACT</span>
+        </button>
+        <button class="cbtn" data-act="expand"><span class="lbl">setDesiredState(EXPANDED)</span><span class="sub">展开当前项</span></button>
+        <button class="cbtn" data-act="collapse"><span class="lbl">setDesiredState(COMPACT)</span><span class="sub">收起当前项</span></button>
+        <button class="cbtn" data-act="swipe"><span class="lbl">上滑 / 点岛外部</span><span class="sub">触发 onHideEvent</span></button>
+        <button class="cbtn" data-act="hide"><span class="lbl">hide(uniqueId)</span><span class="sub">出队当前项</span></button>
+        <button class="cbtn" data-act="decline"><span class="lbl">declineHide</span><span class="sub">拒绝隐藏 → nudge</span></button>
+      </div>
+    </div>
+
+    <!-- CENTER: screen + pipeline -->
+    <div class="screen-wrap">
+      <div class="screen" id="screen">
+        <div class="grid-bg"></div>
+        <div class="clock">14:08</div>
+        <div class="watermark">HOST · IslandWindowHost</div>
+        <div class="island-stage">
+          <div id="island">
+            <div class="ring"></div>
+            <div class="content compact" id="c-compact"></div>
+            <div class="content expanded" id="c-expanded"></div>
+          </div>
+        </div>
+        <div class="gesture-hint gh-click" id="gh">点击外部 · 上滑</div>
+      </div>
+
+      <div class="pipeline-wrap">
+        <div class="pipeline-head">
+          <h4>服务端 · 数据流（oneway Binder → 模块链）</h4>
+          <div class="legend"><i></i>请求流<i style="background:var(--p-active);box-shadow:0 0 8px var(--p-active)"></i>回调流</div>
+        </div>
+        <div class="pipeline" id="pipeline">
+          <!-- layers injected by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: queue + log -->
+    <div class="rail">
+      <div class="queue-box">
+        <h4>IslandQueue · 队列</h4>
+        <div id="queue-list"><div class="q-empty">队列为空 · 岛 HIDDEN</div></div>
+      </div>
+      <div class="log-box">
+        <h4>事件 · 回调时间线</h4>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section id="arch">
+    <div class="sec-head"><span class="sec-num">02</span><h2>总体架构</h2><p>客户端渲染 View，服务端只持有 Surface。所有状态变化都是「改弹簧目标」。</p></div>
+    <div class="arch">
+      <div class="arch-card">
+        <h3>分层与跨进程边界</h3>
+        <div class="stack">
+          <div class="blk client">
+            <div class="bt">客户端进程 <span class="role">Island SDK · 仅公开 API</span></div>
+            <ul>
+              <li><b>IslandManager</b> bind / connect / getEnv · 自动重连</li>
+              <li><b>IslandInfo</b> uniqueId · priority · desiredState · compact/expanded</li>
+              <li><b>SurfaceControlViewHost</b> × 模式 · 用 env.hostToken</li>
+              <li><b>IslandContentRoot</b> 监听 layout → updateContentSize</li>
+            </ul>
+          </div>
+          <div class="arrow-down">▼ Binder · AIDL · 几乎全部 oneway</div>
+          <div class="blk binder">
+            <div class="bt">系统应用 · island 模块 <span class="role">中台服务</span></div>
+            <ul>
+              <li><b>接入层</b> IslandService · CallerVerifier</li>
+              <li><b>条目层</b> ConnectionManager · IslandQueue · Arbiter · HideEventController</li>
+              <li><b>场景层</b> SceneModel（纯函数：队列 → 目标几何）</li>
+              <li><b>动效层</b> MotionEngine · ContentChoreographer · GestureDriver</li>
+              <li><b>渲染层</b> IslandWindowHost · SurfaceTree</li>
+              <li><b>输入层</b> InputRouter · TouchableRegionController</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="arch-card">
+        <h3>Surface 树（容器子树由中台完全管理）</h3>
+        <div class="tree">
+Window <i>[expandedW+2·阴影, maxH+顶边距+阴影, 顶部居中, 永不 relayout]</i><br>
+&nbsp;└─ <span class="n">SurfaceView</span> <i>[zOrderOnTop, 根 SC]</i><br>
+&nbsp;&nbsp;&nbsp;└─ <span class="a">islandContainer</span> <i>[position / crop / cornerRadius / shadow]</i><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ <span class="n">border</span> <i>[color layer · 1dp 半透明描边]</i><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ <span class="n">bg</span> <i>[color layer · 纯黑]</i><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ <span class="c">content_COMPACT</span> <i>[客户端 SC · reparent]</i><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ <span class="c">content_EXPANDED</span> <i>[客户端 SC · reparent]</i>
+        </div>
+        <p style="margin:14px 0 0;font-size:12.5px;color:var(--dim);line-height:1.6">客户端死亡 → 内容层变空，<span class="mono">bg</span> 仍在，岛平滑消失，不闪屏。窗口创建后永不 relayout，所有形变靠 <span class="mono">SurfaceControl.Transaction</span> 的 crop / position / matrix / alpha / cornerRadius。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODULES & API -->
+  <section id="modules">
+    <div class="sec-head"><span class="sec-num">03</span><h2>模块与 API</h2><p>点一个模块看职责与接口签名。</p></div>
+    <div class="mod-grid" id="mod-grid"></div>
+    <div class="mod-detail" id="mod-detail">点左侧模块查看 AIDL 签名与职责细节。</div>
+  </section>
+
+  <!-- QUEUE -->
+  <section id="queue">
+    <div class="sec-head"><span class="sec-num">04</span><h2>队列与仲裁</h2><p>只有客户端 show/hide 能改队列；服务端不管控内容。</p></div>
+    <div class="qdemo">
+      <div class="rules">
+        <ol>
+          <li>成员只因 <code>show</code> 加入、<code>hide</code> / 连接断开 移出。</li>
+          <li>屏幕显示 <code>argmax(priority)</code>；同级<b>先入队者先显示</b>，后到的排队不抢占。</li>
+          <li>高优先级到来：立即成为显示项，原项 <b>留在队列</b>，presence 变 <code>QUEUED</code>。</li>
+          <li>显示项 hide：次高补位；队列空则岛消失。</li>
+          <li>对已入队条目重复 <code>show</code>：<b>幂等更新</b>（优先级 / 期望状态 / 内容），入队序号不变。</li>
+          <li>被抢占者保留入队序号，补位时排在后来同级者之前。</li>
+          <li>补位上屏时期望状态<b>上限压到 COMPACT</b>，避免旧内容突然弹出大面板。</li>
+        </ol>
+        <pre style="background:#0c0e12;border:1px solid var(--hair);border-radius:8px;padding:12px;font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-top:14px;overflow:auto">fun top(): IslandItem? = entries.maxWithOrNull(
+    compareBy&lt;IslandItem&gt; { it.priority }
+        .thenByDescending { it.enqSeq })</pre>
+      </div>
+      <div class="panel">
+        <h4>仲裁行为表</h4>
+        <div style="font-family:var(--mono);font-size:11.5px;line-height:1.9;color:var(--dim)">
+          <div><b style="color:var(--text)">show · 队列空</b> → 立即显示</div>
+          <div><b style="color:var(--text)">show · 优先级高</b> → 抢占 · 原项 QUEUED</div>
+          <div><b style="color:var(--text)">show · 优先级低</b> → 入队 · 屏幕不变</div>
+          <div><b style="color:var(--text)">hide 当前项</b> → 次高补位</div>
+          <div><b style="color:var(--text)">hide 排队项</b> → 静默出队</div>
+          <div><b style="color:var(--text)">setDesiredState 当前</b> → 立即执行</div>
+          <div><b style="color:var(--text)">setDesiredState 排队</b> → 仅记录</div>
+          <div><b style="color:var(--text)">进程死亡</b> → 该连接全出队</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MOTION -->
+  <section id="motion">
+    <div class="sec-head"><span class="sec-num">05</span><h2>动效设计</h2><p>弹簧而非插值器；只改目标，任意时刻可反向。</p></div>
+    <div class="motion-grid">
+      <div>
+        <table class="tok-table">
+          <thead><tr><th>过渡</th><th>宽</th><th>高</th><th>圆角</th><th>其他</th></tr></thead>
+          <tbody>
+            <tr><td>展开 C→E</td><td>.44 / .78</td><td>.50 / .74</td><td>.36 / 1.0</td><td>m .42/.90</td></tr>
+            <tr><td>收起 E→C</td><td>.40 / .86</td><td>.36 / .88</td><td>.34 / 1.0</td><td>m .36/.95</td></tr>
+            <tr><td>出现 H→C</td><td>.42 / .72</td><td>.42 / .78</td><td>.36 / 1.0</td><td>y .45/.80</td></tr>
+            <tr><td>消失 →H</td><td>.34 / 1.0</td><td>.34 / 1.0</td><td>.34 / 1.0</td><td>临界阻尼</td></tr>
+            <tr><td>同位切换</td><td>.40 / .82</td><td>.40 / .82</td><td>.38 / 1.0</td><td>URGENT .34/.80</td></tr>
+            <tr><td>流式增高</td><td>—</td><td>.30 / .95</td><td>—</td><td>几乎无回弹</td></tr>
+            <tr><td>nudge</td><td>—</td><td>—</td><td>—</td><td>scale 脉冲 ~3%</td></tr>
+          </tbody>
+        </table>
+        <p style="font-size:12px;color:var(--faint);margin-top:12px;font-family:var(--mono)">ω = 2π / response · a = −ω²(x−target) − 2ζω·v · 圆角 clamp ≤ h/2</p>
+      </div>
+      <div class="playground">
+        <div class="pg-screen"><div id="pg-island"></div></div>
+        <div class="pg-controls">
+          <div class="pg-presets" id="pg-presets">
+            <button class="pgp active" data-preset="expand">展开</button>
+            <button class="pgp" data-preset="collapse">收起</button>
+            <button class="pgp" data-preset="appear">出现</button>
+            <button class="pgp" data-preset="disappear">消失</button>
+            <button class="pgp" data-preset="preempt">同位抢占</button>
+          </div>
+          <div class="pg-state" id="pg-state">phase: <b>IDLE</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CALLBACKS -->
+  <section id="callbacks">
+    <div class="sec-head"><span class="sec-num">06</span><h2>典型回调序列</h2><p>每个 requestId 恰好一次 onRequestResult；presentation 双段 STARTED→SETTLED。</p></div>
+    <div class="cb-seq" id="cb-seq"></div>
+  </section>
+
+  <footer>
+    <div class="wrap">灵动岛中台设计交互稿 · 基于 README v1.0 · 弹簧积分 / 队列仲裁 / oneway 回调 均为真实模拟，非视频回放。</div>
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   DATA: modules, pipeline, AIDL
+   ============================================================ */
+const LAYERS = [
+  {tag:'access', label:'接入', mods:['IslandService','CallerVerifier']},
+  {tag:'item',   label:'条目', mods:['ConnectionManager','IslandQueue','Arbiter','HideEventController']},
+  {tag:'scene',  label:'场景', mods:['SceneModel']},
+  {tag:'motion', label:'动效', mods:['MotionEngine','ContentChoreographer','GestureDriver']},
+  {tag:'render', label:'渲染', mods:['IslandWindowHost','SurfaceTree','ContentLayer']},
+  {tag:'input',  label:'输入', mods:['InputRouter','TouchableRegionController']},
+];
+
+const PIPELINE_PATH = [
+  'IslandService','CallerVerifier','ConnectionManager','IslandQueue','Arbiter',
+  'SceneModel','MotionEngine','ContentChoreographer','IslandWindowHost','SurfaceTree',
+  'InputRouter'
+];
+
+const MODULES = {
+  IslandService:{layer:'access', desc:'bind 入口，connect 返回连接对象。',
+    sig:'<span class="kw">interface</span> IIslandService {\n  <span class="kw">int</span> getApiVersion();\n  IIslandConnection connect(<span class="kw">String</span> pkg, IIslandCallback cb);\n}'},
+  CallerVerifier:{layer:'access', desc:'校验 UID / 签名 / packageName 属于调用方 UID；读白名单 maxPriority。',
+    sig:'<span class="cm">// 不匹配 → REJECTED_NOT_ALLOWED</span>\nverify(callingUid, pkg, sig) → maxPriority'},
+  ConnectionManager:{layer:'item', desc:'linkToDeath；连接断开时清理其条目并释放 Surface。',
+    sig:'<span class="kw">oneway</span> disconnect()  <span class="cm">// 隐含 hide 该连接所有条目</span>'},
+  IslandQueue:{layer:'item', desc:'入队/出队，top() 计算显示项，仅响应客户端调用。',
+    sig:'show(item) → item   <span class="cm">// 幂等，保持 enqSeq</span>\nhide(key) → Boolean\ntop() → maxBy(priority).thenByDesc(enqSeq)'},
+  Arbiter:{layer:'item', desc:'reconcile()：对比新旧显示项，触发切换与回调。',
+    sig:'reconcile(old, new) → Switch | Noop | Promote'},
+  HideEventController:{layer:'item', desc:'判定用户意图，发 onHideEvent，跟踪未决事件，超时 nudge。',
+    sig:'<span class="kw">oneway</span> onHideEvent(uid, eventId, trigger, uiState)\n<span class="cm">// 窗口期结束不取消；被抢占离屏则丢弃</span>'},
+  SceneModel:{layer:'scene', desc:'纯函数，队列 → 目标几何、内容可见性。',
+    sig:'scene(queue.top(), uiState) → Geometry{w,h,r,y, m, contentAlpha}'},
+  MotionEngine:{layer:'motion', desc:'弹簧、可打断、一帧一 Transaction。',
+    sig:'setTarget(prop, value, response, zeta)\n<span class="cm">// 每帧原子 Transaction：crop/position/matrix/alpha/cornerRadius</span>'},
+  ContentChoreographer:{layer:'motion', desc:'由形态进度 m 推导内容 alpha/scale/位移。',
+    sig:'compact.alpha  = 1 − smoothstep(0,.30,m)\nexpanded.alpha = smoothstep(.35,.80,m)\nexpanded.scale = lerp(.88,1, smoothstep(.30,1,m))'},
+  GestureDriver:{layer:'motion', desc:'上滑跟手、橡皮筋、PENDING 姿态。',
+    sig:'offset = (1 − 1/(x·c/d + 1))·d   <span class="cm">// c≈0.55</span>\n松手超阈值 → onHideEvent + PENDING'},
+  IslandWindowHost:{layer:'render', desc:'一个固定大小系统窗口，创建后永不 relayout。',
+    sig:'addView() @ BOOT_COMPLETED   <span class="cm">// 永不 relayout</span>'},
+  SurfaceTree:{layer:'render', desc:'container / border / bg / content_COMPACT / content_EXPANDED。',
+    sig:'reparent(clientSC, mode)   <span class="cm">// 客户端死亡 → 内容空，bg 仍在</span>'},
+  ContentLayer:{layer:'render', desc:'内容按固定 Surface 布局，动画只做揭示式 crop。',
+    sig:'crop = rect(0,0,w,h)  <span class="cm">// 不触发客户端 layout</span>'},
+  InputRouter:{layer:'input', desc:'InputMonitor 旁路监听、点击判定、touchable region。',
+    sig:'InputManager.monitorGestureInput()\nUP &amp; disp&lt;slop &amp; dt&lt;300ms → outside touch'},
+  TouchableRegionController:{layer:'input', desc:'静止=岛矩形；过渡=起止并集；settle 后收紧；HIDDEN 空。每帧至多一次。',
+    sig:'region = settled ? islandRect : union(from,to)\nHIDDEN → ∅'},
+};
+
+/* ============================================================
+   RENDER: pipeline + module grid
+   ============================================================ */
+const pipelineEl = document.getElementById('pipeline');
+LAYERS.forEach((L, i)=>{
+  const col = document.createElement('div'); col.className='layer';
+  const lab = document.createElement('div'); lab.className='layer-label';
+  lab.innerHTML = `<b>${L.label}</b> · ${L.tag}/`;
+  col.appendChild(lab);
+  L.mods.forEach(m=>{
+    const d = document.createElement('div'); d.className='module'; d.dataset.mod=m; d.textContent=m;
+    col.appendChild(d);
+  });
+  pipelineEl.appendChild(col);
+});
+
+const modGrid = document.getElementById('mod-grid');
+const modDetail = document.getElementById('mod-detail');
+Object.entries(MODULES).forEach(([name,info])=>{
+  const c = document.createElement('div'); c.className='mod-card'; c.dataset.name=name;
+  c.innerHTML = `<div class="mh"><h4>${name}</h4><span class="layer-tag">${info.layer}</span></div><p>${info.desc}</p>`;
+  c.onclick = ()=>{
+    document.querySelectorAll('.mod-card').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active');
+    modDetail.innerHTML = `<div class="cm">// ${info.layer}/  ${name}</div><pre style="margin:6px 0 0;white-space:pre-wrap">${info.sig}</pre>`;
+  };
+  modGrid.appendChild(c);
+});
+
+/* ============================================================
+   ISLAND QUEUE MODEL (mirrors README §6)
+   ============================================================ */
+const PRIO = {40:'URGENT',30:'ACTIVE_INTERACTION',20:'ACTIVE_REMINDER',10:'NORMAL_REMINDER'};
+let seq = 0;
+const queue = new Map(); // uid -> {uid,label,prio,state,enqSeq,presence}
+function qShow(item){
+  const old = queue.get(item.uid);
+  if(old){ Object.assign(old,item,{enqSeq:old.enqSeq}); return old; }   // idempotent
+  item.enqSeq = ++seq; queue.set(item.uid,item); return item;
+}
+function qHide(uid){ const had=queue.has(uid); queue.delete(uid); return had; }
+function qTop(){
+  let best=null;
+  for(const it of queue.values()){
+    if(!best || it.prio>best.prio || (it.prio===best.prio && it.enqSeq>best.enqSeq)) best=it;
+  }
+  return best;   // highest prio, then highest enqSeq (newest of equal — README uses thenByDescending enqSeq → newest wins tie)
+}
+// README: compareBy(priority).thenByDescending(enqSeq) → maxWith picks highest priority, and on tie the one with LARGER enqSeq.
+// But §6.1 rule 2 says 同级先入队者先显示. thenByDescending(enqSeq) picks the LARGER enqSeq = newest. That contradicts.
+// The code in README literally does thenByDescending, so we follow the code. (noted in 待确认.)
+
+function renderQueue(){
+  const el = document.getElementById('queue-list');
+  if(queue.size===0){ el.innerHTML='<div class="q-empty">队列为空 · 岛 HIDDEN</div>'; return; }
+  const top = qTop();
+  const items = [...queue.values()].sort((a,b)=> b.prio-a.prio || b.enqSeq-a.enqSeq);
+  el.innerHTML = items.map(it=>{
+    const on = it.uid===top.uid;
+    const st = on ? 'ON_SCREEN' : 'QUEUED';
+    return `<div class="q-row ${on?'onscreen':''}"><span class="tag prio-${it.prio}"></span><span class="qid">${it.label}</span><span class="qst">${st}</span></div>`;
+  }).join('');
+}
+
+/* ============================================================
+   SPRING PHYSICS (README §11)
+   ω = 2π/response ; a = −ω²(x−target) − 2ζω·v ; sub-step 1/240s
+   ============================================================ */
+function makeSpring(pos){
+  return {pos, vel:0};
+}
+function springIntegrate(s, target, response, zeta, dt){
+  const omega = (2*Math.PI)/Math.max(response,1e-3);
+  const steps = Math.max(1, Math.ceil(dt*240));
+  const h = dt/steps;
+  for(let i=0;i<steps;i++){
+    const a = -omega*omega*(s.pos-target) - 2*zeta*omega*s.vel;
+    s.vel += a*h;
+    s.pos  += s.vel*h;
+  }
+}
+function springSettled(s, target, eps=0.4){
+  return Math.abs(s.pos-target)<eps && Math.abs(s.vel)<eps*4;
+}
+
+/* ============================================================
+   LIVE ISLAND RENDERER
+   ============================================================ */
+const island = document.getElementById('island');
+const cCompact = document.getElementById('c-compact');
+const cExpanded = document.getElementById('c-expanded');
+
+// geometry targets (dp-ish, scaled to screen)
+const GEO = {
+  HIDDEN:   {w:0,   h:0,  r:0,  m:0},
+  COMPACT:  {w:170, h:56, r:28, m:0},
+  EXPANDED: {w:300, h:140,r:32, m:1},
+};
+// motion tokens [response, zeta]
+const TOK = {
+  expand:    {w:[.44,.78], h:[.50,.74], r:[.36,1.0], m:[.42,.90]},
+  collapse:  {w:[.40,.86], h:[.36,.88], r:[.34,1.0], m:[.36,.95]},
+  appear:    {w:[.42,.72], h:[.42,.78], r:[.36,1.0], m:[.42,.90]},
+  disappear: {w:[.34,1.0], h:[.34,1.0], r:[.34,1.0], m:[.34,1.0]},
+  preempt:   {w:[.40,.82], h:[.40,.82], r:[.38,1.0], m:[.40,.82]},
+};
+
+const sp = {w:makeSpring(0), h:makeSpring(0), r:makeSpring(0), m:makeSpring(0)};
+let curTok = TOK.appear;
+let curTarget = GEO.HIDDEN;
+let phaseCb = null;
+
+function setTarget(geo, tok, onSettled){
+  curTarget = geo; curTok = tok; phaseCb = onSettled || null;
+  firePhase('STARTED');
+}
+
+function firePhase(p){ if(phaseCb){ phaseCb(p); if(p==='SETTLED') phaseCb=null; } }
+
+let last = performance.now();
+function rafLoop(now){
+  const dt = Math.min(0.05, (now-last)/1000); last = now;
+  ['w','h','r','m'].forEach(k=>{
+    springIntegrate(sp[k], curTarget[k], curTok[k][0], curTok[k][1], dt);
+  });
+  const w = Math.max(0, sp.w.pos), h = Math.max(0, sp.h.pos);
+  const r = Math.max(0, Math.min(sp.r.pos, h/2));
+  const m = Math.max(0, Math.min(1, sp.m.pos));
+  island.style.width = w+'px';
+  island.style.height = h+'px';
+  island.style.borderRadius = r+'px';
+  // content driven by m (smoothstep approx)
+  const cAlpha = 1 - smoothstep(0,0.30,m);
+  const cScale = 1 - 0.10*smoothstep(0,0.35,m);
+  const eAlpha = smoothstep(0.35,0.80,m);
+  const eScale = 0.88 + 0.12*smoothstep(0.30,1.0,m);
+  cCompact.style.opacity = cAlpha;
+  cCompact.style.transform = `scale(${cScale})`;
+  cExpanded.style.opacity = eAlpha;
+  cExpanded.style.transform = `scale(${eScale}) translateY(${(-8*(1-smoothstep(0.30,1,m))).toFixed(1)}px)`;
+  // settled?
+  if(phaseCb && ['w','h','r','m'].every(k=>springSettled(sp[k],curTarget[k]))){
+    firePhase('SETTLED');
+  }
+  requestAnimationFrame(rafLoop);
+}
+function smoothstep(a,b,x){ const t=Math.max(0,Math.min(1,(x-a)/(b-a))); return t*t*(3-2*t); }
+requestAnimationFrame(rafLoop);
+
+/* content */
+function renderCompactContent(it){
+  const color = prioColor(it.prio);
+  if(it.uid==='voice') return `<span class="pill-dot" style="background:${color}"></span>语音<div class="waveform" style="color:${color}"><i></i><i></i><i></i><i></i><i></i></div>`;
+  if(it.uid==='call')  return `<span class="pill-dot" style="background:${color}"></span>来电 · 138****`;
+  if(it.uid==='nav')   return `<span class="pill-dot" style="background:${color}"></span>前方 200m 右转`;
+  if(it.uid==='msg')   return `<span class="pill-dot" style="background:${color}"></span>新消息`;
+  return it.label;
+}
+function renderExpandedContent(it){
+  const color = prioColor(it.prio);
+  if(it.uid==='voice') return `<div class="exp-title">语音助手</div><div class="exp-body">"导航到公司"</div><div class="exp-row"><span class="pill-dot" style="background:${color}"></span>正在聆听…</div>`;
+  if(it.uid==='call')  return `<div class="exp-title">来电</div><div class="exp-body">138 **** 8888</div><div class="exp-row"><span class="pill-dot" style="background:${color}"></span>接听 · 挂断</div>`;
+  if(it.uid==='nav')   return `<div class="exp-title">导航提醒</div><div class="exp-body">前方 200m 靠右行驶，进入高架。</div><div class="exp-row"><span class="pill-dot" style="background:${color}"></span>3.2 km · 12 min</div>`;
+  if(it.uid==='msg')   return `<div class="exp-title">消息</div><div class="exp-body">张三：会议改到下午三点。</div>`;
+  return `<div class="exp-title">${it.label}</div>`;
+}
+function prioColor(p){return {40:'var(--p-urgent)',30:'var(--p-active)',20:'var(--p-reminder)',10:'var(--p-normal)'}[p]}
+
+/* ============================================================
+   DATA-FLOW PACKET ANIMATION
+   ============================================================ */
+function modEl(name){ return pipelineEl.querySelector(`[data-mod="${name}"]`); }
+function center(el){ const r=el.getBoundingClientRect(); const pr=pipelineEl.getBoundingClientRect();
+  return {x:r.left+r.width/2-pr.left, y:r.top+r.height/2-pr.top}; }
+
+function flow(forward, done){
+  const path = forward ? PIPELINE_PATH : [...PIPELINE_PATH].reverse();
+  // spawn packet
+  const pkt = document.createElement('div');
+  pkt.className = 'packet' + (forward?'':' cb');
+  pipelineEl.appendChild(pkt);
+  let i=0;
+  function step(){
+    if(i>=path.length){ pkt.remove(); done&&done(); return; }
+    const c = center(modEl(path[i]));
+    pkt.style.left = (c.x-4.5)+'px';
+    pkt.style.top  = (c.y-4.5)+'px';
+    modEl(path[i]).classList.add(forward?'flash':'flash-back');
+    setTimeout(()=>modEl(path[i]).classList.remove('flash','flash-back'), 360);
+    i++;
+    setTimeout(step, forward?150:120);
+  }
+  // start at first node
+  const c0 = center(modEl(path[0]));
+  pkt.style.left=(c0.x-4.5)+'px'; pkt.style.top=(c0.y-4.5)+'px';
+  modEl(path[0]).classList.add(forward?'flash':'flash-back');
+  setTimeout(()=>modEl(path[0]).classList.remove('flash','flash-back'),360);
+  i=1; setTimeout(step, forward?150:120);
+}
+
+/* ============================================================
+   EVENT LOG
+   ============================================================ */
+const logEl = document.getElementById('log');
+function logEv(text, cls=''){
+  const d = document.createElement('div');
+  const t = new Date(); const ts = `${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}.${String(t.getMilliseconds()).padStart(3,'0').slice(0,2)}`;
+  d.innerHTML = `<span class="t">${ts}</span> <span class="ev ${cls}">${text}</span>`;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+/* ============================================================
+   CALLBACK SEQUENCE (README §9.5)
+   ============================================================ */
+const CB_SEQ = [
+  {who:'Client', side:'client', msg:'show(<span class="arg">A</span>, ACTIVE_REMINDER, COMPACT) · 队列空'},
+  {who:'Server→Client', side:'server', msg:'<span class="m">onRequestResult</span>(r1, <span class="arg">A</span>, ACCEPTED, ON_SCREEN, COMPACT)'},
+  {who:'Server→Client', side:'server', msg:'<span class="m">onPresentationChanged</span>(A: IDLE→ON_SCREEN, HIDDEN→COMPACT, <span class="note">STARTED, CLIENT_SHOW</span>)'},
+  {who:'Server→Client', side:'server', msg:'<span class="m">onPresentationChanged</span>(A: … <span class="note">SETTLED</span>)'},
+  {who:'Client', side:'client', msg:'show(<span class="arg">B</span>, URGENT, COMPACT) · 抢占'},
+  {who:'Server→Client', side:'server', msg:'B: IDLE→ON_SCREEN <span class="note">STARTED / SETTLED</span>'},
+  {who:'Server→Client', side:'server', msg:'A: ON_SCREEN→QUEUED <span class="note">reason=PREEMPTED</span>'},
+  {who:'User', side:'client', msg:'点击岛外部（A 为 EXPANDED）'},
+  {who:'Server→Client', side:'server', msg:'<span class="m">onHideEvent</span>(A, e1, OUTSIDE_TOUCH, EXPANDED)'},
+  {who:'Client', side:'client', msg:'setDesiredState(A, COMPACT)'},
+  {who:'Server→Client', side:'server', msg:'A: EXPANDED→COMPACT <span class="note">STARTED → SETTLED</span>'},
+  {who:'Client', side:'client', msg:'hide(<span class="arg">B</span>)'},
+  {who:'Server→Client', side:'server', msg:'B: ON_SCREEN→IDLE · A: QUEUED→ON_SCREEN <span class="note">reason=PROMOTED_FROM_QUEUE</span>'},
+];
+document.getElementById('cb-seq').innerHTML = CB_SEQ.map(s=>
+  `<div class="cb-step ${s.side}"><div class="cb-actor"><span class="who">${s.who}</span></div><div class="cb-msg">${s.msg}</div></div>`
+).join('');
+
+/* ============================================================
+   INTERACTION WIRING
+   ============================================================ */
+let pendingHide = null;  // {uid, eventId}
+
+function getCurrent(){ const t=qTop(); return t; }
+
+function doShow(act){
+  const uid = act.uid, prio = act.prio;
+  const label = act.label, desired = act.state;
+  const wasEmpty = queue.size===0;
+  const oldTop = qTop();
+  const item = {uid, label, prio, state:desired, presence:'ON_SCREEN'};
+  qShow(item);
+  const newTop = qTop();
+  const preempted = oldTop && oldTop.uid!==newTop.uid;
+  logEv(`client → show(${uid}, ${PRIO[prio]}, ${desired})`);
+  // forward flow
+  flow(true, ()=>{
+    // callbacks
+    const r = preempted ? 'ACCEPTED' : 'ACCEPTED';
+    logEv(`← onRequestResult(r, ${uid}, ${r}, ON_SCREEN, ${newTop.uid===uid?desired:'COMPACT'})`, 'cb');
+    logEv(`← onPresentationChanged(${uid}: IDLE→ON_SCREEN, STARTED, ${preempted?'PREEMPTED':'CLIENT_SHOW'})`, 'cb');
+    // animate island to the new top
+    renderIslandFor(newTop, preempted? 'preempt' : (wasEmpty?'appear':'preempt'));
+    renderQueue();
+    setTimeout(()=>logEv(`← onPresentationChanged(${uid}: SETTLED)`, 'cb'), 900);
+    if(preempted) logEv(`← onPresentationChanged(${oldTop.uid}: ON_SCREEN→QUEUED, reason=PREEMPTED)`, 'cb');
+    renderQueue();
+  });
+}
+
+function renderIslandFor(item, tokName){
+  cCompact.innerHTML = renderCompactContent(item);
+  cExpanded.innerHTML = renderExpandedContent(item);
+  const geo = item.state==='EXPANDED' ? GEO.EXPANDED : GEO.COMPACT;
+  setTarget(geo, TOK[tokName]||TOK.appear, (phase)=>{
+    logEv(`island phase=${phase} (${item.label})`);
+  });
+}
+
+document.getElementById('cbtns').addEventListener('click', e=>{
+  const b = e.target.closest('.cbtn'); if(!b) return;
+  const act = b.dataset;
+  if(act.act==='show'){ doShow(act); return; }
+
+  if(act.act==='expand'){
+    const t=getCurrent(); if(!t){logEv('no item','err');return;}
+    t.state='EXPANDED'; logEv(`client → setDesiredState(${t.uid}, EXPANDED)`);
+    flow(true,()=>{ setTarget(GEO.EXPANDED,TOK.expand,(p)=>logEv(`island ${p}`)); logEv(`← onPresentationChanged(${t.uid}: COMPACT→EXPANDED, STARTED)`,'cb');
+      setTimeout(()=>logEv(`← … SETTLED`,'cb'),700); renderQueue(); });
+    return;
+  }
+  if(act.act==='collapse'){
+    const t=getCurrent(); if(!t){logEv('no item','err');return;}
+    t.state='COMPACT'; logEv(`client → setDesiredState(${t.uid}, COMPACT)`);
+    flow(true,()=>{ setTarget(GEO.COMPACT,TOK.collapse,(p)=>logEv(`island ${p}`)); renderQueue(); });
+    return;
+  }
+  if(act.act==='hide'){
+    const t=getCurrent(); if(!t){logEv('no item','err');return;}
+    logEv(`client → hide(${t.uid})`);
+    flow(true,()=>{
+      qHide(t.uid);
+      const next=qTop();
+      logEv(`← onRequestResult(r, ${t.uid}, ACCEPTED, IDLE, HIDDEN)`,'cb');
+      if(next){
+        next.state = next.state==='EXPANDED'?'COMPACT':next.state; // clamp to COMPACT on promote
+        logEv(`← onPresentationChanged(${next.uid}: QUEUED→ON_SCREEN, reason=PROMOTED_FROM_QUEUE)`,'cb');
+        renderIslandFor(next,'preempt');
+      } else {
+        setTarget(GEO.HIDDEN,TOK.disappear,(p)=>logEv(`island ${p} · HIDDEN`));
+      }
+      renderQueue();
+    });
+    return;
+  }
+  if(act.act==='swipe'){
+    const t=getCurrent(); if(!t){logEv('no item','err');return;}
+    if(t.state!=='EXPANDED'){ logEv('外部点击 · COMPACT 态不发事件 (操作下层应用)','err'); return; }
+    const eventId = Math.floor(Math.random()*9000+1000);
+    pendingHide = {uid:t.uid, eventId};
+    logEv(`user → 上滑/点外部 · trigger=SWIPE_UP`);
+    logEv(`← onHideEvent(${t.uid}, e${eventId}, SWIPE_UP, EXPANDED)`,'cb');
+    logEv('客户端 200ms 内应响应 hide / setDesiredState(COMPACT) / declineHide','cb');
+    return;
+  }
+  if(act.act==='decline'){
+    if(!pendingHide){logEv('无未决 HideEvent','err');return;}
+    const {uid,eventId}=pendingHide; pendingHide=null;
+    logEv(`client → declineHide(${uid}, e${eventId})`);
+    flow(true,()=>{ logEv('← nudge（scale 脉冲 ~3%）','cb'); doNudge(); });
+    return;
+  }
+});
+
+function doNudge(){
+  const w0=sp.w.pos, h0=sp.h.pos;
+  const start=performance.now();
+  function tick(now){
+    const t=(now-start)/250; if(t>1){ return; }
+    const k = 1 + 0.03*Math.sin(Math.PI*t);
+    island.style.width = (w0*k)+'px';
+    island.style.height=(h0*k)+'px';
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ============================================================
+   MOTION PLAYGROUND
+   ============================================================ */
+const pgIsland = document.getElementById('pg-island');
+const pgState = document.getElementById('pg-state');
+const pgs = {w:makeSpring(0),h:makeSpring(0),r:makeSpring(0)};
+let pgTarget = {w:0,h:0,r:0}, pgTok=TOK.expand, pgRunning=false;
+let pgLast=performance.now();
+function pgLoop(now){
+  const dt=Math.min(0.05,(now-pgLast)/1000); pgLast=now;
+  ['w','h','r'].forEach(k=>springIntegrate(pgs[k],pgTarget[k],pgTok[k][0],pgTok[k][1],dt));
+  const w=Math.max(0,pgs.w.pos),h=Math.max(0,pgs.h.pos),r=Math.max(0,Math.min(pgs.r.pos,h/2));
+  pgIsland.style.width=w+'px'; pgIsland.style.height=h+'px'; pgIsland.style.borderRadius=r+'px';
+  if(pgRunning && ['w','h','r'].every(k=>springSettled(pgs[k],pgTarget[k]))){ pgState.innerHTML='phase: <b>SETTLED</b>'; pgRunning=false; }
+  requestAnimationFrame(pgLoop);
+}
+requestAnimationFrame(pgLoop);
+const PG_GEO = {
+  expand:    {from:{w:0,h:0,r:0},     to:{w:200,h:90,r:30}, tok:TOK.expand, label:'STARTED → EXPANDED'},
+  collapse:  {from:{w:200,h:90,r:30}, to:{w:120,h:48,r:24}, tok:TOK.collapse, label:'STARTED → COMPACT'},
+  appear:    {from:{w:0,h:0,r:0},     to:{w:120,h:48,r:24}, tok:TOK.appear, label:'STARTED → COMPACT'},
+  disappear: {from:{w:120,h:48,r:24}, to:{w:0,h:0,r:0},     tok:TOK.disappear, label:'STARTED → HIDDEN'},
+  preempt:   {from:{w:120,h:48,r:24}, to:{w:200,h:90,r:30}, tok:TOK.preempt, label:'STARTED → 抢占切换'},
+};
+let pgCur='expand';
+document.getElementById('pg-presets').addEventListener('click',e=>{
+  const b=e.target.closest('.pgp'); if(!b)return;
+  document.querySelectorAll('.pgp').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); pgCur=b.dataset.preset; playPg();
+});
+function playPg(){
+  const g=PG_GEO[pgCur];
+  pgs.w.pos=g.from.w; pgs.h.pos=g.from.h; pgs.r.pos=g.from.r;
+  pgs.w.vel=pgs.h.vel=pgs.r.vel=0;
+  pgTarget={w:g.to.w,h:g.to.h,r:g.to.r}; pgTok=g.tok;
+  pgRunning=true; pgState.innerHTML=`phase: <b>${g.label}</b>`;
+}
+playPg();
+
+/* ============================================================
+   NAV active state
+   ============================================================ */
+const navLinks = document.querySelectorAll('nav.tabs a');
+const sections = ['demo','arch','modules','queue','motion','callbacks'].map(id=>document.getElementById(id));
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(en=>{ if(en.isIntersecting){
+    const id=en.target.id; navLinks.forEach(a=>a.classList.toggle('active', a.getAttribute('href')==='#'+id));
+  }});
+},{rootMargin:'-40% 0px -55% 0px'});
+sections.forEach(s=>s&&obs.observe(s));
+
+/* reduced motion */
+if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) document.body.classList.add('reduced-motion');
+
+renderQueue();
+</script>
+</body>
+</html>

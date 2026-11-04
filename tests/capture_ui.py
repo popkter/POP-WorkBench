@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import os
 import sys
+import time
 from pathlib import Path
 from typing import cast
 
@@ -15,6 +16,10 @@ from PySide6.QtWidgets import QApplication
 from poptools.infrastructure.android_device_service import AndroidDevice, AndroidDeviceService
 from poptools.infrastructure.app_updater import UpdateRelease
 from poptools.infrastructure.config_store import ConfigStore
+from poptools.infrastructure.desktop_backdrop import (
+    SystemBackdropController,
+    prepare_system_backdrops,
+)
 from poptools.infrastructure.json_tool_repository import JsonToolRepository
 from poptools.infrastructure.python_environment import PythonEnvironment
 from poptools.infrastructure.system_tray import SystemTrayController
@@ -193,7 +198,11 @@ def main() -> int:
             controller.selectTool(tool.id)
         else:
             controller.selectTool(sys.argv[3])
+    prepare_system_backdrops()
     engine = QQmlApplicationEngine()
+    desktop_backdrop = SystemBackdropController(app)
+    app.aboutToQuit.connect(desktop_backdrop.shutdown)
+    engine.rootContext().setContextProperty("systemBackdropController", desktop_backdrop)
     video_controller = VideoPreviewController()
     app.aboutToQuit.connect(video_controller.shutdown)
     engine.addImageProvider("video", video_controller.images)
@@ -240,6 +249,8 @@ def main() -> int:
         dark_mode=settings_controller.darkTheme,
         background_color=cast(QColor, window.property("chromeBackgroundColor")),
         foreground_color=cast(QColor, window.property("chromeForegroundColor")),
+        draw_border=bool(window.property("drawWindowBorder")),
+        system_caption=bool(window.property("glassEnabled")),
     )
     if len(sys.argv) > 3 and sys.argv[3] != "__dynamic__":
         QTimer.singleShot(350, lambda: controller.selectTool(sys.argv[3]))
@@ -295,7 +306,16 @@ def main() -> int:
             user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
                                            ctypes.c_int, ctypes.c_int, ctypes.c_int,
                                            ctypes.c_int, ctypes.c_uint]
-            user32.SetWindowPos(int(window.winId()), ctypes.c_void_p(-1), 0, 0, 0, 0, 0x0013)
+            user32.SetWindowPos(int(window.winId()), ctypes.c_void_p(-1), 0, 0, 0, 0, 0x0003)
+            foreground = user32.GetForegroundWindow()
+            thread = user32.GetWindowThreadProcessId(ctypes.c_void_p(foreground), None)
+            current_thread = ctypes.WinDLL("kernel32").GetCurrentThreadId()
+            attached = user32.AttachThreadInput(current_thread, thread, True)
+            try:
+                user32.SetForegroundWindow(ctypes.c_void_p(int(window.winId())))
+            finally:
+                if attached:
+                    user32.AttachThreadInput(current_thread, thread, False)
     capture_primary_nav_width = os.environ.get("POPTOOLS_CAPTURE_PRIMARY_NAV_WIDTH", "")
     if capture_primary_nav_width:
         window.setProperty("primaryNavWidth", int(capture_primary_nav_width))
@@ -408,7 +428,18 @@ def main() -> int:
 
         QTimer.singleShot(250, open_custom_import_dialog)
 
+    capture_deadline = time.monotonic() + 20
+
     def capture() -> None:
+        if (os.environ.get("POPTOOLS_CAPTURE_WAIT_DESKTOP") == "1"
+                and not window.property("glassBackgroundReady")):
+            if time.monotonic() < capture_deadline:
+                QTimer.singleShot(150, capture)
+                return
+            print("System backdrop unavailable:", window.property("glassCaptureError"),
+                  file=sys.stderr)
+            app.exit(1)
+            return
         if os.environ.get("POPTOOLS_CAPTURE_QML_WARNINGS") == "1" and qml_warnings:
             print("\n".join(qml_warnings), file=sys.stderr)
         target_window = window
@@ -418,7 +449,27 @@ def main() -> int:
                 window,
             )
         screen = target_window.screen() or app.primaryScreen()
-        if os.environ.get("POPTOOLS_CAPTURE_COMPOSITED_FRAME") == "1":
+        if (capture_dialog == "recent-tool"
+                and os.environ.get("POPTOOLS_CAPTURE_COMPOSITED_FRAME") == "1"
+                and not target_window.property("captureRaised")):
+            user = ctypes.WinDLL("user32")
+            hwnd = ctypes.c_void_p(int(target_window.winId()))
+            user.SetWindowPos(hwnd, ctypes.c_void_p(-1), 0, 0, 0, 0, 0x0003)
+            foreground = user.GetForegroundWindow()
+            thread = user.GetWindowThreadProcessId(ctypes.c_void_p(foreground), None)
+            current = ctypes.WinDLL("kernel32").GetCurrentThreadId()
+            attached = user.AttachThreadInput(current, thread, True)
+            try:
+                user.SetForegroundWindow(hwnd)
+            finally:
+                if attached:
+                    user.AttachThreadInput(current, thread, False)
+            target_window.setProperty("captureRaised", True)
+            QTimer.singleShot(600, capture)
+            return
+        if os.environ.get("POPTOOLS_CAPTURE_RENDERED_FRAME") == "1":
+            image = target_window.grabWindow()
+        elif os.environ.get("POPTOOLS_CAPTURE_COMPOSITED_FRAME") == "1":
             # PrintWindow captures rectangular surface pixels before DWM clips
             # the corners. Capture the composed desktop to verify real rounding
             # and the system shadow, keeping a small margin around the window.

@@ -160,6 +160,15 @@ Item {
 
     ApplicationWindow {
         id: panel
+        readonly property bool glassBackgroundReady: desktopBackground.ready
+        DesktopBackground {
+            id: desktopBackground; hostWindow: panel; drawBackground: false
+            // DWM's whole-HWND material also fills the transparent animation
+            // canvas and the gap below the Tip. This irregular alpha window
+            // must keep its material on the visible QML surfaces instead.
+            enabledForWindow: false
+            anchors.fill: parent; z: -10
+        }
         objectName: "floatingScriptPanelWindow"
         transientParent: null
         title: "自定义脚本快捷运行"
@@ -191,8 +200,8 @@ Item {
             if (root.pendingDocks.length > 0)
                 root.finishCardDocks()
             if (pendingMaskSettlement && !panelSlide.running && !root.controller.dragging) {
-                pendingMaskSettlement = false;
                 root.controller.setDrawerAnimating(false);
+                pendingMaskSettlement = false;
             }
         }
 
@@ -331,8 +340,13 @@ Item {
                     + (panel.height - Theme.floatingTipHeight) * panel.packExpansion : Theme.floatingTipHeight
                 topLeftRadius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
                 bottomLeftRadius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
-                color: Theme.decadeMode ? "transparent" : grip.containsMouse || root.controller.expanded
-                    ? Theme.primaryContainer : Theme.surfaceContainerLow
+                color: Theme.decadeMode || Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                GlassSurface {
+                    anchors.fill: parent
+                    cornerRadius: Theme.radiusMedium
+                    tintColor: Theme.surfaceContainerLow
+                    z: -0.5
+                }
                 border.width: Theme.decadeMode ? 0 : 1
                 border.color: Theme.decadeMode ? Theme.decadePackRail : Theme.outlineVariant
                 opacity: grip.containsMouse || root.controller.dragging || root.controller.expanded
@@ -502,7 +516,11 @@ Item {
                 radius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
                 topLeftRadius: !Theme.decadeMode && tip.y < radius ? 0 : radius
                 bottomLeftRadius: !Theme.decadeMode && tip.y + tip.height > height - radius ? 0 : radius
-                color: Theme.decadeMode ? "transparent" : Theme.surfaceContainerLow
+                color: Theme.decadeMode || Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                GlassSurface {
+                    anchors.fill: parent; cornerRadius: parent.radius
+                    tintColor: Theme.surfaceContainerLow; z: -0.5
+                }
                 border.width: Theme.decadeMode ? 0 : 1
                 border.color: Theme.outlineVariant
 

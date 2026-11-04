@@ -63,7 +63,8 @@ ColumnLayout {
         Layout.preferredHeight: 64
         visible: deviceList.count === 0
         radius: Theme.radiusSmall
-        color: Theme.surfaceContainer
+        color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
         RowLayout {
             anchors.fill: parent
             anchors.margins: Theme.space12

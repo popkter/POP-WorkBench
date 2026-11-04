@@ -52,7 +52,8 @@ AppDialog {
             implicitHeight: Math.min(root.maximumReleaseCardHeight,
                                      releaseContent.implicitHeight + 32)
             radius: Theme.radiusMedium
-            color: Theme.surfaceContainer
+            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
             border.color: Theme.outlineVariant
             ColumnLayout {
                 id: releaseContent

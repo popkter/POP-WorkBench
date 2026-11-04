@@ -296,11 +296,11 @@ Item {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         visible: root.visible && root.controller && root.controller.listVisible
         onClosed: if (root.controller) root.controller.closeList()
-        background: Rectangle {
+        background: AppPopupSurface {
             objectName: "videoPlaylistBackground"
-            color: Qt.rgba(Theme.popupSurface.r, Theme.popupSurface.g, Theme.popupSurface.b, 0.88)
-            border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.45)
-            radius: Theme.radiusSmall
+            fillColor: Qt.rgba(Theme.popupSurface.r, Theme.popupSurface.g, Theme.popupSurface.b, 0.88)
+            outlineColor: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.45)
+            cornerRadius: Theme.radiusSmall
             transform: Translate { x: listDrawer.slideOffset }
         }
         contentItem: ColumnLayout {
