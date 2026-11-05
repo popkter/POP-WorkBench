@@ -96,8 +96,10 @@ def native_window(qapp):
     property bool testScriptRunning: false
     property string testAction: ""
     property bool testDarkMode: false
+    property bool testGlassMode: false
+    onTestGlassModeChanged: Theme.glassMode = testGlassMode
     onTestDarkModeChanged: Theme.darkMode = testDarkMode
-    Component.onCompleted: Theme.darkMode = testDarkMode
+    Component.onCompleted: { Theme.darkMode = testDarkMode; Theme.glassMode = testGlassMode }
     QtObject {
         id: trayController
         objectName: "tray"
@@ -614,8 +616,14 @@ def test_caption_hit_targets_states_and_mouse_commands(native_window, qtbot):
 
 @pytest.mark.gui
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows DWM frame geometry")
-def test_dwm_has_a_real_border_and_maximized_client_fits_work_area(native_window, qtbot):
+@pytest.mark.parametrize("glass", [False, True])
+def test_dwm_has_a_real_border_and_maximized_client_fits_work_area(native_window, qtbot, glass):
     window, _ = native_window
+    window.setProperty("testGlassMode", glass)
+    if glass:
+        from poptools.infrastructure.desktop_backdrop import WindowsBackdrop
+
+        assert WindowsBackdrop().apply(int(window.winId()), True, False, True) == ""
     user32 = ctypes.WinDLL("user32")
     hwnd = int(window.winId())
     user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
@@ -651,6 +659,12 @@ def test_dwm_has_a_real_border_and_maximized_client_fits_work_area(native_window
     assert client.right == monitor.work.right - monitor.work.left
     assert client.bottom == monitor.work.bottom - monitor.work.top
     assert origin.x == monitor.work.left and origin.y == monitor.work.top
+    # Full-client Acrylic can make DWM treat an oversized outer HWND as a
+    # fullscreen window, hiding the taskbar even when the client fits rcWork.
+    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    assert (rect.left, rect.top, rect.right, rect.bottom) == (
+        monitor.work.left, monitor.work.top, monitor.work.right, monitor.work.bottom,
+    )
 
 
 @pytest.mark.gui

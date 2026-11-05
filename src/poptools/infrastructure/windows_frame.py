@@ -58,6 +58,12 @@ class _TrackMouseEvent(ctypes.Structure):
                 ("hwnd", wintypes.HWND), ("hover_time", wintypes.DWORD)]
 
 
+class _MinMaxInfo(ctypes.Structure):
+    _fields_ = [(name, wintypes.POINT) for name in (
+        "reserved", "max_size", "max_position", "min_track_size", "max_track_size",
+    )]
+
+
 class WindowsFrame:
     def __init__(self, window: QWindow, native_style: int = 0x000F0000) -> None:
         self.window = window
@@ -247,6 +253,21 @@ class WindowsFrame:
         if not self.hwnd or int(msg.hWnd or 0) != self.hwnd:
             return False, 0
         code = msg.message
+        if code == 0x0024:  # WM_GETMINMAXINFO: constrain the outer HWND as well.
+            if self.window.windowState() == Qt.WindowState.WindowFullScreen:
+                return False, 0
+            # Let Qt/Windows calculate minimum tracking dimensions first.
+            self.comctl32.DefSubclassProc(self.hwnd, code, msg.wParam, msg.lParam)
+            monitor = _MonitorInfo(size=ctypes.sizeof(_MonitorInfo))
+            if self.user32.GetMonitorInfoW(
+                self.user32.MonitorFromWindow(self.hwnd, 2), ctypes.byref(monitor),
+            ):
+                info = _MinMaxInfo.from_address(msg.lParam)
+                info.max_position.x = monitor.work.left - monitor.monitor.left
+                info.max_position.y = monitor.work.top - monitor.monitor.top
+                info.max_size.x = monitor.work.right - monitor.work.left
+                info.max_size.y = monitor.work.bottom - monitor.work.top
+            return True, 0
         if code == 0x0083:  # WM_NCCALCSIZE: first field is RECT in either form.
             rect = wintypes.RECT.from_address(msg.lParam)
             if self.window.windowState() == Qt.WindowState.WindowFullScreen:

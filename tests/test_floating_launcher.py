@@ -1212,7 +1212,7 @@ RecentToolDialog {
     jiraFeishuBackend: null
     Component.onCompleted: {
         Theme.darkMode = testDarkMode
-        Theme.glassMode = testGlassMode
+        Theme.glassMode = Qt.binding(function() { return testGlassMode && !Theme.mechanicalMode })
     }
     function setCardTheme(mode: string) {
         Theme.decadeMode = mode === "decade"
@@ -2600,8 +2600,9 @@ def test_click_opens_card_without_capacity_confirmation(launcher, monkeypatch):
 @pytest.mark.gui
 @pytest.mark.parametrize("parameter_count", [0, 3, 18])
 @pytest.mark.parametrize("card_theme", ["decade", "zio"])
+@pytest.mark.parametrize("glass", [False, True])
 def test_decade_card_live_usage_and_compact_controls(
-    launcher, qtbot, monkeypatch, parameter_count, card_theme,
+    launcher, qtbot, monkeypatch, parameter_count, card_theme, glass,
 ):
     _, backend, _, _ = launcher
     android = backend.android_controller
@@ -2643,6 +2644,9 @@ def test_decade_card_live_usage_and_compact_controls(
     engine.warnings.connect(lambda messages: warnings.extend(m.toString() for m in messages))
     engine.rootContext().setContextProperty("appController", backend)
     engine.rootContext().setContextProperty("androidBackend", backend.android_controller)
+    engine.rootContext().setContextProperty("testGlassMode", glass)
+    engine.rootContext().setContextProperty("testGlassConfig", json.loads(
+        (package_root() / "ui/qml/theme/configs/glass.json").read_text("utf-8")))
     component = QQmlComponent(engine)
     component.setData(b'''
 import QtQuick
@@ -2654,6 +2658,9 @@ RecentToolDialog {
     jiraFeishuBackend: null
     Component.onCompleted: {
         Theme.darkMode = true; Theme.CARD_THEME = true; Theme.zioPalette = ZIO_PALETTE
+        Theme.glassMode = Qt.binding(function() { return testGlassMode && !Theme.mechanicalMode })
+        Theme.glassPalette = testGlassConfig.darkColors
+        Theme.glassMaterial = testGlassConfig.material
     }
 }
 '''.replace(b"CARD_THEME", f"{card_theme}Mode".encode()).replace(
@@ -2668,6 +2675,8 @@ RecentToolDialog {
         qtbot.waitUntil(lambda: not window.property("entryAnimationRunning"))
         assert (window.width(), window.height()) == (314, 486)
         content = window.findChild(QObject, "recentToolFormLoader").property("item")
+        assert not window.property("glassEnabled")
+        assert not window.property("nativeCardFrame")
         art = content.findChild(QObject, "decadeCardArtwork")
         glyph = art.findChild(QObject, "decadeCardArtworkIcon")
         assert not art.property("backFace")

@@ -308,9 +308,9 @@ Rectangle {
                     }
                     ToggleRow {
                         objectName: "glassMaterialToggle"
+                        visible: !Theme.mechanicalMode
                         label: "Glass 液态玻璃"
                         description: root.glassCaptureError || "由 Windows 系统合成器模糊桌面和后方窗口，无需抓帧"
-                        visible: !Theme.mechanicalMode
                         checked: root.controller.themeStyle === "glass"
                         onToggled: function(value) {
                             root.controller.saveThemeStyle(value ? "glass" : "material3")

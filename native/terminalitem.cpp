@@ -735,6 +735,10 @@ void TerminalItem::keyPressEvent(QKeyEvent *event)
         break;
     }
     if (terminalKey != VTERM_KEY_NONE) {
+        // Submitting from scrollback returns to the live input position before
+        // the shell can echo the newline or produce output.
+        if (terminalKey == VTERM_KEY_ENTER)
+            scrollToBottom();
         sendKey(terminalKey, modifiers);
         event->accept();
         return;

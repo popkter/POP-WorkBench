@@ -469,6 +469,16 @@ def main() -> int:
             target_window.setProperty("captureRaised", True)
             QTimer.singleShot(600, capture)
             return
+        if (capture_dialog == "recent-tool"
+                and os.environ.get("POPTOOLS_CAPTURE_WAIT_DESKTOP") == "1"
+                and target_window.property("glassEnabled")
+                and not target_window.property("glassBackgroundReady")):
+            if time.monotonic() < capture_deadline:
+                QTimer.singleShot(150, capture)
+                return
+            print("Card backdrop did not become ready after motion", file=sys.stderr)
+            app.exit(1)
+            return
         if os.environ.get("POPTOOLS_CAPTURE_RENDERED_FRAME") == "1":
             image = target_window.grabWindow()
         elif os.environ.get("POPTOOLS_CAPTURE_COMPOSITED_FRAME") == "1":

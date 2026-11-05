@@ -1,5 +1,6 @@
 #include "terminalitem.cpp"
 
+#include <QEventLoop>
 #include <cstdio>
 
 // Exercise the actual scrollback callbacks, including a buffer that was last
@@ -8,6 +9,30 @@
 int main(int argc, char **argv)
 {
     QGuiApplication app(argc, argv);
+    TerminalItem input;
+    input.setSize(QSizeF(800, 400));
+    // Terminal sizing is debounced; let the real geometry timer apply it.
+    QEventLoop layout;
+    QTimer::singleShot(100, &layout, &QEventLoop::quit);
+    layout.exec();
+    input.setSessionId(QStringLiteral("input-test"));
+    input.feed(input.sessionId(), QStringLiteral("history\r\n").repeated(100));
+    for (const auto key : {Qt::Key_Return, Qt::Key_Enter}) {
+        input.setScrollOffset(10);
+        if (input.scrollOffset() != 10)
+            return 4;
+        bool submittedAtBottom = false;
+        const auto connection = QObject::connect(
+            &input, &TerminalItem::inputGenerated,
+            [&input, &submittedAtBottom](const QString &, const QString &text) {
+                submittedAtBottom = text == QStringLiteral("\r") && input.scrollOffset() == 0;
+            });
+        QKeyEvent enter(QEvent::KeyPress, key, Qt::NoModifier);
+        QCoreApplication::sendEvent(&input, &enter);
+        QObject::disconnect(connection);
+        if (!submittedAtBottom || input.scrollOffset() != 0)
+            return 5;
+    }
     TerminalItem owner;
     TerminalSession session(&owner, QStringLiteral("resize-test"), 24, 80);
     VTermScreenCell blank{};

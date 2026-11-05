@@ -92,7 +92,8 @@ def verify() -> int:
         assert child.stdout is not None
         assert child.stdout.readline().strip() == "READY"
         if "--application" in sys.argv:
-            mode = "light" if "--light" in sys.argv else "dark"
+            mode = ("decade" if "--decade" in sys.argv else "zio" if "--zio" in sys.argv
+                    else "light" if "--light" in sys.argv else "dark")
             section = "developer" if "--terminal" in sys.argv else "custom"
             suffix = "-settings" if "--settings" in sys.argv else (
                 "-terminal" if "--terminal" in sys.argv else

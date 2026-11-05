@@ -52,6 +52,7 @@ Window {
     readonly property color textColor: Theme.textPrimary
     Binding { target: Theme; property: "darkMode"; value: host.dark }
     Binding { target: Theme; property: "glassMode"; value: host.glass && !host.mechanical }
+    Binding { target: Theme; property: "decadeMode"; value: host.mechanical }
     Binding { target: Theme; property: "glassPalette"
         value: host.dark ? host.config.darkColors : host.config.colors }
     Binding { target: Theme; property: "glassMaterial"; value: host.config.material }
@@ -101,6 +102,7 @@ Window {
         assert window.property("textColor").name() == "#f3f6fa"
         window.setProperty("mechanical", True)
         assert not panel.property("visible")
+        assert window.property("primary").name() == "#f12786"
         window.setProperty("mechanical", False)
         window.setProperty("glass", False)
         window.setProperty("dark", False)
