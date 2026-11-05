@@ -76,6 +76,8 @@ class DeveloperConsoleController(QObject):
     terminalAccessGranted = Signal()
     terminalTabsChanged = Signal()
     powerShellHistoryListViewEnabledChanged = Signal()
+    terminalTabLayoutChanged = Signal()
+    terminalSidebarWidthChanged = Signal()
 
     def __init__(
         self,
@@ -87,6 +89,8 @@ class DeveloperConsoleController(QObject):
     ) -> None:
         super().__init__(parent)
         self.python_environment = python_environment
+        self._terminal_tab_layout = python_environment.config_store.terminal_tab_layout()
+        self._terminal_sidebar_width = python_environment.config_store.terminal_sidebar_width()
         self.working_directory = self._normalize_working_directory(working_directory)
         self._tabs: list[TerminalTabState] = []
         self._closing_tabs: dict[str, TerminalTabState] = {}
@@ -122,6 +126,33 @@ class DeveloperConsoleController(QObject):
     def output(self) -> str:
         tab = self._active_tab()
         return tab.output if tab is not None else ""
+
+    @Property(str, notify=terminalTabLayoutChanged)
+    def terminalTabLayout(self) -> str:
+        return self._terminal_tab_layout
+
+    @Property(int, notify=terminalSidebarWidthChanged)
+    def terminalSidebarWidth(self) -> int:
+        return self._terminal_sidebar_width
+
+    @Slot(str)
+    def setTerminalTabLayout(self, layout: str) -> None:
+        if layout not in ("horizontal", "vertical") or layout == self._terminal_tab_layout:
+            return
+        self.python_environment.config_store.set_terminal_tab_layout(
+            layout, self._terminal_sidebar_width)
+        self._terminal_tab_layout = layout
+        self.terminalTabLayoutChanged.emit()
+
+    @Slot(int)
+    def setTerminalSidebarWidth(self, width: int) -> None:
+        width = max(140, min(360, width))
+        if width == self._terminal_sidebar_width:
+            return
+        self.python_environment.config_store.set_terminal_tab_layout(
+            self._terminal_tab_layout, width)
+        self._terminal_sidebar_width = width
+        self.terminalSidebarWidthChanged.emit()
 
     @Property(bool, notify=runningChanged)
     def running(self) -> bool:

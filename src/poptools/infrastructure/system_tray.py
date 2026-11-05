@@ -168,8 +168,10 @@ class SystemTrayController(QObject):
     def show_window(self) -> None:
         if self._window is None:
             return
-        self._window.show()
-        self._window.showNormal()
+        if self._window.windowStates() & Qt.WindowState.WindowMinimized:
+            self._window.setWindowStates(
+                self._window.windowStates() & ~Qt.WindowState.WindowMinimized)
+        self._window.setVisible(True)
         self._window.raise_()
         self._window.requestActivate()
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import hashlib
 import json
 import sys
@@ -43,13 +44,30 @@ class SingleInstanceLock:
             socket = QLocalSocket()
             socket.connectToServer(self._server_name)
             if socket.waitForConnected(250):
+                self._allow_foreground_activation()
                 message = payload or {"action": "activate"}
                 socket.write(json.dumps(message, ensure_ascii=False).encode("utf-8"))
                 socket.waitForBytesWritten(500)
                 socket.disconnectFromServer()
+                if socket.state() != QLocalSocket.LocalSocketState.UnconnectedState:
+                    socket.waitForDisconnected(500)
                 return True
             time.sleep(0.05)
         return False
+
+    def _allow_foreground_activation(self) -> None:
+        if sys.platform != "win32":
+            return
+        process_id, _host, _application = self._lock.getLockInfo()
+        if process_id <= 0:
+            return
+        # The Explorer-launched process has foreground permission. Transfer it
+        # before notifying the existing process, whose Qt activation otherwise
+        # only flashes the taskbar when another application owns the foreground.
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.AllowSetForegroundWindow.argtypes = [ctypes.c_ulong]
+        user32.AllowSetForegroundWindow.restype = ctypes.c_int
+        user32.AllowSetForegroundWindow(process_id)
 
     def set_activation_handler(
         self, handler: Callable[[dict[str, object]], None]

@@ -140,7 +140,7 @@ ScriptCollectionView {
         const point = row.mapToGlobal(0, 0);
         toolActivatedAt(id, Qt.rect(point.x, point.y, row.width, row.height));
     }
-    delegate: Rectangle {
+    delegate: Item {
         id: scriptRow
         required property string toolId
         required property string title
@@ -155,22 +155,24 @@ ScriptCollectionView {
         height: root.kindFilter === "all" || root.kindFilter === executorKind ? Theme.scriptRowHeight : 0
         visible: height > 0
         opacity: root.reordering && root.draggedToolId === toolId ? 0.45 : 1
-        radius: Theme.radiusControl
-        color: selected ? Theme.listSelected : rowMouse.containsMouse ? Theme.surfaceContainer
-            : Theme.darkMode && index % 2 === 0 ? Theme.listAlternate : "transparent"
         Rectangle {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: Theme.space12
-            anchors.rightMargin: Theme.space8
-            height: 1
-            color: Theme.outlineVariant
-            visible: !Theme.darkMode && scriptRow.index < root.count - 1
+            anchors.fill: parent
+            anchors.bottomMargin: Theme.space4
+            radius: Theme.radiusControl
+            color: Theme.glassMode ? "transparent" : scriptRow.selected ? Theme.listSelected
+                : rowMouse.containsMouse ? Theme.surfaceContainer
+                : Theme.darkMode && scriptRow.index % 2 === 0 ? Theme.listAlternate : "transparent"
+            GlassListHighlight {
+                anchors.fill: parent
+                cornerRadius: parent.radius
+                selected: scriptRow.selected
+                hovered: rowMouse.containsMouse
+            }
         }
         RowLayout {
             z: 1
             anchors.fill: parent
+            anchors.bottomMargin: Theme.space4
             anchors.leftMargin: Theme.space12
             anchors.rightMargin: Theme.space8
             spacing: 8
@@ -259,6 +261,7 @@ ScriptCollectionView {
         MouseArea {
             id: rowMouse
             anchors.fill: parent
+            anchors.bottomMargin: Theme.space4
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onDoubleClicked: function(mouse) {

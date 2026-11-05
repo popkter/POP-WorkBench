@@ -77,6 +77,9 @@ if(BUILD_TESTING)
         terminalitem.h
         ${POPTOOLS_TERMINAL_MOC_SOURCES}
     )
+    # This test includes the implementation to exercise terminal internals.
+    set_source_files_properties(terminal_resize_test.cpp PROPERTIES
+        OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/terminalitem.cpp")
     target_compile_definitions(poptools_terminal_resize_test PRIVATE POPTOOLS_TERMINAL_LIBRARY)
     target_link_libraries(poptools_terminal_resize_test PRIVATE
         Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick poptools_libvterm)

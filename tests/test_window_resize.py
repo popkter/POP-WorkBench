@@ -470,7 +470,8 @@ def test_title_terminal_overflow_preserves_drag_and_caption_controls(terminal_ti
     qtbot.waitUntil(active_tab_is_visible)
     assert backward.isVisible() and forward.isVisible()
     assert backward.isEnabled() and not forward.isEnabled()
-    assert not any(child.inherits("QQuickScrollBar") for child in flick.findChildren(QObject))
+    assert not any(child.inherits("QQuickScrollBar") and child.property("visible")
+                   for child in flick.findChildren(QObject))
 
     def click_bumper(button):
         rect = button.mapRectToItem(window.contentItem(), button.boundingRect())

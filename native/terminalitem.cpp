@@ -33,9 +33,6 @@ constexpr int kFontStrike = 1 << 2;
 constexpr int kFontUnderline = 1 << 3;
 // Match the terminal surface defined by the latest UI specification.
 const QColor kDefaultBackground(0x2b, 0x31, 0x3d);
-const QColor kDefaultForeground(0xe5, 0xe7, 0xeb);
-const QColor kCursorColor(0xe5, 0xe7, 0xeb);
-const QColor kSelectionColor(0x66, 0x60, 0xc8, 0x80);
 
 using CellLine = std::vector<VTermScreenCell>;
 
@@ -80,8 +77,9 @@ struct TerminalSession
         vterm_screen_set_callbacks(screen, &callbacks, this);
         VTermColor foreground;
         VTermColor background;
-        vterm_color_rgb(&foreground, kDefaultForeground.red(), kDefaultForeground.green(),
-                        kDefaultForeground.blue());
+        const QColor foregroundColor = owner->foregroundColor();
+        vterm_color_rgb(&foreground, foregroundColor.red(), foregroundColor.green(),
+                        foregroundColor.blue());
         const QColor backgroundColor = owner->fillColor();
         vterm_color_rgb(&background, backgroundColor.red(), backgroundColor.green(),
                         backgroundColor.blue());
@@ -302,6 +300,34 @@ TerminalItem::TerminalItem(QQuickItem *parent)
 TerminalItem::~TerminalItem()
 {
     qDeleteAll(m_sessions);
+}
+
+QColor TerminalItem::foregroundColor() const { return m_foregroundColor; }
+QColor TerminalItem::selectionColor() const { return m_selectionColor; }
+
+void TerminalItem::setForegroundColor(const QColor &color)
+{
+    if (!color.isValid() || color == m_foregroundColor)
+        return;
+    m_foregroundColor = color;
+    for (auto *session : m_sessions) {
+        VTermColor foreground;
+        VTermColor background;
+        vterm_state_get_default_colors(session->state, &foreground, &background);
+        vterm_color_rgb(&foreground, color.red(), color.green(), color.blue());
+        vterm_screen_set_default_colors(session->screen, &foreground, &background);
+    }
+    emit foregroundColorChanged();
+    update();
+}
+
+void TerminalItem::setSelectionColor(const QColor &color)
+{
+    if (!color.isValid() || color == m_selectionColor)
+        return;
+    m_selectionColor = color;
+    emit selectionColorChanged();
+    update();
 }
 
 QString TerminalItem::sessionId() const { return m_sessionId; }
@@ -544,6 +570,27 @@ QColor terminalColor(VTermScreen *screen, VTermColor color, const QColor &fallba
     return QColor(color.rgb.red, color.rgb.green, color.rgb.blue);
 }
 
+static qreal luminance(const QColor &color)
+{
+    const auto linear = [](qreal c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
+    return 0.2126 * linear(color.redF()) + 0.7152 * linear(color.greenF()) + 0.0722 * linear(color.blueF());
+}
+
+static QColor readableForeground(QColor color, const QColor &background)
+{
+    const qreal bg = luminance(background);
+    // Existing shell output can carry explicit colors from the previous theme.
+    // Preserve its hue while keeping ink readable on the default surface.
+    for (int step = 0; step < 20; ++step) {
+        const qreal fg = luminance(color);
+        if ((std::max(fg, bg) + 0.05) / (std::min(fg, bg) + 0.05) >= 4.5)
+            break;
+        color.setHslF(color.hslHueF(), color.hslSaturationF(),
+                      std::clamp(color.lightnessF() + (bg > 0.4 ? -0.05 : 0.05), 0.0, 1.0));
+    }
+    return color;
+}
+
 int TerminalItem::viewportFirstLine(const TerminalSession *session) const
 {
     const int total = static_cast<int>(session->scrollback.size()) + m_rows;
@@ -556,7 +603,7 @@ void TerminalItem::paint(QPainter *painter)
     const QColor inkBackground = QColor::fromRgb(backgroundColor.rgb());
     painter->fillRect(boundingRect(), backgroundColor);
     painter->setFont(m_font);
-    painter->setPen(kDefaultForeground);
+    painter->setPen(m_foregroundColor);
     painter->setRenderHint(QPainter::Antialiasing, false);
     painter->setRenderHint(QPainter::TextAntialiasing, true);
     const auto *session = activeSession();
@@ -566,7 +613,8 @@ void TerminalItem::paint(QPainter *painter)
     const int scrollbackRows = static_cast<int>(session->scrollback.size());
     const int firstLine = viewportFirstLine(session);
     int activeFontStyle = 0;
-    QColor activeForeground = kDefaultForeground;
+    QColor activeForeground = m_foregroundColor;
+    QHash<QRgb, QColor> readableColors;
     for (int displayRow = 0; displayRow < m_rows; ++displayRow) {
         const int line = firstLine + displayRow;
         for (int column = 0; column < m_columns; ++column) {
@@ -595,25 +643,32 @@ void TerminalItem::paint(QPainter *painter)
             QColor background = backgroundColor;
             if (valid) {
                 if (cell.attrs.reverse)
-                    background = terminalColor(session->screen, cell.fg, kDefaultForeground);
+                    background = terminalColor(session->screen, cell.fg, m_foregroundColor);
                 else if (!(cell.bg.type & VTERM_COLOR_DEFAULT_MASK))
                     background = terminalColor(session->screen, cell.bg, backgroundColor);
             }
             if (background != backgroundColor)
                 painter->fillRect(cellRect, background);
             if (cellSelected(session, line, column))
-                painter->fillRect(cellRect, kSelectionColor);
+                painter->fillRect(cellRect, m_selectionColor);
             if (!valid)
                 continue;
             const QString text = cellText(cell);
             if (text.isEmpty() || cell.attrs.conceal)
                 continue;
 
-            QColor foreground = kDefaultForeground;
+            QColor foreground = m_foregroundColor;
             if (cell.attrs.reverse)
                 foreground = terminalColor(session->screen, cell.bg, inkBackground);
             else if (!(cell.fg.type & VTERM_COLOR_DEFAULT_MASK))
-                foreground = terminalColor(session->screen, cell.fg, kDefaultForeground);
+                foreground = terminalColor(session->screen, cell.fg, m_foregroundColor);
+            if (!cell.attrs.reverse && (cell.bg.type & VTERM_COLOR_DEFAULT_MASK)
+                && !(cell.fg.type & VTERM_COLOR_DEFAULT_MASK)) {
+                const QRgb key = foreground.rgba();
+                if (!readableColors.contains(key))
+                    readableColors.insert(key, readableForeground(foreground, inkBackground));
+                foreground = readableColors.value(key);
+            }
             if (cell.attrs.faint)
                 foreground.setAlphaF(foreground.alphaF() * 0.55);
 
@@ -639,12 +694,12 @@ void TerminalItem::paint(QPainter *painter)
                                 m_cellWidth, m_cellHeight);
         if (session->cursorShape == VTERM_PROP_CURSORSHAPE_UNDERLINE) {
             painter->fillRect(QRectF(cursorRect.left(), cursorRect.bottom() - 2,
-                                     cursorRect.width(), 2), kCursorColor);
+                                     cursorRect.width(), 2), m_foregroundColor);
         } else if (session->cursorShape == VTERM_PROP_CURSORSHAPE_BAR_LEFT) {
             painter->fillRect(QRectF(cursorRect.left(), cursorRect.top(), 2,
-                                     cursorRect.height()), kCursorColor);
+                                     cursorRect.height()), m_foregroundColor);
         } else {
-            painter->fillRect(cursorRect, kCursorColor);
+            painter->fillRect(cursorRect, m_foregroundColor);
             VTermScreenCell cursorCell{};
             if (vterm_screen_get_cell(session->screen,
                                       {session->cursor.y(), session->cursor.x()},
@@ -660,7 +715,7 @@ void TerminalItem::paint(QPainter *painter)
 
     if (!m_preedit.isEmpty()) {
         painter->setFont(m_font);
-        painter->setPen(kDefaultForeground);
+        painter->setPen(m_foregroundColor);
         const qreal x = session->cursor.x() * m_cellWidth;
         const qreal y = session->cursor.y() * m_cellHeight;
         const QRectF preeditRect(x, y, std::max(m_cellWidth, m_preedit.size() * m_cellWidth),

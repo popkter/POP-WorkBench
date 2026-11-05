@@ -103,6 +103,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         height: 32
         active: root.terminalTabsVisible && root.terminalController !== null
+            && root.terminalController.terminalTabLayout !== "vertical"
         visible: active
         enabled: root.terminalTabsEnabled
         sourceComponent: TerminalTabBar {

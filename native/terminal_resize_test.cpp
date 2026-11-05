@@ -9,6 +9,12 @@
 int main(int argc, char **argv)
 {
     QGuiApplication app(argc, argv);
+    for (const auto background : {QColor("#ffffff"), QColor("#171c24")}) {
+        const QColor ink = readableForeground(QColor("#e5e7eb"), background);
+        const qreal fg = luminance(ink), bg = luminance(background);
+        if ((std::max(fg, bg) + 0.05) / (std::min(fg, bg) + 0.05) < 4.5)
+            return 6;
+    }
     TerminalItem input;
     input.setSize(QSizeF(800, 400));
     // Terminal sizing is debounced; let the real geometry timer apply it.
@@ -17,6 +23,10 @@ int main(int argc, char **argv)
     layout.exec();
     input.setSessionId(QStringLiteral("input-test"));
     input.feed(input.sessionId(), QStringLiteral("history\r\n").repeated(100));
+    input.setForegroundColor(QColor("#20252b"));
+    input.setFillColor(QColor("#ffffff"));
+    if (input.foregroundColor() != QColor("#20252b") || input.scrollbackLineCount() == 0)
+        return 7;
     for (const auto key : {Qt::Key_Return, Qt::Key_Enter}) {
         input.setScrollOffset(10);
         if (input.scrollOffset() != 10)

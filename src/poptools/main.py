@@ -268,6 +268,7 @@ def main() -> int:
                 return
             directory = payload.get("cwd")
             if isinstance(directory, str):
+                window.setProperty("settingsSelected", False)
                 window.setProperty("developerSelected", True)
                 developer_console_controller.openTerminalAtDirectory(directory)
                 if not developer_console_controller.pluginInstalled:

@@ -119,8 +119,14 @@ Rectangle {
                             width: toolList.width - 8
                             height: 56
                             radius: Theme.radiusSmall
-                            color: selected ? Theme.primaryContainer
+                            color: Theme.glassMode ? "transparent" : selected ? Theme.primaryContainer
                                 : (toolMouse.containsMouse ? Theme.surfaceContainer : "transparent")
+                            GlassListHighlight {
+                                anchors.fill: parent
+                                cornerRadius: parent.radius
+                                selected: toolRow.selected
+                                hovered: toolMouse.containsMouse
+                            }
 
                             RowLayout {
                                 anchors.fill: parent

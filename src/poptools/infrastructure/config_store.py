@@ -22,6 +22,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "console_expanded": True,
         "terminal_enabled": False,
         "terminal_history_list_view_enabled": False,
+        "terminal_tab_layout": "horizontal",
+        "terminal_sidebar_width": 200,
         "floating_launcher_enabled": True,
         "floating_launcher_position": {"screen": "", "vertical_ratio": 0.5},
         "user_guide_seen": False,
@@ -403,6 +405,24 @@ class ConfigStore:
         value = (app.get("terminal_history_list_view_enabled", False)
                  if isinstance(app, dict) else False)
         return value if isinstance(value, bool) else False
+
+    def terminal_tab_layout(self) -> str:
+        app = self.load_config().get("app")
+        vertical = isinstance(app, dict) and app.get("terminal_tab_layout") == "vertical"
+        return "vertical" if vertical else "horizontal"
+
+    def terminal_sidebar_width(self) -> int:
+        app = self.load_config().get("app")
+        value = app.get("terminal_sidebar_width", 200) if isinstance(app, dict) else 200
+        return max(140, min(360, value)) if type(value) is int else 200
+
+    def set_terminal_tab_layout(self, layout: str, width: int) -> None:
+        config = self.load_config()
+        if not isinstance(config.get("app"), dict):
+            config["app"] = {}
+        config["app"]["terminal_tab_layout"] = layout
+        config["app"]["terminal_sidebar_width"] = width
+        self.save_config(config)
 
     def set_terminal_history_list_view_enabled(self, enabled: bool) -> None:
         config = self.load_config()

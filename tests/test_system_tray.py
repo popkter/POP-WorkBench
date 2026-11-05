@@ -6,10 +6,43 @@ import sys
 
 import pytest
 from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QWindow
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from poptools.infrastructure.system_tray import SystemTrayController
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("state", [
+    Qt.WindowState.WindowNoState, Qt.WindowState.WindowMaximized,
+    Qt.WindowState.WindowMinimized,
+    Qt.WindowState.WindowMaximized | Qt.WindowState.WindowMinimized,
+])
+def test_show_window_reuses_and_activates_existing_window(qapp, qtbot, monkeypatch, state):
+    monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable", lambda: False)
+    tray = SystemTrayController(qapp)
+    window = QWindow()
+    cover = QWindow()
+    try:
+        window.resize(400, 300)
+        window.setWindowStates(state)
+        window.setVisible(True)
+        cover.show()
+        cover.requestActivate()
+        qtbot.waitUntil(cover.isActive)
+        tray.attach_window(window)
+        tray.show_window()
+        qtbot.waitUntil(window.isActive)
+        assert window.isVisible()
+        assert not window.windowStates() & Qt.WindowState.WindowMinimized
+        assert bool(window.windowStates() & Qt.WindowState.WindowMaximized) == bool(
+            state & Qt.WindowState.WindowMaximized)
+        assert tray._window is window
+    finally:
+        window.destroy()
+        cover.destroy()
+        tray.deleteLater()
 
 
 @pytest.mark.gui

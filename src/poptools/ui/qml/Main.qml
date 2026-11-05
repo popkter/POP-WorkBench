@@ -563,7 +563,7 @@ ApplicationWindow {
                 objectName: "workspaceSurface"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                color: !Theme.glassMode && workspacePages.currentIndex === 2 ? Theme.workspaceBackground : "transparent"
+                color: "transparent"
                 radius: Theme.radiusSmall
                 clip: true
 

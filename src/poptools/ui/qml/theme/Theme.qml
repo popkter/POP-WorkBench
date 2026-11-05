@@ -52,8 +52,13 @@ QtObject {
     readonly property color listAlternate: zioColor("listAlternate", darkMode ? "transparent" : "#FAFBFC")
     readonly property color inputBorder: zioColor("inputBorder", darkMode ? outline : "#A8CFFF")
     readonly property color terminalToolbar: zioColor("terminalToolbar", darkMode ? surface : "#FFFFFF")
-    readonly property color terminalBackground: zioColor("terminalBackground", decadeMode ? "#121216" : darkMode ? "#171C24" : "#2B313D")
-    readonly property color terminalTabSelected: zioColor("terminalTabSelected", decadeMode ? "#42182E" : darkMode ? "#43546A" : terminalBackground)
+    readonly property color terminalBackground: darkMode
+        ? zioColor("terminalBackground", decadeMode ? "#121216" : "#171C24") : surfaceContainerLow
+    readonly property color terminalForeground: darkMode ? consoleText : textPrimary
+    readonly property color terminalMuted: darkMode ? consoleMuted : textSecondary
+    readonly property color terminalSelection: darkMode ? "#6066C880" : "#401677FF"
+    readonly property color terminalTabSelected: darkMode
+        ? zioColor("terminalTabSelected", decadeMode ? "#42182E" : "#43546A") : listSelected
     readonly property color terminalTabBorder: zioColor("terminalTabBorder", decadeMode ? "#82516D" : darkMode ? "#647D9B" : "#E1E5EA")
     readonly property color terminalTabText: zioColor("terminalTabText", darkMode ? textPrimary : "#404750")
     readonly property color terminalTabMuted: zioColor("terminalTabMuted", darkMode ? textSecondary : "#6B737D")
