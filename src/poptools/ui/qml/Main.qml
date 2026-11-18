@@ -96,6 +96,17 @@ ApplicationWindow {
         && appController.section === "preset" && !!appController.selectedTool.executor
         && appController.selectedTool.executor.command === "video_preview"
     onVideoSelectedChanged: if (!videoSelected && videoBackend) videoBackend.pause()
+    ApplicationVideoDropArea {
+        parent: Overlay.overlay
+        controller: window.videoBackend
+        hitTestRoot: window.contentItem
+        onVideoDropped: urls => {
+            window.hideScrcpyWindow()
+            window.openPresetFunctionsPage()
+            appController.selectTool("preset.video_preview")
+            window.videoBackend.openDroppedFiles(urls)
+        }
+    }
     property bool settingsSelected: false
     property bool terminalEnablePending: false
     property bool updateDialogPending: false

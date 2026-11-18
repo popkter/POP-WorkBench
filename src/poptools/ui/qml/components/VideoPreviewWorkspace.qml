@@ -208,7 +208,7 @@ Item {
         onEntered: drag => { drag.accepted = drag.hasUrls }
         onDropped: drop => {
             if (root.controller && drop.hasUrls) {
-                root.controller.addFiles(drop.urls.map(url => url.toString()))
+                root.controller.openDroppedFiles(drop.urls.map(url => url.toString()))
                 drop.acceptProposedAction()
             }
         }

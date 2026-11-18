@@ -29,14 +29,36 @@ def _set_native_topmost(window: QWindow, topmost: bool, *, raise_window: bool = 
     style = user32.GetWindowLongW
     style.argtypes = [wintypes.HWND, ctypes.c_int]
     style.restype = wintypes.LONG
-    if bool(style(int(window.winId()), -20) & 0x8) == topmost and not raise_window:
+    handle = int(window.winId())
+    if (bool(style(handle, -20) & 0x8) == topmost and not raise_window
+            and (not topmost or not _ordinary_window_above(user32, handle))):
         return
     position = user32.SetWindowPos
     position.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
                          ctypes.c_int, ctypes.c_int, wintypes.UINT]
     position.restype = wintypes.BOOL
     # Do not activate, move, resize or change owner ordering.
-    position(int(window.winId()), -1 if topmost else -2, 0, 0, 0, 0, 0x0213)
+    position(handle, -1 if topmost else -2, 0, 0, 0, 0, 0x0213)
+
+
+def _ordinary_window_above(user32: ctypes.WinDLL, handle: int) -> bool:
+    """The native topmost bit can survive a window slipping into the normal band."""
+    previous = user32.GetWindow
+    previous.argtypes = [wintypes.HWND, wintypes.UINT]
+    previous.restype = wintypes.HWND
+    visible = user32.IsWindowVisible
+    visible.argtypes = [wintypes.HWND]
+    visible.restype = wintypes.BOOL
+    iconic = user32.IsIconic
+    iconic.argtypes = [wintypes.HWND]
+    iconic.restype = wintypes.BOOL
+    seen = {handle}
+    while (handle := previous(handle, 3)) and handle not in seen:
+        seen.add(handle)
+        if (visible(handle) and not iconic(handle)
+                and not user32.GetWindowLongW(handle, -20) & 0x8):
+            return True
+    return False
 
 
 def zio_card_geometry(available: QRect, size: QSize, source: QRectF, dock: QRectF) -> QRect:

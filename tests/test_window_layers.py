@@ -14,6 +14,46 @@ from poptools.infrastructure.window_placement import (
 
 @pytest.mark.gui
 @pytest.mark.skipif(sys.platform != "win32", reason="Checks native Windows Z order")
+def test_launcher_repairs_stale_topmost_bit_without_taking_focus(qapp):
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    get_style = user32.GetWindowLongW
+    get_style.argtypes = [wintypes.HWND, ctypes.c_int]
+    get_style.restype = wintypes.LONG
+    set_style = user32.SetWindowLongW
+    set_style.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.LONG]
+    set_style.restype = wintypes.LONG
+    previous = user32.GetWindow
+    previous.argtypes = [wintypes.HWND, wintypes.UINT]
+    previous.restype = wintypes.HWND
+    foreground = user32.GetForegroundWindow
+    foreground.restype = wintypes.HWND
+    launcher, ordinary = QWindow(), QWindow()
+    launcher.setFlags(Qt.Tool | Qt.FramelessWindowHint)
+    for window in (launcher, ordinary):
+        window.setGeometry(300, 250, 200, 180)
+    try:
+        launcher.show()
+        ordinary.show()
+        ordinary.raise_()
+        launcher_id = int(launcher.winId())
+        # Reproduce the observed state: a topmost style bit in the normal band.
+        set_style(launcher_id, -20, get_style(launcher_id, -20) | 0x8)
+        active = foreground()
+        sync_launcher_card_layers([launcher])
+        assert foreground() == active
+        handle = int(ordinary.winId())
+        while handle and handle != launcher_id:
+            handle = previous(handle, 3)
+        assert handle == launcher_id
+        assert get_style(launcher_id, -20) & 0x8
+    finally:
+        for window in (launcher, ordinary):
+            window.close()
+            window.destroy()
+
+
+@pytest.mark.gui
+@pytest.mark.skipif(sys.platform != "win32", reason="Checks native Windows Z order")
 @pytest.mark.parametrize("launcher_name", ["floatingScriptPanelWindow", "zioDockWindow"])
 def test_launcher_topmost_and_cards_follow_their_own_pin(qapp, launcher_name):
     user32 = ctypes.WinDLL("user32", use_last_error=True)

@@ -287,6 +287,20 @@ class VideoPreviewController(QObject):
         if files:
             self.addFiles(files)
 
+    @Slot("QStringList", result=bool)
+    def acceptsVideoDrop(self, values):
+        return bool(local_video_paths(values))
+
+    @Slot("QStringList")
+    def openDroppedFiles(self, values):
+        paths = local_video_paths(values)
+        if not paths:
+            return
+        self.addFiles(paths)
+        index = next(i for i, item in enumerate(self._playlist) if item["path"] == paths[0])
+        if self._index != index:
+            self.selectVideo(index)
+
     @Slot("QStringList")
     def addFiles(self, values):
         paths = local_video_paths(values)

@@ -96,7 +96,10 @@ Loader {
             onTextChanged: root.parameterValues[root.parameter.id] = text
             Keys.onReturnPressed: event => root.handleEnter(event, parameterTextField)
             Keys.onEnterPressed: event => root.handleEnter(event, parameterTextField)
-            FilePathDropArea { target: parameterTextField }
+            FilePathDropArea {
+                target: parameterTextField
+                property bool preserveParameterFileDrop: true
+            }
             AppTextEditMenu { target: parameterTextField }
 
             ParameterDefaultButton {
@@ -163,7 +166,10 @@ Loader {
             onTextChanged: root.parameterValues[root.parameter.id] = text
             Keys.onReturnPressed: event => root.handleEnter(event, parameterTextArea)
             Keys.onEnterPressed: event => root.handleEnter(event, parameterTextArea)
-            FilePathDropArea { target: parameterTextArea }
+            FilePathDropArea {
+                target: parameterTextArea
+                property bool preserveParameterFileDrop: true
+            }
             AppTextEditMenu { target: parameterTextArea }
             ParameterDefaultButton {
                 anchors.right: parent.right

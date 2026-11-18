@@ -1108,3 +1108,27 @@ def test_scrubbing_to_end_does_not_restart_video(qapp, qtbot, clip):
         assert backend.position == pytest.approx(1.96)
     finally:
         backend.shutdown()
+
+
+def test_dropped_video_opens_even_with_an_existing_selection(qapp, qtbot, clip, tmp_path):
+    other = make_video(tmp_path / "dropped.mp4")
+    text_file = tmp_path / "notes.txt"
+    text_file.write_text("notes")
+    backend = VideoPreviewController()
+    try:
+        backend.addFiles([str(clip)])
+        qtbot.waitUntil(lambda: backend.loaded and not backend.busy)
+        assert not backend.acceptsVideoDrop([str(text_file), str(tmp_path)])
+        assert backend.acceptsVideoDrop([str(text_file), QUrl.fromLocalFile(str(other)).toString()])
+        backend.openDroppedFiles([str(text_file), QUrl.fromLocalFile(str(other)).toString()])
+        qtbot.waitUntil(lambda: backend.loaded and not backend.busy)
+        assert backend.fileName == other.name
+        assert len(backend.playlist) == 2
+        backend.openDroppedFiles([str(clip)])
+        qtbot.waitUntil(lambda: backend.loaded and not backend.busy)
+        assert backend.fileName == clip.name
+        assert len(backend.playlist) == 2
+        backend.openDroppedFiles([str(text_file)])
+        assert backend.fileName == clip.name
+    finally:
+        backend.shutdown()

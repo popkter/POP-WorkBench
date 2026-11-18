@@ -19,17 +19,20 @@ DropArea {
 
     anchors.fill: parent
     z: 100
-    onDropped: function(drop) {
-        if (!drop.hasUrls || drop.urls.length === 0)
-            return
+    function insertUrls(urls) {
         var paths = []
-        for (var index = 0; index < drop.urls.length; ++index)
-            paths.push(root.localPath(drop.urls[index]))
+        for (var index = 0; index < urls.length; ++index)
+            paths.push(root.localPath(urls[index]))
         var value = paths.join(" ")
         root.target.text = root.append && root.target.text.length
             ? root.target.text + " " + value : value
-        drop.accepted = true
         root.target.forceActiveFocus()
+    }
+    onDropped: function(drop) {
+        if (!drop.hasUrls || drop.urls.length === 0)
+            return
+        insertUrls(drop.urls)
+        drop.accepted = true
     }
 
     Rectangle {
