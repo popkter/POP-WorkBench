@@ -425,6 +425,27 @@ class ConfigStore:
         config["app"]["terminal_sidebar_width"] = width
         self.save_config(config)
 
+    def open_terminal_groups(self) -> list[object]:
+        app = self.load_config().get("app")
+        groups = app.get("open_terminal_groups") if isinstance(app, dict) else None
+        return groups if isinstance(groups, list) else []
+
+    def set_open_terminal_groups(self, groups: list[dict[str, object]]) -> None:
+        config = self.load_config()
+        app = config.get("app")
+        if not isinstance(app, dict):
+            app = {}
+            config["app"] = app
+        if groups:
+            if app.get("open_terminal_groups") == groups:
+                return
+            app["open_terminal_groups"] = groups
+        elif "open_terminal_groups" in app:
+            del app["open_terminal_groups"]
+        else:
+            return
+        self.save_config(config)
+
     def set_terminal_history_list_view_enabled(self, enabled: bool) -> None:
         config = self.load_config()
         if not isinstance(config.get("app"), dict):

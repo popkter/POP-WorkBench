@@ -48,6 +48,16 @@ Item {
     // JetBrains Runtime uses three 47-DIP controls, with 10-DIP glyphs.
     readonly property int controlWidth: hostWindow.captionControlWidth
     readonly property bool modern: hostWindow.modernCaptionControls
+    readonly property bool systemMenuVisible: windowMenu.visible
+    WindowSystemMenu {
+        id: windowMenu
+        parent: Overlay.overlay
+        hostWindow: root.hostWindow
+    }
+    Connections {
+        target: root.hostWindow.chromeController
+        function onSystemMenuRequested(x, y) { windowMenu.showAt(x, y) }
+    }
 
     Binding {
         target: root.hostWindow

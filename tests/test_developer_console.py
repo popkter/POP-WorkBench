@@ -12,6 +12,7 @@ import pytest
 from PySide6.QtCore import QObject, QUrl, Signal
 
 from poptools.infrastructure.config_store import ConfigStore
+from poptools.infrastructure.conpty import ConPtySession
 from poptools.paths import AppPaths
 from poptools.viewmodels.developer_console_controller import DeveloperConsoleController
 
@@ -239,6 +240,43 @@ def test_powershell_profile_configures_psreadline_syntax_colors() -> None:
     assert "Set-PSReadLineOption -PredictionViewStyle ListView" in profile
     assert "Set-PSReadLineKeyHandler -Chord Ctrl+F12" in profile
     assert profile.count("[Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()") == 2
+
+
+@pytest.mark.parametrize("foreground", ["#075FAF", "#8CC8FF"])
+def test_powershell_history_colors_preserve_syntax_foregrounds(foreground):
+    shell = shutil.which("pwsh")
+    if os.name != "nt" or shell is None:
+        pytest.skip("PowerShell bootstrap requires Windows and PowerShell 7")
+    profile = (Path(__file__).parents[1] / "src/poptools/resources/tools"
+               / "powershell-terminal-profile.ps1")
+    command = r'''
+$ErrorActionPreference = 'Stop'
+. 'PROFILE'
+$options = Get-PSReadLineOption
+@{
+    Command = $options.CommandColor
+    Marker = $options.ListPredictionColor
+    Emphasis = $options.EmphasisColor
+    Selected = $options.ListPredictionSelectedColor
+} | ConvertTo-Json -Compress
+'''.replace("PROFILE", str(profile).replace("'", "''"))
+    result = subprocess.run(
+        [shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
+        # Color options can be inspected with redirected output; prediction
+        # itself requires a real terminal and is covered by the toggle tests.
+        env={**os.environ, "POPTOOLS_PS_HISTORY_LIST_VIEW": "0",
+             "POPTOOLS_PS_COLOR_COMMAND": foreground},
+        capture_output=True, encoding="utf-8", timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    options = json.loads(result.stdout)
+
+    red, green, blue = (int(foreground[index:index + 2], 16) for index in (1, 3, 5))
+    ansi = f"\x1b[38;2;{red};{green};{blue}m"
+    assert options == {
+        "Command": ansi, "Marker": ansi,
+        "Emphasis": ansi, "Selected": "\x1b[48;2;48;68;95m",
+    }
 
 
 def test_power_shell_history_toggle_configures_psreadline_list_view(tmp_path: Path) -> None:
@@ -494,6 +532,130 @@ def test_bulk_terminal_tab_close_operations_keep_requested_tab(tmp_path: Path) -
     assert [tab["tabId"] for tab in controller.terminalTabs] == [second_id]
     assert controller.activeTerminalTabId == second_id
     assert controller._tab_by_id(third_id) is None
+
+def test_terminal_group_lifecycle_preserves_order_and_stops_closed_sessions(tmp_path: Path):
+    controller = make_controller(tmp_path)
+    ids = [controller.activeTerminalTabId]
+    for _ in range(3):
+        controller.createTerminalTab()
+        ids.append(controller.activeTerminalTabId)
+    first, second, third, fourth = ids
+    group = controller.createTerminalGroup([first, second, third])
+    extracted = controller.createTerminalGroup([second, fourth])
+    assert [tab["tabId"] for tab in controller.terminalTabs] == [second, fourth, first, third]
+    assert controller.moveTerminalItems([second], "", third, 0, False)
+    assert controller.moveTerminalItems([], group, fourth, -1, True)
+    assert [tab["tabId"] for tab in controller.terminalTabs] == [first, third, second, fourth]
+
+    member = controller._tab_by_id(first)
+    assert member is not None
+    member.output = "old shell output"
+    stopped = []
+    member.session = SimpleNamespace(stop_process=lambda: stopped.append(first))
+    controller.editTerminalGroup(group, "Project", "teal")
+    controller.activateTerminalTab(first)
+    controller.toggleTerminalGroup(group)
+    assert controller.activeTerminalTabId == fourth
+    assert controller.activateRelativeTerminalTab(1)
+    assert controller.activeTerminalTabId == fourth
+    assert stopped == []
+    controller.activateTerminalTab(first)
+    assert controller._active_tab() is member
+    assert controller.output == "old shell output"
+
+    controller.ungroupTerminalGroup(extracted)
+    assert controller.addTabsToTerminalGroup([fourth], group)
+    controller.toggleTerminalGroup(group)
+    assert controller.activeTerminalTabId == first
+    assert controller.terminalTabGroups[0]["collapsed"]
+    config_store = controller.python_environment.config_store
+    config_before = config_store.load_config()
+    assert controller.closeTerminalGroup(group)
+    assert stopped == [first]
+    assert not controller.terminalTabs
+    assert not controller.terminalTabGroups
+    assert config_store.load_config() == config_before
+
+
+def test_open_terminal_groups_restore_collapsed_after_restart(tmp_path: Path):
+    controller = make_controller(tmp_path)
+    first_id = controller.activeTerminalTabId
+    assert controller.createTerminalTab()
+    second_id = controller.activeTerminalTabId
+    project = controller.createTerminalGroup([first_id, second_id])
+    controller.editTerminalGroup(project, "Project", "teal")
+    controller.renameTerminalTab(first_id, "Build")
+    controller.renameTerminalTab(second_id, "Logs")
+    directories = [tmp_path / "Build", tmp_path / "Logs #50%20"]
+    for tab, directory in zip(controller._tabs, directories, strict=True):
+        directory.mkdir()
+        session = ConPtySession(controller)
+        session.outputReceived.connect(controller._on_terminal_output)
+        tab.session = session
+        report = directory.as_uri().encode()
+        session.outputReceived.emit(b"Output from the previous application run\x1b]")
+        session.outputReceived.emit(b"7;" + report[:12])
+        session.outputReceived.emit(report[12:] + b"\x1b")
+        session.outputReceived.emit(b"\\\x1b]7;https://example.test/ignored\x07")
+        assert tab.working_directory == directory
+
+    controller.createTerminalTab()
+    tools = controller.createTerminalGroup([controller.activeTerminalTabId])
+    controller.editTerminalGroup(tools, "Tools", "purple")
+    controller.createTerminalTab()
+    closed = controller.createTerminalGroup([controller.activeTerminalTabId])
+    assert controller.closeTerminalGroup(closed)
+    controller.createTerminalTab()  # Standalone tabs aren't part of the saved groups.
+    assert controller.activateTerminalTab(second_id)
+    assert controller.moveTerminalItems([], tools, first_id, -1, True)
+    controller.shutdown()
+
+    restored = make_controller(tmp_path)
+    groups = restored.terminalTabGroups
+    assert [(group["title"], group["color"]) for group in groups] == [
+        ("Tools", "purple"), ("Project", "teal"),
+    ]
+    assert all(group["collapsed"] for group in groups)
+    assert [tab["groupId"] for tab in restored.terminalTabs] == [
+        groups[0]["groupId"], groups[1]["groupId"], groups[1]["groupId"],
+    ]
+    assert [tab["title"] for tab in restored.terminalTabs[1:]] == ["Build", "Logs"]
+    active = restored._active_tab()
+    assert active is not None
+    assert active.title == "Logs"
+    assert [tab.working_directory for tab in restored._tabs[1:]] == directories
+    assert active.session is None
+    assert restored.output == ""
+
+    assert restored.closeTerminalGroup(str(groups[0]["groupId"]))
+    saved = restored.python_environment.config_store.open_terminal_groups()
+    assert [group["title"] for group in saved if isinstance(group, dict)] == ["Project"]
+
+    active.output = "cached output"
+    active.directory_report_tail = b"\x1b]7;"
+    session = ConPtySession(restored)
+    session.outputReceived.connect(restored._on_terminal_output)
+    session.finished.connect(restored._on_session_finished)
+    active.session = session
+    removed = []
+    received = []
+    restored.terminalSessionRemoved.connect(removed.append)
+    restored.terminalData.connect(lambda tab_id, text: received.append((tab_id, text)))
+    restored._terminal_ready = True
+    closing_ids = [tab["tabId"] for tab in restored.terminalTabs]
+    assert restored.closeTerminalGroup(str(groups[1]["groupId"]))
+    assert removed == closing_ids
+    assert not active.output and not active.directory_report_tail
+    session.outputReceived.emit(b"Output queued before the tab closed")
+    session.finished.emit()
+    assert received == []
+    assert not active.output
+    assert not restored._closing_tabs
+
+    restarted_without_groups = make_controller(tmp_path)
+    assert not restarted_without_groups.terminalTabGroups
+    assert len(restarted_without_groups.terminalTabs) == 1
+
 
 def test_last_terminal_tab_can_close_and_stays_empty(tmp_path, qtbot):
     controller = make_controller(tmp_path)

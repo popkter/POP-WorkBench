@@ -2,6 +2,20 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 & "$env:SystemRoot\System32\chcp.com" 65001 > $null
 
+$global:PopToolsOriginalPrompt = ${function:prompt}
+$global:PopToolsReportedDirectory = $null
+function global:prompt {
+    $promptText = & $global:PopToolsOriginalPrompt
+    $directory = $ExecutionContext.SessionState.Path.CurrentFileSystemLocation.ProviderPath
+    if ($directory -and $directory -cne $global:PopToolsReportedDirectory) {
+        $path = [Uri]::EscapeDataString($directory.Replace('\', '/')).Replace('%2F', '/').Replace('%3A', ':')
+        $prefix = if ($path.StartsWith('//')) { 'file:' } else { 'file:///' }
+        [Console]::Write("`e]7;${prefix}$path`a")
+        $global:PopToolsReportedDirectory = $directory
+    }
+    $promptText
+}
+
 function global:python {
     if (-not $env:POPTOOLS_PYTHON) { Write-Error '请在设置的插件管理中安装 Python。'; return }
     & $env:POPTOOLS_PYTHON @args
@@ -48,17 +62,21 @@ $popToolsColorSources = @{
     Error            = 'POPTOOLS_PS_COLOR_ERROR'
     Comment          = 'POPTOOLS_PS_COLOR_MUTED'
     InlinePrediction = 'POPTOOLS_PS_COLOR_MUTED'
+    ListPrediction   = 'POPTOOLS_PS_COLOR_COMMAND'
+    Emphasis         = 'POPTOOLS_PS_COLOR_COMMAND'
 }
-$popToolsColors = @{}
+$popToolsColors = @{
+    # The native terminal maps this background marker to the current theme
+    # when painting, including rows already displayed by a running shell.
+    ListPredictionSelected = "$([char]27)[48;2;48;68;95m"
+}
 foreach ($entry in $popToolsColorSources.GetEnumerator()) {
     $ansiColor = ConvertTo-PopToolsAnsiColor ([Environment]::GetEnvironmentVariable($entry.Value))
     if ($null -ne $ansiColor) {
         $popToolsColors[$entry.Key] = $ansiColor
     }
 }
-if ($popToolsColors.Count -gt 0) {
-    Set-PSReadLineOption -Colors $popToolsColors
-}
+Set-PSReadLineOption -Colors $popToolsColors
 # New and restarted sessions apply the saved preference during initialization,
 # before PSReadLine begins accepting input.
 if ($env:POPTOOLS_PS_HISTORY_LIST_VIEW -eq '1') {

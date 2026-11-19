@@ -16,6 +16,7 @@ Item {
     signal createScriptRequested(string command, string kind)
     property bool tabsInTitleBar: false
     readonly property bool verticalTabs: controller.terminalTabLayout === "vertical"
+    readonly property var tabs: controller.terminalTabs
     property real pendingSidebarWidth: 0
     readonly property real sidebarWidth: Math.max(140, Math.min(360, width - 320,
         pendingSidebarWidth > 0 ? pendingSidebarWidth : controller.terminalSidebarWidth))
@@ -191,7 +192,7 @@ Item {
 
                         MouseArea {
                             anchors.fill: parent
-                            visible: root.controller.terminalTabs.length === 0
+                            visible: root.tabs.length === 0
                             acceptedButtons: Qt.RightButton
                             onClicked: function(mouse) { terminalContextMenu.popup(this, mouse.x, mouse.y) }
                         }
@@ -199,7 +200,7 @@ Item {
                         TerminalView {
                             id: terminalView
                             objectName: "terminalView"
-                            visible: root.controller.terminalTabs.length > 0
+                            visible: root.tabs.length > 0
                             anchors.fill: parent
                             anchors.leftMargin: Theme.space8
                             anchors.rightMargin: Theme.space8
@@ -214,6 +215,7 @@ Item {
                                 : _visualPalette.terminalBackground
                             foregroundColor: _visualPalette.terminalForeground
                             selectionColor: _visualPalette.terminalSelection
+                            historySelectionColor: _visualPalette.darkMode ? "#30445E" : "#E5F0FF"
                             fontSize: Theme.fontBody
                             focus: true
                             Accessible.role: Accessible.EditableText
@@ -232,7 +234,7 @@ Item {
                         ColumnLayout {
                             anchors.centerIn: parent
                             width: Math.min(360, parent.width - Theme.space32)
-                            visible: root.controller.terminalTabs.length === 0
+                            visible: root.tabs.length === 0
                             spacing: Theme.space16
                             MaterialIcon {
                                 Layout.alignment: Qt.AlignHCenter
@@ -259,7 +261,7 @@ Item {
 
                         DropArea {
                             id: terminalPathDropArea
-                            enabled: root.controller.terminalTabs.length > 0
+                            enabled: root.tabs.length > 0
                             anchors.fill: terminalView
                             z: 2
                             onEntered: function(drag) {
@@ -343,7 +345,7 @@ Item {
                             AppMenuItem {
                                 text: "停止所有终端会话"
                                 destructive: true
-                                enabled: root.controller.terminalTabs.some(function(tab) { return tab.running })
+                                enabled: root.tabs.some(function(tab) { return tab.running })
                                 onTriggered: root.controller.stop()
                             }
                         }

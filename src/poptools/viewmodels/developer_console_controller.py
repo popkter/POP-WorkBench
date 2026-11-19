@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import codecs
+import logging
 import os
 import re
 import sys
 from dataclasses import dataclass, field
+from itertools import groupby
 from pathlib import Path
+from uuid import uuid4
 
 from PySide6.QtCore import (
     Property,
@@ -23,6 +26,8 @@ from poptools.infrastructure.python_environment import PythonEnvironment
 from poptools.paths import bundled_adb_path, resource_path
 from poptools.viewmodels.plugin_controller import PluginController
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class TerminalTabState:
@@ -30,11 +35,13 @@ class TerminalTabState:
     shell_title: str
     working_directory: Path
     custom_title: str | None = None
+    group_id: str = ""
     session: ConPtySession | None = None
     output: str = ""
     exit_code: int = 0
     restart_pending: bool = False
     intentional_stop: bool = False
+    directory_report_tail: bytes = b""
     output_decoder: codecs.IncrementalDecoder = field(
         default_factory=lambda: codecs.getincrementaldecoder("utf-8")(errors="replace")
     )
@@ -44,10 +51,18 @@ class TerminalTabState:
         return self.custom_title or self.shell_title
 
 
+@dataclass
+class TerminalGroup:
+    title: str
+    color: str
+    collapsed: bool = False
+
+
 class DeveloperConsoleController(QObject):
     """Native terminal backed by Windows ConPTY or a macOS POSIX PTY."""
 
     OUTPUT_HISTORY_LIMIT = 131_072
+    GROUP_COLORS = ("slate", "blue", "red", "amber", "green", "pink", "purple", "teal")
     # xterm/ConPTY sequences for Ctrl+F11 and Ctrl+F12. The PowerShell profile
     # handles these chords internally, so toggling never echoes a command.
     POWER_SHELL_HISTORY_LIST_VIEW_COMMAND = "\x1b[23;5~"
@@ -63,6 +78,10 @@ class DeveloperConsoleController(QObject):
         "muted": "#728298",
     }
     _HEX_COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
+    _DIRECTORY_REPORT = re.compile(
+        rb"\x1b\]7;(?P<uri>[^\x00-\x1f\x7f]{0,8192})(?:\x07|\x1b\\)"
+        rb"|(?P<partial>\x1b\]7;[^\x00-\x1f\x7f]{0,8192}\x1b?|\x1b\]7|\x1b\]|\x1b)\Z"
+    )
 
     outputChanged = Signal()
     terminalData = Signal(str, str)
@@ -75,6 +94,7 @@ class DeveloperConsoleController(QObject):
     pluginInstallFinished = Signal(bool, str)
     terminalAccessGranted = Signal()
     terminalTabsChanged = Signal()
+    terminalGroupCreatedByDrop = Signal(str)
     powerShellHistoryListViewEnabledChanged = Signal()
     terminalTabLayoutChanged = Signal()
     terminalSidebarWidthChanged = Signal()
@@ -93,6 +113,7 @@ class DeveloperConsoleController(QObject):
         self._terminal_sidebar_width = python_environment.config_store.terminal_sidebar_width()
         self.working_directory = self._normalize_working_directory(working_directory)
         self._tabs: list[TerminalTabState] = []
+        self._groups: dict[str, TerminalGroup] = {}
         self._closing_tabs: dict[str, TerminalTabState] = {}
         self._active_tab_id = ""
         self._next_tab_number = 1
@@ -120,7 +141,9 @@ class DeveloperConsoleController(QObject):
         if self._plugin_manager is not None:
             self._plugin_manager.changed.connect(self.pluginStateChanged)
             self._plugin_manager.completed.connect(self.onManagedPluginCompleted)
-        self._create_tab(activate=True)
+        self._restore_open_terminal_groups()
+        if not self._tabs:
+            self._create_tab(activate=True)
 
     @Property(str, notify=outputChanged)
     def output(self) -> str:
@@ -168,8 +191,23 @@ class DeveloperConsoleController(QObject):
                 "hasCustomTitle": tab.custom_title is not None,
                 "active": tab.tab_id == self._active_tab_id,
                 "running": tab.session is not None,
+                "groupId": tab.group_id,
             }
             for tab in self._tabs
+        ]
+
+    @Property(list, notify=terminalTabsChanged)
+    def terminalTabGroups(self) -> list[dict[str, object]]:
+        active = self._active_tab()
+        return [
+            {
+                "groupId": group_id,
+                "title": group.title,
+                "color": group.color,
+                "collapsed": group.collapsed,
+                "active": active is not None and active.group_id == group_id,
+            }
+            for group_id, group in self._groups.items()
         ]
 
     @Property(str, notify=terminalTabsChanged)
@@ -342,6 +380,7 @@ class DeveloperConsoleController(QObject):
         tab.shell_title = self._default_tab_title()
         session = ConPtySession(self)
         tab.output_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        tab.directory_report_tail = b""
         session.outputReceived.connect(self._on_terminal_output)
         session.processExited.connect(self._on_process_exited)
         session.finished.connect(self._on_session_finished)
@@ -475,11 +514,14 @@ class DeveloperConsoleController(QObject):
 
     @Slot(int, result=bool)
     def activateRelativeTerminalTab(self, offset: int) -> bool:
-        if not self._tabs:
-            return False
         active = self._active_tab()
-        current_index = self._tabs.index(active) if active is not None else 0
-        target = self._tabs[(current_index + offset) % len(self._tabs)]
+        visible = [tab for tab in self._tabs if self._is_tab_visible(tab) or tab is active]
+        if not visible:
+            return False
+        current_index = visible.index(active) if active is not None else 0
+        target = visible[(current_index + offset) % len(visible)]
+        if target is active:
+            return True
         return self.activateTerminalTab(target.tab_id)
 
     def _write_input_to_tab(self, tab: TerminalTabState, data: str) -> bool:
@@ -540,6 +582,7 @@ class DeveloperConsoleController(QObject):
     @Slot()
     def shutdown(self) -> None:
         self._shutdown_pending = True
+        self._save_open_terminal_groups()
         self.stop()
         tabs = (*self._tabs, *self._closing_tabs.values())
         for tab in tabs:
@@ -555,6 +598,68 @@ class DeveloperConsoleController(QObject):
         if self._owns_plugin_manager and self._plugin_manager:
             self._plugin_manager.shutdown()
 
+    def _save_open_terminal_groups(self) -> None:
+        groups: list[dict[str, object]] = []
+        for group_id, members in groupby(self._tabs, key=lambda tab: tab.group_id):
+            group = self._groups.get(group_id)
+            if group is None:
+                continue
+            tabs = list(members)
+            for tab in tabs:
+                if isinstance(tab.session, ConPtySession):
+                    directory = tab.session.posix_working_directory()
+                    if directory is not None:
+                        tab.working_directory = directory
+            groups.append({
+                "title": group.title,
+                "color": group.color,
+                "tabs": [
+                    {
+                        "title": tab.custom_title,
+                        "directory": str(tab.working_directory),
+                        "active": tab.tab_id == self._active_tab_id,
+                    }
+                    for tab in tabs
+                ],
+            })
+        try:
+            self.python_environment.config_store.set_open_terminal_groups(groups)
+        except OSError:
+            logger.warning("Could not save open terminal groups", exc_info=True)
+
+    def _restore_open_terminal_groups(self) -> None:
+        for saved in self.python_environment.config_store.open_terminal_groups():
+            if not isinstance(saved, dict) or not isinstance(saved.get("tabs"), list):
+                continue
+            members = [member for member in saved["tabs"] if isinstance(member, dict)]
+            if not members:
+                continue
+            group_id = uuid4().hex
+            title, color = saved.get("title"), saved.get("color")
+            self._groups[group_id] = TerminalGroup(
+                title=title[:60] if isinstance(title, str) else "",
+                color=color if isinstance(color, str) and color in self.GROUP_COLORS
+                else self.GROUP_COLORS[0],
+                collapsed=True,
+            )
+            for member in members:
+                directory = member.get("directory")
+                path = (
+                    Path(directory)
+                    if isinstance(directory, str) and "\x00" not in directory
+                    else self.working_directory
+                )
+                tab = self._create_tab(
+                    activate=member.get("active") is True, emit=False,
+                    working_directory=path if path.is_absolute() else self.working_directory,
+                )
+                tab.group_id = group_id
+                title = member.get("title")
+                if isinstance(title, str):
+                    tab.custom_title = title
+        if self._tabs and not self._active_tab_id:
+            self._active_tab_id = self._tabs[0].tab_id
+
     def active_session_titles(self) -> list[str]:
         return [tab.title for tab in (*self._tabs, *self._closing_tabs.values())
                 if tab.session is not None]
@@ -562,10 +667,170 @@ class DeveloperConsoleController(QObject):
     @Slot(result=bool)
     def createTerminalTab(self) -> bool:
         tab = self._create_tab(activate=True)
-        if self._terminal_ready:
-            self._display_active_tab()
-            QTimer.singleShot(0, lambda: self._ensure_tab_started(tab))
+        self._show_started_tab(tab)
         return True
+
+    def _show_started_tab(self, tab: TerminalTabState) -> None:
+        self._display_active_tab()
+        if self._terminal_ready:
+            QTimer.singleShot(0, lambda: self._ensure_tab_started(tab))
+
+    @Slot("QVariantList", result=str)
+    def createTerminalGroup(self, tab_ids: list[str]) -> str:
+        members = self._selected_tabs(tab_ids)
+        if not members:
+            return ""
+        bounds = self._group_bounds(members[0].group_id)
+        index = bounds[0] if bounds is not None else self._tabs.index(members[0])
+        return self._create_terminal_group(members, index)
+
+    def _create_terminal_group(self, members: list[TerminalTabState], index: int) -> str:
+        group_id = uuid4().hex
+        color = self.GROUP_COLORS[len(self._groups) % len(self.GROUP_COLORS)]
+        self._groups[group_id] = TerminalGroup("", color)
+        self._place_tabs(members, index, group_id)
+        return group_id
+
+    @Slot("QVariantList", str, result=bool)
+    def addTabsToTerminalGroup(self, tab_ids: list[str], group_id: str) -> bool:
+        bounds = self._group_bounds(group_id)
+        members = [tab for tab in self._selected_tabs(tab_ids) if tab.group_id != group_id]
+        if bounds is None or not members:
+            return False
+        self._place_tabs(members, bounds[1], group_id)
+        return True
+
+    @Slot("QVariantList")
+    def removeTabsFromTerminalGroups(self, tab_ids: list[str]) -> None:
+        members = self._selected_tabs(tab_ids)
+        for group_id in dict.fromkeys(tab.group_id for tab in members if tab.group_id):
+            bounds = self._group_bounds(group_id)
+            if bounds is not None:
+                self._place_tabs(
+                    [tab for tab in members if tab.group_id == group_id],
+                    bounds[1], "", emit=False,
+                )
+        self.terminalTabsChanged.emit()
+
+    @Slot(str, str, str)
+    def editTerminalGroup(self, group_id: str, title: str, color: str) -> None:
+        group = self._groups.get(group_id)
+        if group is not None and color in self.GROUP_COLORS:
+            group.title = title.strip()[:60]
+            group.color = color
+            self.terminalTabsChanged.emit()
+
+    @Slot(str)
+    def toggleTerminalGroup(self, group_id: str) -> None:
+        group = self._groups.get(group_id)
+        if group is None:
+            return
+        group.collapsed = not group.collapsed
+        active = self._active_tab()
+        if group.collapsed and active is not None and active.group_id == group_id:
+            index = self._tabs.index(active)
+            candidates = self._tabs[index + 1:] + self._tabs[:index][::-1]
+            target = next((tab for tab in candidates if self._is_tab_visible(tab)), None)
+            if target is not None:
+                self.activateTerminalTab(target.tab_id)
+                return
+        self.terminalTabsChanged.emit()
+
+    @Slot(str, result=bool)
+    def createTerminalTabInGroup(self, group_id: str) -> bool:
+        bounds = self._group_bounds(group_id)
+        if bounds is None:
+            return False
+        tab = self._create_tab(activate=False, emit=False)
+        self._place_tabs([tab], bounds[1], group_id, emit=False)
+        return self.activateTerminalTab(tab.tab_id)
+
+    @Slot(str)
+    def ungroupTerminalGroup(self, group_id: str) -> None:
+        if self._groups.pop(group_id, None) is None:
+            return
+        for tab in self._tabs:
+            if tab.group_id == group_id:
+                tab.group_id = ""
+        self.terminalTabsChanged.emit()
+
+    @Slot("QVariantList", str, str, int, bool, result=bool)
+    def moveTerminalItems(
+        self, tab_ids: list[str], group_id: str, target_id: str,
+        position: int, target_is_group: bool,
+    ) -> bool:
+        tabs = (
+            [tab for tab in self._tabs if tab.group_id == group_id]
+            if group_id else self._selected_tabs(tab_ids)
+        )
+        target = self._tab_by_id(target_id)
+        if not tabs or target is None or target in tabs:
+            return False
+        target_group = target.group_id
+        index = self._tabs.index(target)
+        if (
+            position == 0 and not target_is_group and not target_group and not group_id
+            and all(not tab.group_id for tab in tabs)
+        ):
+            new_group_id = self._create_terminal_group([target, *tabs], index)
+            self.terminalGroupCreatedByDrop.emit(new_group_id)
+            return True
+        destination = target_group
+        bounds = self._group_bounds(target_group)
+        if group_id or target_is_group:
+            if bounds is not None:
+                index = bounds[0] if position < 0 else bounds[1]
+            else:
+                index += int(position >= 0)
+            if group_id or position != 0:
+                destination = group_id
+        else:
+            index += int(position >= 0)
+            if position > 0 and bounds is not None and index == bounds[1]:
+                destination = ""
+        self._place_tabs(tabs, index, destination)
+        return True
+
+    @Slot(str, result=bool)
+    def closeTerminalGroup(self, group_id: str) -> bool:
+        if group_id not in self._groups:
+            return False
+        tabs = [tab for tab in self._tabs if tab.group_id == group_id]
+        self._close_tabs(tabs)
+        return True
+
+    def _selected_tabs(self, tab_ids: list[str]) -> list[TerminalTabState]:
+        ids = set(tab_ids)
+        return [tab for tab in self._tabs if tab.tab_id in ids]
+
+    def _is_tab_visible(self, tab: TerminalTabState) -> bool:
+        group = self._groups.get(tab.group_id)
+        return group is None or not group.collapsed
+
+    def _group_bounds(self, group_id: str) -> tuple[int, int] | None:
+        if not group_id:
+            return None
+        indices = [index for index, tab in enumerate(self._tabs) if tab.group_id == group_id]
+        return (indices[0], indices[-1] + 1) if indices else None
+
+    def _place_tabs(
+        self, tabs: list[TerminalTabState], index: int, group_id: str, *, emit: bool = True,
+    ) -> None:
+        ids = {tab.tab_id for tab in tabs}
+        index = sum(tab.tab_id not in ids for tab in self._tabs[:index])
+        self._tabs = [tab for tab in self._tabs if tab.tab_id not in ids]
+        self._tabs[index:index] = tabs
+        for tab in tabs:
+            if tab.group_id != group_id and group_id and tab.tab_id == self._active_tab_id:
+                self._groups[group_id].collapsed = False
+            tab.group_id = group_id
+        self._remove_empty_groups()
+        if emit:
+            self.terminalTabsChanged.emit()
+
+    def _remove_empty_groups(self) -> None:
+        occupied = {tab.group_id for tab in self._tabs}
+        self._groups = {key: group for key, group in self._groups.items() if key in occupied}
 
     @Slot(str, result=bool)
     def openTerminalAtDirectory(self, directory: str) -> bool:
@@ -589,13 +854,13 @@ class DeveloperConsoleController(QObject):
             return False
         if tab.tab_id == self._active_tab_id:
             return True
+        if tab.group_id:
+            self._groups[tab.group_id].collapsed = False
         self._active_tab_id = tab.tab_id
         self.terminalTabsChanged.emit()
         self.runningChanged.emit()
         self.outputChanged.emit()
-        self._display_active_tab()
-        if self._terminal_ready:
-            QTimer.singleShot(0, lambda: self._ensure_tab_started(tab))
+        self._show_started_tab(tab)
         return True
 
     @Slot(str, result=bool)
@@ -603,37 +868,51 @@ class DeveloperConsoleController(QObject):
         tab = self._tab_by_id(tab_id)
         if tab is None:
             return False
-        index = self._tabs.index(tab)
-        was_active = tab.tab_id == self._active_tab_id
-        self._tabs.remove(tab)
-        if self._terminal_ready:
+        self._close_tabs([tab])
+        return True
+
+    def _close_tabs(self, tabs: list[TerminalTabState]) -> None:
+        if not tabs:
+            return
+        ids = {tab.tab_id for tab in tabs}
+        active = self._active_tab()
+        was_active = active is not None and active.tab_id in ids
+        if was_active and active is not None:
+            index = self._tabs.index(active)
+            candidates = [tab for tab in self._tabs[index + 1:] + self._tabs[:index][::-1]
+                          if tab.tab_id not in ids]
+            active = next((tab for tab in candidates if self._is_tab_visible(tab)),
+                          candidates[0] if candidates else None)
+            self._active_tab_id = active.tab_id if active is not None else ""
+            if active is not None and active.group_id:
+                self._groups[active.group_id].collapsed = False
+        self._tabs = [tab for tab in self._tabs if tab.tab_id not in ids]
+        self._remove_empty_groups()
+        for tab in tabs:
+            tab.output = ""
+            tab.directory_report_tail = b""
             self.terminalSessionRemoved.emit(tab.tab_id)
-        if tab.session is not None:
-            tab.intentional_stop = True
-            tab.restart_pending = False
-            self._closing_tabs[tab.tab_id] = tab
-            tab.session.stop_process()
-        if not self._tabs:
-            self._active_tab_id = ""
-        elif was_active:
-            self._active_tab_id = self._tabs[min(index, len(self._tabs) - 1)].tab_id
+            if tab.session is not None:
+                tab.intentional_stop = True
+                tab.restart_pending = False
+                self._closing_tabs[tab.tab_id] = tab
+                tab.session.stop_process()
+        if any(tab.group_id for tab in tabs):
+            self._save_open_terminal_groups()
         self.terminalTabsChanged.emit()
         self.runningChanged.emit()
         self.outputChanged.emit()
         if was_active:
-            self._display_active_tab()
-            active = self._active_tab()
-            if self._terminal_ready and active is not None:
-                QTimer.singleShot(0, lambda: self._ensure_tab_started(active))
-        return True
+            if active is not None:
+                self._show_started_tab(active)
+            else:
+                self._display_active_tab()
 
     @Slot(str, result=bool)
     def closeOtherTerminalTabs(self, tab_id: str) -> bool:
         if self._tab_by_id(tab_id) is None:
             return False
-        other_ids = [tab.tab_id for tab in self._tabs if tab.tab_id != tab_id]
-        for other_id in other_ids:
-            self.closeTerminalTab(other_id)
+        self._close_tabs([tab for tab in self._tabs if tab.tab_id != tab_id])
         return True
 
     @Slot(str, result=bool)
@@ -642,16 +921,30 @@ class DeveloperConsoleController(QObject):
         if tab is None:
             return False
         index = self._tabs.index(tab)
-        right_ids = [item.tab_id for item in self._tabs[index + 1 :]]
-        for other_id in right_ids:
-            self.closeTerminalTab(other_id)
+        self._close_tabs(self._tabs[index + 1 :])
         return True
 
     @Slot(bytes)
     def _on_terminal_output(self, payload: bytes) -> None:
         tab = self._tab_for_session(self.sender())
-        if tab is not None:
+        if tab is not None and tab.tab_id not in self._closing_tabs:
+            self._track_terminal_directory(tab, payload)
             self._append_to_tab(tab, tab.output_decoder.decode(payload, final=False))
+
+    def _track_terminal_directory(self, tab: TerminalTabState, payload: bytes) -> None:
+        data = tab.directory_report_tail + payload
+        tab.directory_report_tail = b""
+        for match in self._DIRECTORY_REPORT.finditer(data):
+            partial = match["partial"]
+            if partial is not None:
+                tab.directory_report_tail = partial
+                continue
+            url = QUrl.fromEncoded(match["uri"], QUrl.ParsingMode.StrictMode)
+            if not url.isLocalFile() or url.hasQuery() or url.hasFragment():
+                continue
+            directory = url.toLocalFile()
+            if "\x00" not in directory and (path := Path(directory)).is_absolute():
+                tab.working_directory = path
 
     @Slot(int)
     def _on_process_exited(self, exit_code: int) -> None:
@@ -670,7 +963,6 @@ class DeveloperConsoleController(QObject):
             session.dispose()
             session.deleteLater()
             return
-        self._append_to_tab(tab, tab.output_decoder.decode(b"", final=True))
         tab_id = tab.tab_id
         tab.session = None
         session.dispose()
@@ -678,6 +970,7 @@ class DeveloperConsoleController(QObject):
         if tab_id in self._closing_tabs:
             self._closing_tabs.pop(tab_id, None)
             return
+        self._append_to_tab(tab, tab.output_decoder.decode(b"", final=True))
         restart_pending = tab.restart_pending
         tab.restart_pending = False
         if not restart_pending and not tab.intentional_stop and not self._shutdown_pending:

@@ -12,6 +12,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+import psutil
 from PySide6.QtCore import QObject, QThread, Signal
 
 if os.name == "nt":
@@ -177,6 +178,14 @@ class ConPtySession(QThread):
         if pty is not None and pty.isalive():
             with suppress(Exception):
                 pty.set_size(max(1, columns), max(1, rows))
+
+    def posix_working_directory(self) -> Path | None:
+        # PowerShell tracks its location separately from the Windows process.
+        process = self._process
+        if process is not None and process.poll() is None:
+            with suppress(psutil.Error, OSError):
+                return Path(psutil.Process(process.pid).cwd())
+        return None
 
     def stop_process(self) -> None:
         self.requestInterruption()

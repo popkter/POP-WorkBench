@@ -27,6 +27,28 @@ int main(int argc, char **argv)
     input.setFillColor(QColor("#ffffff"));
     if (input.foregroundColor() != QColor("#20252b") || input.scrollbackLineCount() == 0)
         return 7;
+    input.setSessionId(QStringLiteral("prediction-test"));
+    // Paint the same selected history row in both themes, including explicit
+    // dark syntax text emitted before the change to dark mode.
+    input.feed(input.sessionId(), QStringLiteral("\x1b[48;2;48;68;95m\x1b[38;2;7;95;175m████"));
+    for (const auto selection : {QColor("#e5f0ff"), QColor("#30445e")}) {
+        input.setHistorySelectionColor(selection);
+        QImage frame(800, 400, QImage::Format_RGB32);
+        QPainter painter(&frame);
+        input.paint(&painter);
+        painter.end();
+        bool hasReadableText = false;
+        const qreal bg = luminance(selection);
+        for (int y = 0; y < 16; ++y) {
+            for (int x = 0; x < 28; ++x) {
+                const qreal fg = luminance(frame.pixelColor(x, y));
+                hasReadableText |= (std::max(fg, bg) + 0.05) / (std::min(fg, bg) + 0.05) >= 4.5;
+            }
+        }
+        if (frame.pixelColor(0, 0) != selection || !hasReadableText)
+            return 8;
+    }
+    input.setSessionId(QStringLiteral("input-test"));
     for (const auto key : {Qt::Key_Return, Qt::Key_Enter}) {
         input.setScrollOffset(10);
         if (input.scrollOffset() != 10)

@@ -34,6 +34,7 @@ class TerminalItem : public QQuickPaintedItem
     Q_PROPERTY(int scrollOffset READ scrollOffset WRITE setScrollOffset NOTIFY scrollbackChanged)
     Q_PROPERTY(QColor foregroundColor READ foregroundColor WRITE setForegroundColor NOTIFY foregroundColorChanged)
     Q_PROPERTY(QColor selectionColor READ selectionColor WRITE setSelectionColor NOTIFY selectionColorChanged)
+    Q_PROPERTY(QColor historySelectionColor READ historySelectionColor WRITE setHistorySelectionColor NOTIFY historySelectionColorChanged)
 
 public:
     explicit TerminalItem(QQuickItem *parent = nullptr);
@@ -53,6 +54,8 @@ public:
     void setForegroundColor(const QColor &color);
     QColor selectionColor() const;
     void setSelectionColor(const QColor &color);
+    QColor historySelectionColor() const;
+    void setHistorySelectionColor(const QColor &color);
 
     void paint(QPainter *painter) override;
 
@@ -77,6 +80,7 @@ signals:
     void scrollbackChanged();
     void foregroundColorChanged();
     void selectionColorChanged();
+    void historySelectionColorChanged();
     void terminalTitleChanged(const QString &sessionId, const QString &title);
     void bell(const QString &sessionId);
     void contextMenuRequested(qreal x, qreal y);
@@ -121,6 +125,7 @@ private:
     QFont m_font;
     QColor m_foregroundColor = QColor(0xe5, 0xe7, 0xeb);
     QColor m_selectionColor = QColor(0x66, 0x60, 0xc8, 0x80);
+    QColor m_historySelectionColor = QColor(48, 68, 94);
     std::array<QFont, 16> m_cellFonts;
     qreal m_fontSize = 14.0;
     qreal m_cellWidth = 8.0;

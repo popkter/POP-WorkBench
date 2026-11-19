@@ -33,6 +33,8 @@ constexpr int kFontStrike = 1 << 2;
 constexpr int kFontUnderline = 1 << 3;
 // Match the terminal surface defined by the latest UI specification.
 const QColor kDefaultBackground(0x2b, 0x31, 0x3d);
+// Matches ListPredictionSelected in powershell-terminal-profile.ps1.
+const QColor kHistorySelectionMarker(48, 68, 95);
 
 using CellLine = std::vector<VTermScreenCell>;
 
@@ -304,6 +306,7 @@ TerminalItem::~TerminalItem()
 
 QColor TerminalItem::foregroundColor() const { return m_foregroundColor; }
 QColor TerminalItem::selectionColor() const { return m_selectionColor; }
+QColor TerminalItem::historySelectionColor() const { return m_historySelectionColor; }
 
 void TerminalItem::setForegroundColor(const QColor &color)
 {
@@ -327,6 +330,15 @@ void TerminalItem::setSelectionColor(const QColor &color)
         return;
     m_selectionColor = color;
     emit selectionColorChanged();
+    update();
+}
+
+void TerminalItem::setHistorySelectionColor(const QColor &color)
+{
+    if (!color.isValid() || color == m_historySelectionColor)
+        return;
+    m_historySelectionColor = color;
+    emit historySelectionColorChanged();
     update();
 }
 
@@ -615,6 +627,7 @@ void TerminalItem::paint(QPainter *painter)
     int activeFontStyle = 0;
     QColor activeForeground = m_foregroundColor;
     QHash<QRgb, QColor> readableColors;
+    QHash<QRgb, QColor> readableHistoryColors;
     for (int displayRow = 0; displayRow < m_rows; ++displayRow) {
         const int line = firstLine + displayRow;
         for (int column = 0; column < m_columns; ++column) {
@@ -647,6 +660,12 @@ void TerminalItem::paint(QPainter *painter)
                 else if (!(cell.bg.type & VTERM_COLOR_DEFAULT_MASK))
                     background = terminalColor(session->screen, cell.bg, backgroundColor);
             }
+            const bool historySelected = valid && !cell.attrs.reverse
+                && VTERM_COLOR_IS_RGB(&cell.bg)
+                && !(cell.bg.type & VTERM_COLOR_DEFAULT_MASK)
+                && background == kHistorySelectionMarker;
+            if (historySelected)
+                background = m_historySelectionColor;
             if (background != backgroundColor)
                 painter->fillRect(cellRect, background);
             if (cellSelected(session, line, column))
@@ -662,7 +681,12 @@ void TerminalItem::paint(QPainter *painter)
                 foreground = terminalColor(session->screen, cell.bg, inkBackground);
             else if (!(cell.fg.type & VTERM_COLOR_DEFAULT_MASK))
                 foreground = terminalColor(session->screen, cell.fg, m_foregroundColor);
-            if (!cell.attrs.reverse && (cell.bg.type & VTERM_COLOR_DEFAULT_MASK)
+            if (historySelected) {
+                const QRgb key = foreground.rgba();
+                if (!readableHistoryColors.contains(key))
+                    readableHistoryColors.insert(key, readableForeground(foreground, background));
+                foreground = readableHistoryColors.value(key);
+            } else if (!cell.attrs.reverse && (cell.bg.type & VTERM_COLOR_DEFAULT_MASK)
                 && !(cell.fg.type & VTERM_COLOR_DEFAULT_MASK)) {
                 const QRgb key = foreground.rgba();
                 if (!readableColors.contains(key))

@@ -1,19 +1,21 @@
 """Exercise client-drawn caption layout and real Windows non-client behavior."""
 
 import ctypes
+import json
 import sys
 from ctypes import wintypes
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent, QMargins, QObject, QSize, Qt, QUrl
-from PySide6.QtQml import QQmlComponent, QQmlEngine
+from PySide6.QtCore import QCoreApplication, QEvent, QMargins, QMetaObject, QObject, QSize, Qt, QUrl
+from PySide6.QtGui import QFontDatabase
+from PySide6.QtQml import QQmlComponent, QQmlEngine, QQmlExpression
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
 
 from poptools.infrastructure.window_chrome import WindowChromeController, initial_window_size
 from poptools.infrastructure.windows_integration import apply_windows_title_bar_theme
-from poptools.paths import package_root
+from poptools.paths import package_root, resource_path
 
 
 def caption_button(window, index):
@@ -753,3 +755,52 @@ def test_native_close_preserves_tray_behavior(native_window, available, quitting
     assert window.close() == (not hidden)
     assert not window.isVisible()
     assert tray.property("notifications") == hidden
+
+
+@pytest.mark.gui
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows non-client system menu")
+@pytest.mark.parametrize("dark,glass", [(False, False), (True, False), (False, True), (True, True)])
+def test_themed_caption_menu_and_native_commands(native_window, qtbot, tmp_path, dark, glass):
+    window, tray = native_window
+    QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
+    context = QQmlEngine.contextForObject(window)
+    config = json.loads((package_root() / "ui/qml/theme/configs/glass.json").read_text("utf-8"))
+    expression = QQmlExpression(context, window,
+        f"Theme.darkMode = {str(dark).lower()}; Theme.glassMode = {str(glass).lower()};"
+        f"Theme.glassPalette = {json.dumps(config['darkColors' if dark else 'colors'])};")
+    expression.evaluate()
+    assert not expression.hasError(), expression.error().toString()
+    user32 = ctypes.WinDLL("user32")
+    user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT,
+                                    ctypes.c_size_t, ctypes.c_ssize_t]
+    user32.SendMessageW.restype = ctypes.c_ssize_t
+    user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+    hwnd = int(window.winId())
+    point = wintypes.POINT(round(200 * window.devicePixelRatio()),
+                           round(20 * window.devicePixelRatio()))
+    user32.ClientToScreen(hwnd, ctypes.byref(point))
+    packed = (point.x & 0xFFFF) | ((point.y & 0xFFFF) << 16)
+    user32.SendMessageW(hwnd, 0x00A5, 2, packed)
+    menu = window.findChild(QObject, "windowSystemMenu")
+    qtbot.waitUntil(lambda: menu.property("opened"))
+    assert abs(menu.property("x") - 200) <= 1
+    assert not window.findChild(QObject, "windowMenu_restore").isEnabled()
+    assert window.findChild(QObject, "windowMenu_resize").isEnabled()
+    qtbot.wait(100)
+    assert window.grabWindow().save(str(tmp_path / "title-menu.png"))
+    QMetaObject.invokeMethod(window.findChild(QObject, "windowMenu_maximize"), "triggered")
+    qtbot.waitUntil(lambda: window.windowState() == Qt.WindowMaximized)
+    user32.SendMessageW(hwnd, 0x0104, 0x20, 0)  # Alt+Space
+    qtbot.waitUntil(lambda: menu.property("opened"))
+    assert window.findChild(QObject, "windowMenu_restore").isEnabled()
+    assert not window.findChild(QObject, "windowMenu_move").isEnabled()
+    assert not window.findChild(QObject, "windowMenu_resize").isEnabled()
+    assert not window.findChild(QObject, "windowMenu_maximize").isEnabled()
+    QMetaObject.invokeMethod(window.findChild(QObject, "windowMenu_restore"), "triggered")
+    qtbot.waitUntil(lambda: window.windowState() == Qt.WindowNoState)
+    tray.setProperty("available", True)
+    user32.SendMessageW(hwnd, 0x0104, 0x20, 0)
+    qtbot.waitUntil(lambda: menu.property("opened"))
+    QMetaObject.invokeMethod(window.findChild(QObject, "windowMenu_close"), "triggered")
+    qtbot.waitUntil(lambda: not window.isVisible())
+    assert tray.property("notifications") == 1

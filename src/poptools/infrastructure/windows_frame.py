@@ -2,14 +2,15 @@
 
 Keep the normal Win32 frame styles and a one-physical-pixel non-client border.
 Glass uses a transparent DirectComposition surface over DWM Desktop Acrylic.
-Windows owns resizing, moving, snapping, the system menu, shadow and rounding;
-QML only paints the caption and its controls (as in JetBrains Runtime).
+Windows owns resizing, moving, snapping, window commands, shadow and rounding;
+QML paints the caption, its controls and the application-styled window menu.
 """
 
 from __future__ import annotations
 
 import ctypes
 import logging
+from collections.abc import Callable
 from ctypes import wintypes
 
 from PySide6.QtCore import QMargins, QPointF, QRectF, Qt
@@ -65,8 +66,10 @@ class _MinMaxInfo(ctypes.Structure):
 
 
 class WindowsFrame:
-    def __init__(self, window: QWindow, native_style: int = 0x000F0000) -> None:
+    def __init__(self, window: QWindow, native_style: int = 0x000F0000,
+                 system_menu_requested: Callable[[float, float], None] | None = None) -> None:
         self.window = window
+        self.system_menu_requested = system_menu_requested
         self.hwnd = int(window.winId())
         self.user32 = ctypes.WinDLL("user32", use_last_error=True)
         self.dwmapi = ctypes.WinDLL("dwmapi", use_last_error=True)
@@ -234,6 +237,12 @@ class WindowsFrame:
         return HTCLIENT
 
     def _system_menu(self, x: int, y: int) -> None:
+        if self.system_menu_requested is not None:
+            point = wintypes.POINT(x, y)
+            self.user32.ScreenToClient(self.hwnd, ctypes.byref(point))
+            scale = self.user32.GetDpiForWindow(self.hwnd) / 96
+            self.system_menu_requested(point.x / scale, point.y / scale)
+            return
         menu = self.user32.GetSystemMenu(self.hwnd, False)
         maximized = self.user32.IsZoomed(self.hwnd)
         for command, disabled in ((0xF120, not maximized), (0xF030, maximized),

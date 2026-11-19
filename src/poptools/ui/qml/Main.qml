@@ -104,7 +104,7 @@ ApplicationWindow {
     readonly property bool scrcpySelected:
         appController.selectedTool.workspace === "scrcpy"
     readonly property bool applicationOverlayVisible:
-        executionCapacityDialog.visible
+        titleBar.systemMenuVisible || executionCapacityDialog.visible
         || customScriptImportDialog.visible
         || powershellPluginDialog.visible
         || (updateDialogLoader.item && updateDialogLoader.item.visible)
