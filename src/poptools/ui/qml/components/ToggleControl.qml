@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 Rectangle {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: toggle
 
     property bool checked: false
@@ -14,7 +17,7 @@ Rectangle {
     Layout.preferredWidth: 52
     Layout.preferredHeight: 28
     radius: height / 2
-    color: checked ? Theme.primary : Theme.outline
+    color: checked ? _visualPalette.primary : _visualPalette.outline
 
     Rectangle {
         width: 22

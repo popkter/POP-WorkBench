@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 RowLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property var backend: null
     readonly property bool popupVisible: screenPopup.opened
@@ -44,7 +47,7 @@ RowLayout {
     }
     Text {
         text: "屏幕"
-        color: Theme.chromeForeground
+        color: _visualPalette.chromeForeground
         font.pixelSize: Theme.fontSupporting
     }
     AppTextField {
@@ -72,8 +75,8 @@ RowLayout {
         Layout.preferredWidth: 28
         Layout.preferredHeight: Theme.captionActionHeight
         glyphSize: 18
-        color: hovered ? Theme.navigationHover : "transparent"
-        foregroundColor: Theme.chromeForeground
+        color: hovered ? _visualPalette.navigationHover : "transparent"
+        foregroundColor: _visualPalette.chromeForeground
         border.width: 0
         radius: Theme.radiusTiny
         onClicked: root.openMenu()
@@ -94,13 +97,13 @@ RowLayout {
                     Layout.fillWidth: true
                     text: root.backend && root.backend.loading ? "正在查询屏幕…" : "设备屏幕"
                     font.pixelSize: Theme.fontSupporting
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                 }
                 PrimaryButton {
                     text: "刷新屏幕列表"; iconName: "refresh"; compact: true
                     Layout.preferredWidth: 28; Layout.preferredHeight: 28; glyphSize: 18
-                    color: hovered ? Theme.popupHover : "transparent"
-                    foregroundColor: Theme.textSecondary
+                    color: hovered ? _visualPalette.popupHover : "transparent"
+                    foregroundColor: _visualPalette.textSecondary
                     border.width: 0
                     enabled: !!root.backend && !root.backend.loading
                     onClicked: root.backend.refresh()
@@ -110,7 +113,7 @@ RowLayout {
                 Layout.fillWidth: true
                 visible: text.length > 0
                 text: root.backend ? root.backend.error : ""
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontCaption
                 wrapMode: Text.Wrap
             }
@@ -128,15 +131,15 @@ RowLayout {
                     highlighted: root.backend && modelData.id === root.backend.selectedId
                     contentItem: Text {
                         text: displayRow.text
-                        color: Theme.textPrimary
+                        color: _visualPalette.textPrimary
                         font.pixelSize: Theme.fontSupporting
                         verticalAlignment: Text.AlignVCenter
                         elide: Text.ElideRight
                     }
                     background: Rectangle {
                         radius: Theme.radiusSmall
-                        color: displayRow.highlighted ? Theme.popupSelected
-                            : displayRow.hovered ? Theme.popupHover : "transparent"
+                        color: displayRow.highlighted ? _visualPalette.popupSelected
+                            : displayRow.hovered ? _visualPalette.popupHover : "transparent"
                     }
                     onClicked: {
                         root.backend.selectDisplay(modelData.id)
@@ -149,7 +152,7 @@ RowLayout {
             Text {
                 Layout.fillWidth: true
                 text: "也可直接输入 displayId，按 Enter 确认"
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontCaption
             }
         }

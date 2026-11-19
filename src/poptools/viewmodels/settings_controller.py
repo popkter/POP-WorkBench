@@ -35,6 +35,7 @@ class SettingsController(QObject):
     themeStylesChanged = Signal()
     terminalEnabledChanged = Signal()
     floatingLauncherEnabledChanged = Signal()
+    floatingLauncherStyleChanged = Signal()
     userGuideSeenChanged = Signal()
     scriptsImported = Signal()
     pluginsChanged = Signal()
@@ -150,6 +151,23 @@ class SettingsController(QObject):
     def floatingLauncherEnabled(self) -> bool:
         return self.config_store.floating_launcher_enabled()
 
+    @Property(str, notify=floatingLauncherStyleChanged)
+    def floatingLauncherStyle(self) -> str:
+        return self.config_store.floating_launcher_style()
+
+    @Slot(str, result=bool)
+    def saveFloatingLauncherStyle(self, style: str) -> bool:
+        if style == "off":
+            return self.saveFloatingLauncherEnabled(False)
+        try:
+            self.config_store.set_floating_launcher_style(style)
+        except (OSError, ValueError) as exc:
+            self.setStatus(f"悬浮窗样式保存失败：{exc}")
+            return False
+        self.floatingLauncherStyleChanged.emit()
+        self.floatingLauncherEnabledChanged.emit()
+        return True
+
     @Slot(bool, result=bool)
     def saveFloatingLauncherEnabled(self, enabled: bool) -> bool:
         try:
@@ -192,7 +210,7 @@ class SettingsController(QObject):
 
     @Property(bool, notify=themeChanged)
     def darkTheme(self) -> bool:
-        if self._theme_mode in ("dark", "decade", "zio"):
+        if self._theme_mode == "dark":
             return True
         if self._theme_mode == "light":
             return False

@@ -1,7 +1,10 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "decadeCardArtwork"
     property bool backFace: false
@@ -10,7 +13,7 @@ Item {
     readonly property real centerY: height / 2
     Item {
         anchors.fill: parent
-        visible: !Theme.zioMode
+        visible: !LauncherStyle.zio
         Rectangle {
             x: (parent.width - width) / 2
             y: root.centerY - height / 2
@@ -18,9 +21,9 @@ Item {
             height: width
             rotation: 45
             radius: root.motifSize * 0.11
-            color: root.backFace ? Theme.decadeCardBackFill : Theme.decadeCardArtworkFill
+            color: root.backFace ? LauncherStyle.decadeCardBackFill : LauncherStyle.decadeCardArtworkFill
             border.width: root.backFace ? Theme.borderWidthMedium * root.width / 440 : Theme.borderWidthMedium
-            border.color: root.backFace ? Theme.primary : Theme.decadeCardArtworkOutline
+            border.color: root.backFace ? _visualPalette.primary : LauncherStyle.decadeCardArtworkOutline
         }
         MaterialIcon {
             objectName: "decadeCardArtworkIcon"
@@ -30,13 +33,13 @@ Item {
             height: width
             icon: root.iconName || "terminal"
             iconSize: width
-            color: root.backFace ? Theme.textPrimary : Theme.decadeCardArtworkIcon
+            color: root.backFace ? _visualPalette.textPrimary : LauncherStyle.decadeCardArtworkIcon
             opacity: root.backFace ? 1 : 0.4
         }
     }
     Loader {
         anchors.fill: parent
-        active: Theme.zioMode
+        active: LauncherStyle.zio
         sourceComponent: ZioCardArtwork {
             backFace: root.backFace
             iconName: root.iconName

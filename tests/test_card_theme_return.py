@@ -47,7 +47,7 @@ def test_zio_card_can_close_after_switching_to_decade(
         window.setProperty("settingsSelected", True)
         window.show()
         controller.reconcile()
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     qtbot.wait(100)
     if tool.id in visible_cards(qapp):
         assert card.property("toolController") is session
@@ -80,7 +80,7 @@ def test_interrupted_return_after_theme_switch_still_closes(
         backend.recentToolDialogRequested.emit(second_tool.id)
         qtbot.waitUntil(lambda: second_tool.id in visible_cards(qapp), timeout=7000)
         qtbot.waitUntil(lambda: settled(visible_cards(qapp)[second_tool.id]), timeout=7000)
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     qtbot.wait(100)
     if interruption == "destination":
         # Model a presentation callback that never arrives after its view retires.

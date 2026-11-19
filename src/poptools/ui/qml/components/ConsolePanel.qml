@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property int minimumVisibleLineCount
@@ -90,7 +93,7 @@ Item {
         anchors.leftMargin: root.panelMargin
         anchors.rightMargin: root.panelMargin
         height: root.separatorHeight
-        color: Theme.consoleDivider
+        color: _visualPalette.consoleDivider
 
         MouseArea {
             id: resizeMouse
@@ -135,14 +138,14 @@ Item {
 
             Text {
                 text: "控制台输出"
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: Theme.fontComponentTitle
                 font.weight: Font.DemiBold
             }
             MaterialIcon {
                 icon: root.expanded ? "expand_more" : "expand_less"
                 iconSize: 22
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
             }
             Item { Layout.fillWidth: true }
             PrimaryButton {
@@ -152,9 +155,9 @@ Item {
                 text: "清空"
                 iconName: "delete_sweep"
                 tonal: true
-                color: hovered ? Theme.surfaceContainerHigh : Theme.surface
-                border.color: Theme.outlineVariant
-                foregroundColor: Theme.textSecondary
+                color: hovered ? _visualPalette.surfaceContainerHigh : _visualPalette.surface
+                border.color: _visualPalette.outlineVariant
+                foregroundColor: _visualPalette.textSecondary
                 labelFontSize: Theme.fontBody
                 labelFontWeight: Font.Normal
                 glyphSize: 19
@@ -170,10 +173,10 @@ Item {
                 iconName: root.expanded ? "keyboard_arrow_down" : "keyboard_arrow_up"
                 glyphSize: 23
                 tonal: true
-                foregroundColor: Theme.textSecondary
+                foregroundColor: _visualPalette.textSecondary
                 border.width: 0
                 radius: Theme.radiusLarge
-                color: hovered ? Theme.surfaceContainerHigh : "transparent"
+                color: hovered ? _visualPalette.surfaceContainerHigh : "transparent"
                 onClicked: root.expanded = !root.expanded
             }
         }
@@ -189,8 +192,8 @@ Item {
             Layout.bottomMargin: root.outputOuterMargin
             Layout.topMargin: Theme.space0
             radius: Theme.radiusMedium
-            color: Theme.glassMode ? "transparent" : Theme.consoleBackground
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 }
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.consoleBackground
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.consoleBackground; z: -0.5 }
 
             DesktopScrollView {
                 anchors.fill: parent
@@ -201,8 +204,8 @@ Item {
                     readOnly: true
                     selectByMouse: true
                     wrapMode: TextEdit.WrapAnywhere
-                    color: Theme.consoleText
-                    selectionColor: Theme.primary
+                    color: _visualPalette.consoleText
+                    selectionColor: _visualPalette.primary
                     selectedTextColor: "white"
                     font.family: "Cascadia Mono"
                     font.pixelSize: Theme.fontSupporting

@@ -1,7 +1,10 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     DecadePackShell { anchors.fill: parent }
     Rectangle {
@@ -43,7 +46,7 @@ Item {
                     required property int index
                     width: Math.max(1, root.width / 150) * (index % 3 === 0 ? 3 : 1)
                     height: root.width * 0.055
-                    color: index % 4 === 0 ? Theme.primary : "#D8CFD8"
+                    color: index % 4 === 0 ? _visualPalette.primary : "#D8CFD8"
                 }
             }
         }

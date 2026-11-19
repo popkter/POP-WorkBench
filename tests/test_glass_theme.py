@@ -21,7 +21,7 @@ def test_glass_catalog_and_independent_mode_persist(tmp_path):
     assert data["colors"]["textPrimary"] == "#0b0f17"
     assert data["darkColors"]["textPrimary"] == "#f3f6fa"
     store = ConfigStore(AppPaths(tmp_path))
-    for mode in ("light", "dark", "system", "decade", "zio"):
+    for mode in ("light", "dark", "system"):
         store.set_theme_mode(mode)
         store.set_theme_style("glass")
         reloaded = ConfigStore(AppPaths(tmp_path))
@@ -52,7 +52,8 @@ Window {
     readonly property color textColor: Theme.textPrimary
     Binding { target: Theme; property: "darkMode"; value: host.dark }
     Binding { target: Theme; property: "glassMode"; value: host.glass && !host.mechanical }
-    Binding { target: Theme; property: "decadeMode"; value: host.mechanical }
+    Binding { target: LauncherStyle; property: "style"
+        value: host.mechanical ? "decade" : "default" }
     Binding { target: Theme; property: "glassPalette"
         value: host.dark ? host.config.darkColors : host.config.colors }
     Binding { target: Theme; property: "glassMaterial"; value: host.config.material }
@@ -102,7 +103,7 @@ Window {
         assert window.property("textColor").name() == "#f3f6fa"
         window.setProperty("mechanical", True)
         assert not panel.property("visible")
-        assert window.property("primary").name() == "#f12786"
+        assert window.property("primary").name() == "#4090ff"
         window.setProperty("mechanical", False)
         window.setProperty("glass", False)
         window.setProperty("dark", False)
@@ -127,6 +128,124 @@ def _luminance(color):
 def _contrast(first, second):
     low, high = sorted((_luminance(first), _luminance(second)))
     return (high + 0.05) / (low + 0.05)
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("dark", [False, True])
+@pytest.mark.parametrize("backdrop", [False, True])
+@pytest.mark.parametrize("selected", [False, True])
+def test_glass_state_highlights_and_switch_remain_readable(
+    qapp, qtbot, tmp_path, dark, backdrop, selected,
+):
+    config = json.loads((package_root() / "ui/qml/theme/configs/glass.json").read_text())
+    engine = QQmlEngine()
+    warnings = []
+    engine.warnings.connect(lambda errors: warnings.extend(e.toString() for e in errors))
+    component = QQmlComponent(engine)
+    source = '''
+import QtQuick
+import "components"
+import "theme"
+Window {
+    id: host; width: 360; height: 180; visible: true
+    property var config: CONFIG
+    readonly property bool glassBackgroundReady: BACKDROP
+    readonly property color ink: SELECTED ? Theme.primary : Theme.textPrimary
+    color: DARK ? "#182434" : "white"
+    Binding { target: Theme; property: "darkMode"; value: DARK }
+    Binding { target: Theme; property: "glassMode"; value: true }
+    Binding { target: Theme; property: "glassPalette"
+        value: DARK ? host.config.darkColors : host.config.colors }
+    Binding { target: Theme; property: "glassMaterial"; value: host.config.material }
+    Item {
+        x: 20; y: 20; width: 320; height: 48
+        GlassListHighlight { anchors.fill: parent; selected: SELECTED; hovered: true }
+        Text { x: 14; anchors.verticalCenter: parent.verticalCenter
+            text: "自定义脚本 / Script"; color: host.ink }
+    }
+    AppSwitch { id: toggle; x: 20; y: 90; text: "玻璃效果"; checked: SELECTED }
+}
+'''
+    replacements = {"CONFIG": json.dumps(config), "DARK": str(dark).lower(),
+                    "BACKDROP": str(backdrop).lower(), "SELECTED": str(selected).lower()}
+    for key, value in replacements.items():
+        source = source.replace(key, value)
+    component.setData(source.encode(), QUrl.fromLocalFile(
+        str(package_root() / "ui/qml/HighlightHarness.qml")))
+    window = component.create()
+    assert isinstance(window, QQuickWindow), [e.toString() for e in component.errors()]
+    try:
+        assert QTest.qWaitForWindowExposed(window)
+        qtbot.wait(100)
+        frame = window.grabWindow()
+        dpr = frame.width() / window.width()
+        background = frame.pixelColor(round(300 * dpr), round(44 * dpr))
+        assert _contrast(window.property("ink"), background) >= 4.5, background.name()
+        thumb = window.findChild(QQuickItem, "switchThumb")
+        center = thumb.mapToItem(window.contentItem(), thumb.width() / 2, thumb.height() / 2)
+        track = thumb.mapToItem(window.contentItem(),
+                                30 if not selected else -6, thumb.height() / 2)
+        assert _contrast(frame.pixelColor(round(center.x() * dpr), round(center.y() * dpr)),
+                         frame.pixelColor(round(track.x() * dpr), round(track.y() * dpr))) >= 3
+        assert frame.save(str(tmp_path / "glass-highlight.png"))
+        assert not warnings, warnings
+    finally:
+        window.close()
+        window.deleteLater()
+        qapp.processEvents()
+
+
+@pytest.mark.parametrize("dark", [False, True])
+@pytest.mark.parametrize("role", ["primary", "secondary", "tertiary", "success"])
+def test_glass_button_palette_contrast(dark, role):
+    config = json.loads((package_root() / "ui/qml/theme/configs/glass.json").read_text())
+    palette = config["darkColors" if dark else "colors"]
+    for background in (role, role + "Hover"):
+        if background in palette:
+            assert _contrast(QColor(palette[role + "Foreground"]),
+                             QColor(palette[background])) >= 4.5
+
+
+@pytest.mark.gui
+@pytest.mark.parametrize("style,accent", [("decade", "#f12786"), ("zio", "#d9ae48")])
+@pytest.mark.parametrize("dark", [False, True])
+def test_launcher_palette_preserves_original_effect_without_recoloring_app(
+    qapp, qtbot, style, accent, dark,
+):
+    engine = QQmlEngine()
+    component = QQmlComponent(engine)
+    source = '''
+import QtQuick
+import "components"
+import "theme"
+Window {
+    id: host; width: 340; height: 140; visible: true
+    readonly property var floatingStylePalette: LauncherPalette
+    readonly property color appAccent: Theme.primary
+    readonly property color launcherAccent: LauncherPalette.primary
+    Component.onCompleted: { Theme.darkMode = DARK; LauncherStyle.style = "STYLE" }
+    color: LauncherPalette.surfaceContainerLow
+    PrimaryButton { objectName: "run"; x: 20; y: 16; text: "运行脚本" }
+    AppTextField { objectName: "field"; x: 20; y: 70; width: 280; text: "原有悬浮窗配色" }
+}
+'''.replace("DARK", str(dark).lower()).replace("STYLE", style)
+    component.setData(source.encode(), QUrl.fromLocalFile(
+        str(package_root() / "ui/qml/LauncherPaletteHarness.qml")))
+    window = component.create()
+    assert isinstance(window, QQuickWindow), [e.toString() for e in component.errors()]
+    try:
+        assert QTest.qWaitForWindowExposed(window)
+        assert window.property("appAccent").name() == ("#4090ff" if dark else "#1677ff")
+        assert window.property("launcherAccent").name() == accent
+        button = window.findChild(QQuickItem, "run")
+        field = window.findChild(QQuickItem, "field")
+        assert button.property("color").name() == accent
+        assert not button.property("_visualPalette").property("glassMode")
+        assert _contrast(field.property("color"), window.color()) >= 4.5
+    finally:
+        window.close()
+        window.deleteLater()
+        qapp.processEvents()
 
 
 @pytest.mark.gui

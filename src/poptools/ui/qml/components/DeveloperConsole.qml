@@ -8,6 +8,8 @@ import PopTools.Terminal 1.0
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var parentWindow
@@ -29,14 +31,14 @@ Item {
     function clearTerminal() { root.controller.clear(); terminalView.forceActiveFocus() }
     function syncTerminalSyntaxColors() {
         root.controller.configureTerminalSyntaxColors({
-            "default": Theme.terminalForeground.toString(),
-            "command": Theme.darkMode ? "#8CC8FF" : "#075FAF",
-            "warning": Theme.darkMode ? "#FFD166" : "#8A5900",
-            "string": Theme.darkMode ? "#9BE3B1" : "#16723B",
-            "semantic": Theme.darkMode ? "#D7B5FF" : "#7145A5",
-            "operator": Theme.darkMode ? "#80DED9" : "#087773",
-            "error": Theme.darkMode ? "#FF9B93" : "#BA2828",
-            "muted": Theme.terminalMuted.toString()
+            "default": _visualPalette.terminalForeground.toString(),
+            "command": _visualPalette.darkMode ? "#8CC8FF" : "#075FAF",
+            "warning": _visualPalette.darkMode ? "#FFD166" : "#8A5900",
+            "string": _visualPalette.darkMode ? "#9BE3B1" : "#16723B",
+            "semantic": _visualPalette.darkMode ? "#D7B5FF" : "#7145A5",
+            "operator": _visualPalette.darkMode ? "#80DED9" : "#087773",
+            "error": _visualPalette.darkMode ? "#FF9B93" : "#BA2828",
+            "muted": _visualPalette.terminalMuted.toString()
         })
     }
     function setHistoryListViewEnabled(value) {
@@ -93,10 +95,10 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             radius: Theme.radiusMedium
-            color: root.verticalTabs || Theme.glassMode ? "transparent" : Theme.terminalBackground
+            color: root.verticalTabs || _visualPalette.glassMode ? "transparent" : _visualPalette.terminalBackground
             GlassSurface {
                 anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
-                visible: Theme.glassMode && !root.verticalTabs
+                visible: _visualPalette.glassMode && !root.verticalTabs
             }
             clip: true
 
@@ -106,7 +108,7 @@ Item {
 
                 TerminalTabBar {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Theme.terminalToolbarHeight
+                    Layout.preferredHeight: _visualPalette.terminalToolbarHeight
                     visible: !root.tabsInTitleBar && !root.verticalTabs
                     controller: root.controller
                     onTerminalFocusRequested: root.focusTerminal()
@@ -130,7 +132,7 @@ Item {
                             anchors.fill: parent
                             z: -1
                             radius: Theme.radiusMedium
-                            color: Theme.glassMode ? "transparent" : Theme.terminalBackground
+                            color: _visualPalette.glassMode ? "transparent" : _visualPalette.terminalBackground
                             GlassSurface {
                                 anchors.fill: parent; cornerRadius: parent.radius
                             }
@@ -149,7 +151,7 @@ Item {
                                 resizeHandle.mouseY - height / 2))
                             width: 4; height: 40; radius: width / 2
                             visible: resizeHandle.containsMouse || resizeHandle.pressed
-                            color: resizeHandle.pressed ? Theme.primary : Theme.terminalMuted
+                            color: resizeHandle.pressed ? _visualPalette.primary : _visualPalette.terminalMuted
                         }
                         MouseArea {
                             id: resizeHandle
@@ -180,11 +182,11 @@ Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         radius: Theme.radiusMedium
-                        color: root.verticalTabs && !Theme.glassMode
-                            ? Theme.terminalBackground : "transparent"
+                        color: root.verticalTabs && !_visualPalette.glassMode
+                            ? _visualPalette.terminalBackground : "transparent"
                         GlassSurface {
                             anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
-                            visible: Theme.glassMode && root.verticalTabs
+                            visible: _visualPalette.glassMode && root.verticalTabs
                         }
 
                         MouseArea {
@@ -206,12 +208,12 @@ Item {
                             sessionId: root.controller.activeTerminalTabId
                             // Paint only terminal ink over the content glass
                             // surface, including the padding around the viewport.
-                            fillColor: Theme.glassMode
-                                ? Qt.rgba(Theme.terminalBackground.r, Theme.terminalBackground.g,
-                                          Theme.terminalBackground.b, 0)
-                                : Theme.terminalBackground
-                            foregroundColor: Theme.terminalForeground
-                            selectionColor: Theme.terminalSelection
+                            fillColor: _visualPalette.glassMode
+                                ? Qt.rgba(_visualPalette.terminalBackground.r, _visualPalette.terminalBackground.g,
+                                          _visualPalette.terminalBackground.b, 0)
+                                : _visualPalette.terminalBackground
+                            foregroundColor: _visualPalette.terminalForeground
+                            selectionColor: _visualPalette.terminalSelection
                             fontSize: Theme.fontBody
                             focus: true
                             Accessible.role: Accessible.EditableText
@@ -234,18 +236,18 @@ Item {
                             spacing: Theme.space16
                             MaterialIcon {
                                 Layout.alignment: Qt.AlignHCenter
-                                icon: "terminal"; iconSize: 40; color: Theme.terminalMuted
+                                icon: "terminal"; iconSize: 40; color: _visualPalette.terminalMuted
                             }
                             Text {
                                 Layout.fillWidth: true
                                 text: "没有打开的终端"
-                                color: Theme.terminalForeground; font.pixelSize: Theme.fontSectionTitle
+                                color: _visualPalette.terminalForeground; font.pixelSize: Theme.fontSectionTitle
                                 horizontalAlignment: Text.AlignHCenter
                             }
                             Text {
                                 Layout.fillWidth: true
                                 text: "可以前往设置管理插件，或新建终端继续使用。"
-                                color: Theme.terminalMuted; font.pixelSize: Theme.fontBody
+                                color: _visualPalette.terminalMuted; font.pixelSize: Theme.fontBody
                                 horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap
                             }
                             PrimaryButton {
@@ -279,14 +281,14 @@ Item {
                                 anchors.fill: parent
                                 visible: terminalPathDropArea.containsDrag
                                 radius: Theme.radiusSmall
-                                color: Theme.terminalDropHighlight
-                                border.color: Theme.primary
+                                color: _visualPalette.terminalDropHighlight
+                                border.color: _visualPalette.primary
                                 border.width: 2
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: "释放以插入路径"
-                                    color: Theme.terminalForeground
+                                    color: _visualPalette.terminalForeground
                                     font.pixelSize: Theme.fontButton
                                     font.weight: Font.DemiBold
                                 }

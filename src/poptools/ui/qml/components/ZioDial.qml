@@ -12,8 +12,8 @@ Item {
         + currentTime.getMinutes() / 60 + currentTime.getSeconds() / 3600) * 30
     readonly property real minuteAngle: (currentTime.getMinutes() + currentTime.getSeconds() / 60) * 6
     readonly property real secondAngle: currentTime.getSeconds() * 6
-    property color accent: Theme.zioPalette.primary || "#D9AE48"
-    property color faceColor: Theme.zioPalette.decadeCardBackFill || "#211C11"
+    property color accent: "#D9AE48"
+    property color faceColor: LauncherStyle.decadeCardBackFill
     implicitWidth: 48
     implicitHeight: 48
     readonly property real diameter: Math.min(width, height)

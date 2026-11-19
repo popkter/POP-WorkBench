@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 AppDialog {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var parentWindow
@@ -36,17 +39,17 @@ AppDialog {
         }
         Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: Theme.controlHeightLarge
-            radius: Theme.radiusControl; color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-            border.color: Theme.outlineVariant
-            Text { anchors.left: parent.left; anchors.leftMargin: Theme.space16; anchors.verticalCenter: parent.verticalCenter; text: root.controller.pluginVersion; color: Theme.textPrimary; font.pixelSize: Theme.fontBody }
+            radius: Theme.radiusControl; color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+            border.color: _visualPalette.outlineVariant
+            Text { anchors.left: parent.left; anchors.leftMargin: Theme.space16; anchors.verticalCenter: parent.verticalCenter; text: root.controller.pluginVersion; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontBody }
         }
         DialogMessage {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.minimumHeight: 32
             text: root.controller.pluginInstallStatus || (root.controller.pluginInstalled ? "已安装" : "将下载应用专用的官方运行环境")
-            foregroundColor: text.indexOf("失败") >= 0 ? Theme.errorColor : Theme.textSecondary
+            foregroundColor: text.indexOf("失败") >= 0 ? _visualPalette.errorColor : _visualPalette.textSecondary
         }
         AppProgressBar {
             id: progressBar
@@ -57,10 +60,10 @@ AppDialog {
         Text {
             Layout.fillWidth: true
             text: root.controller.pluginDirectory
-            color: Theme.textSecondary; font.pixelSize: Theme.fontCaption
+            color: _visualPalette.textSecondary; font.pixelSize: Theme.fontCaption
             elide: Text.ElideMiddle
         }
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: _visualPalette.outlineVariant }
         RowLayout {
             Layout.fillWidth: true; spacing: Theme.space8
             Item { Layout.fillWidth: true }

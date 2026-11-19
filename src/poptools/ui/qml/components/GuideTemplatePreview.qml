@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 ColumnLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     signal copyRequested(string text)
@@ -21,10 +24,10 @@ ColumnLayout {
         parameterValues[key] = value
         preview = controller.previewGuideTemplate(editor.text, parameterValues)
     }
-    Text { text: "试一试 · 参数如何变成命令"; color: Theme.textPrimary; font.pixelSize: Theme.fontTitleSmall; font.weight: Font.DemiBold }
+    Text { text: "试一试 · 参数如何变成命令"; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontTitleSmall; font.weight: Font.DemiBold }
     Text {
         Layout.fillWidth: true; text: "使用 ${名称@类型:默认值} 自动生成参数，只预览替换结果，不执行命令。支持全部参数类型、Var 和旧版 pVal 声明。"
-        color: Theme.textSecondary; font.pixelSize: Theme.fontBody; wrapMode: Text.Wrap
+        color: _visualPalette.textSecondary; font.pixelSize: Theme.fontBody; wrapMode: Text.Wrap
     }
     TextArea {
         id: editor
@@ -33,10 +36,10 @@ ColumnLayout {
         text: "adb shell settings put system show_touches ${触摸点显示@choice:开启=1|关闭=0}"
         wrapMode: TextEdit.Wrap; selectByMouse: true; textFormat: TextEdit.PlainText
         font.family: "Cascadia Mono"; font.pixelSize: Theme.fontCode
-        color: Theme.textPrimary; padding: Theme.space12
-        background: Rectangle { radius: Theme.radiusControl; color: Theme.glassMode ? "transparent" : Theme.inputDefault
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.inputDefault; z: -0.5 }
-            border.color: editor.activeFocus ? Theme.primary : Theme.outline }
+        color: _visualPalette.textPrimary; padding: Theme.space12
+        background: Rectangle { radius: Theme.radiusControl; color: _visualPalette.glassMode ? "transparent" : _visualPalette.inputDefault
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.inputDefault; z: -0.5 }
+            border.color: editor.activeFocus ? _visualPalette.primary : _visualPalette.outline }
         onTextChanged: root.parseTemplate()
     }
     Repeater {
@@ -44,19 +47,19 @@ ColumnLayout {
         delegate: ColumnLayout {
             required property var modelData
             Layout.fillWidth: true; spacing: Theme.space4
-            Text { text: modelData.label; color: Theme.textPrimary; font.pixelSize: Theme.fontSupporting }
+            Text { text: modelData.label; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontSupporting }
             RowLayout {
                 Layout.fillWidth: true
                 AppTextField {
                     id: field
                     Layout.fillWidth: true
                     visible: ["choice", "radio", "boolean", "multiline"].indexOf(modelData.kind) < 0
-                    text: String(modelData.default ?? ""); color: Theme.textPrimary; selectByMouse: true
+                    text: String(modelData.default ?? ""); color: _visualPalette.textPrimary; selectByMouse: true
                     echoMode: modelData.kind === "secret" ? TextInput.Password : TextInput.Normal
                     font.pixelSize: Theme.fontBody
-                    background: Rectangle { radius: Theme.radiusControl; color: Theme.glassMode ? "transparent" : Theme.inputDefault
-                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.inputDefault; z: -0.5 }
-                        border.color: Theme.outline }
+                    background: Rectangle { radius: Theme.radiusControl; color: _visualPalette.glassMode ? "transparent" : _visualPalette.inputDefault
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.inputDefault; z: -0.5 }
+                        border.color: _visualPalette.outline }
                     onTextEdited: root.setValue(modelData.id, text)
                 }
                 AppComboBox {
@@ -83,13 +86,13 @@ ColumnLayout {
                 Layout.minimumHeight: 88
                 visible: modelData.kind === "multiline"
                 text: String(modelData.default ?? "")
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 wrapMode: TextEdit.Wrap
                 background: Rectangle {
-                    color: Theme.glassMode ? "transparent" : Theme.inputDefault
-                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.inputDefault; z: -0.5 }
+                    color: _visualPalette.glassMode ? "transparent" : _visualPalette.inputDefault
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.inputDefault; z: -0.5 }
                     radius: Theme.radiusControl
-                    border.color: Theme.outline
+                    border.color: _visualPalette.outline
                 }
                 onTextChanged: if (visible) root.setValue(modelData.id, text)
             }
@@ -106,11 +109,11 @@ ColumnLayout {
     }
     Text {
         Layout.fillWidth: true; visible: !!root.preview.error; text: root.preview.error
-        color: Theme.errorColor; font.pixelSize: Theme.fontBody; wrapMode: Text.Wrap
+        color: _visualPalette.errorColor; font.pixelSize: Theme.fontBody; wrapMode: Text.Wrap
     }
     RowLayout {
         Layout.fillWidth: true
-        Text { Layout.fillWidth: true; text: "替换结果"; color: Theme.textPrimary; font.pixelSize: Theme.fontSupporting }
+        Text { Layout.fillWidth: true; text: "替换结果"; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontSupporting }
         PrimaryButton {
             text: "复制结果"; iconName: "content_copy"; tonal: true
             enabled: !root.preview.error && !!root.preview.result
@@ -121,10 +124,10 @@ ColumnLayout {
         objectName: "guideTemplateResult"
         Layout.fillWidth: true; text: root.preview.result
         readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap
-        textFormat: TextEdit.PlainText; color: Theme.consoleText
+        textFormat: TextEdit.PlainText; color: _visualPalette.consoleText
         font.family: "Cascadia Mono"; font.pixelSize: Theme.fontCode; padding: Theme.space12
-        background: Rectangle { radius: Theme.radiusConsole; color: Theme.glassMode ? "transparent" : Theme.consoleBackground
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 } }
+        background: Rectangle { radius: Theme.radiusConsole; color: _visualPalette.glassMode ? "transparent" : _visualPalette.consoleBackground
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.consoleBackground; z: -0.5 } }
     }
     Component.onCompleted: parseTemplate()
 }

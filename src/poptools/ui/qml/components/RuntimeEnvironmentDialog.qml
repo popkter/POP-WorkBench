@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 AppDialog {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "runtimeEnvironmentDialog"
     required property var backend
@@ -64,7 +67,7 @@ AppDialog {
                 text: source.currentIndex === 0
                     ? "由应用提供安装、更新和卸载。升级时保留相同版本的运行时；Python 版本变化时自动迁移依赖，成功后再切换。"
                     : "直接使用所选环境。应用不更新或卸载这些文件，升级应用也会保留此选择。"
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontCaption
                 wrapMode: Text.Wrap
             }
@@ -109,7 +112,7 @@ AppDialog {
                 Layout.fillWidth: true
                 visible: root.errorText.length > 0
                 text: root.errorText
-                color: Theme.errorColor
+                color: _visualPalette.errorColor
                 font.pixelSize: Theme.fontCaption
                 wrapMode: Text.Wrap
             }

@@ -4,13 +4,16 @@ import QtQuick.Window
 import "../theme"
 
 Window {
+    readonly property var _visualPalette: customScriptMode && LauncherStyle.mechanical ? LauncherPalette : Theme
+    readonly property var floatingStylePalette: _visualPalette
+
     id: root
     readonly property bool glassBackgroundReady: desktopBackground.ready
-    readonly property bool glassEnabled: Theme.glassMode && !Theme.mechanicalMode
+    readonly property bool glassEnabled: _visualPalette.glassMode && !LauncherStyle.mechanical
     readonly property bool systemBackdropTinted: desktopBackground.drawBackground
     readonly property var backdropBackend: typeof systemBackdropController !== "undefined"
         ? systemBackdropController : null
-    readonly property bool nativeCardFrame: !Theme.mechanicalMode && !!backdropBackend
+    readonly property bool nativeCardFrame: !LauncherStyle.mechanical && !!backdropBackend
         && backdropBackend.cardFramesSupported === true
     function prepareNativeCardFrame() {
         if (backdropBackend && backdropBackend.prepareCardWindow)
@@ -53,7 +56,7 @@ Window {
     readonly property bool activationAnimationRunning: cardMotion.activating
     readonly property bool focusScanRunning: cardMotion.focusing
     readonly property bool recycleAnimationRunning: cardMotion.recycling
-    readonly property bool nativeFlightActive: Theme.mechanicalMode && cardMotion.desktopFlight
+    readonly property bool nativeFlightActive: LauncherStyle.mechanical && cardMotion.desktopFlight
     onNativeFlightActiveChanged: if (ownsController && toolController)
         toolController.setCardFlightLayer(nativeFlightActive)
     readonly property rect cardPlacementRect: cardMotion.desktopFlight
@@ -132,8 +135,8 @@ Window {
         cardMotion.finish()
     }
 
-    readonly property string cardTheme: Theme.zioMode ? "zio"
-        : Theme.decadeMode ? "decade" : "standard"
+    readonly property string cardTheme: LauncherStyle.zio ? "zio"
+        : LauncherStyle.decade ? "decade" : "standard"
     // Settle the old presentation before a new activation can start.
     onCardThemeChanged: if (visible && !closing) settleThemeChange()
     function settleThemeChange() {
@@ -177,21 +180,21 @@ Window {
                 ? initialValues[parameters[i].id] : parameters[i].default
         parameterValues = values
         formLoader.setSource(Qt.resolvedUrl("RecentToolContent.qml"), {dialog: root})
-        if (customScriptMode && Theme.mechanicalMode
+        if (customScriptMode && LauncherStyle.mechanical
                 && launchOrigin.width > 0 && launchOrigin.height > 0) {
             var geometry = session.prepareCardFlight(launchOrigin, cardFace !== null,
-                Theme.zioMode ? "zio" : "decade", launchDockBounds)
+                LauncherStyle.zio ? "zio" : "decade", launchDockBounds)
             if (geometry.width > 0) {
                 // Move this execution window itself. Its size, native surface and
                 // live form stay unchanged from the first frame through the scan.
                 cardMotion.prepareFlight(geometry)
                 visible = true
-                if (Theme.zioMode) raise()
+                if (LauncherStyle.zio) raise()
                 requestActivate()
                 return
             }
         }
-        session.placeWindow(Theme.decadeMode && customScriptMode ? "decade" : "standard")
+        session.placeWindow(LauncherStyle.decade && customScriptMode ? "decade" : "standard")
         if (customScriptMode)
             cardMotion.play()
         visible = true
@@ -205,7 +208,7 @@ Window {
     }
 
     function activateFromTitle() {
-        if (Theme.mechanicalMode && customScriptMode && visible && !closing
+        if (LauncherStyle.mechanical && customScriptMode && visible && !closing
                 && !cardMotion.recycling)
             activateCard()
     }
@@ -240,7 +243,7 @@ Window {
             dismissCard()
             return
         }
-        if (!Theme.mechanicalMode) {
+        if (!LauncherStyle.mechanical) {
             cardMotion.fadeOut()
             return
         }
@@ -261,11 +264,11 @@ Window {
     function startCardReturn(origin) {
         if (closing || !visible) return
         returnPending = false
-        if (!Theme.mechanicalMode) {
+        if (!LauncherStyle.mechanical) {
             cardMotion.fadeOut()
             return
         }
-        const geometry = toolController.prepareCardReturn(origin, dockReturn !== null, Theme.zioMode ? "zio" : "decade")
+        const geometry = toolController.prepareCardReturn(origin, dockReturn !== null, LauncherStyle.zio ? "zio" : "decade")
         if (geometry.width > 0)
             cardMotion.recycle(geometry)
         else
@@ -342,7 +345,7 @@ Window {
             root.toolController.moveCard(globalX, globalY, packBounds, packOpening)
         }
         onRecycled: {
-            if (Theme.mechanicalMode && root.dockReturn && cardFace) {
+            if (LauncherStyle.mechanical && root.dockReturn && cardFace) {
                 const face = releaseFace()
                 root.dockReturn(root.toolId, face, function() { if (root && !root.closing) root.close() })
             } else {
@@ -364,7 +367,7 @@ Window {
         id: scaledForm
         // Warm the form shortly before the scan, rather than redraw it behind
         // an opaque, rotating card in every window throughout the flight.
-        visible: !Theme.mechanicalMode || (!cardMotion.entering && !cardMotion.recycling)
+        visible: !LauncherStyle.mechanical || (!cardMotion.entering && !cardMotion.recycling)
             || cardMotion.scan > 0
             || (cardMotion.entering && cardMotion.progress
                 >= cardMotion.scanStartDuration / cardMotion.flightDuration - .05)
@@ -379,7 +382,7 @@ Window {
         objectName: "recentToolFormLoader"
         parent: scaledForm
         anchors.fill: parent
-        asynchronous: Theme.mechanicalMode && root.customScriptMode
+        asynchronous: LauncherStyle.mechanical && root.customScriptMode
     }
     Loader {
         id: runConfirmationLoader

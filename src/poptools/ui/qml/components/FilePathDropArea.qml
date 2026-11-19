@@ -1,7 +1,10 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 DropArea {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var target
     property bool append: false
@@ -40,7 +43,7 @@ DropArea {
         visible: root.containsDrag
         radius: Theme.radiusMedium
         color: "transparent"
-        border.color: Theme.primary
+        border.color: _visualPalette.primary
         border.width: 2
     }
 }

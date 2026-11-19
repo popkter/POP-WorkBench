@@ -38,7 +38,7 @@ from poptools.viewmodels.floating_launcher_controller import dock_geometry
 from poptools.viewmodels.jira_feishu_controller import JiraFeishuController
 from poptools.viewmodels.preset_controller import PresetController
 from poptools.viewmodels.update_controller import UpdateController
-from test_floating_launcher import create_tool, ids
+from test_floating_launcher import create_tool, ids, select_presentation
 from test_floating_launcher import launcher as launcher
 
 
@@ -56,13 +56,13 @@ def test_zio_theme_config_and_independent_position_persist(launcher):
     store = settings.config_store
     catalog = ThemeCatalog(package_root() / "ui/qml/theme/configs")
     catalog.refresh()
-    assert catalog.contains("zio")
-    assert settings.saveThemeMode("zio")
-    assert settings.darkTheme
+    assert not catalog.contains("zio")
+    assert settings.saveFloatingLauncherStyle("zio")
+    assert settings.themeMode == "system"
     store.set_floating_launcher_position("sidebar", 0.7)
     store.set_floating_dock_screen("dock")
     reopened = ConfigStore(store.paths)
-    assert reopened.theme_mode() == "zio"
+    assert reopened.floating_launcher_style() == "zio"
     assert reopened.floating_launcher_position() == ("sidebar", 0.7)
     assert reopened.floating_dock_screen() == "dock"
 
@@ -113,7 +113,7 @@ def zio_app(launcher, qapp, qtbot):
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     controller, backend, settings, _ = launcher
     settings.markUserGuideSeen()
-    settings.saveThemeMode("zio")
+    settings.saveFloatingLauncherStyle("zio")
     preset = PresetController()
     jira = JiraFeishuController(settings.config_store.paths.data_dir)
     terminal = DeveloperConsoleController(settings.python_environment)
@@ -627,7 +627,8 @@ def test_zio_multiple_cards_keep_slot_positions_and_restore_parameters(
     assert restored.property("parameterValues").toVariant()["message"] == "remember me"
     assert restored.property("toolController").running
     assert restored.property("toolController").consoleText == "background output\n"
-    assert window.property("chromeBackgroundColor").name() == "#191813"
+    assert window.property("chromeBackgroundColor").name() == (
+        "#2b2d30" if settings.darkTheme else "#f7f8fa")
     Path("build").mkdir(exist_ok=True)
     assert dock.grabWindow().save("build/zio-dock.png")
     assert restored.grabWindow().save("build/zio-card.png")
@@ -689,12 +690,12 @@ def test_zio_cancellation_and_theme_switch_during_entry(zio_app, qapp, qtbot):
     qtbot.waitUntil(lambda: tool.id in visible_cards(qapp), timeout=7000)
     card = visible_cards(qapp)[tool.id]
     assert card.property("entryAnimationRunning")
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     qtbot.waitUntil(lambda: not card.property("entryAnimationRunning"))
     assert not card.property("handoffBlocked")
-    settings.saveThemeMode("zio")
+    settings.saveFloatingLauncherStyle("zio")
     QMetaObject.invokeMethod(card, "closeCardAnimated")
-    settings.saveThemeMode("light")
+    settings.saveFloatingLauncherStyle("default")
     qtbot.waitUntil(lambda: not visible_cards(qapp), timeout=7000)
     assert controller.openCardCount == 0
     assert not warnings, warnings
@@ -712,17 +713,17 @@ def test_zio_native_mask_and_theme_swaps(zio_app, qapp, qtbot):
     assert dock.mask().contains(button_rect.center())
     assert not dock.mask().contains(button_rect.topLeft())
     assert not dock.mask().contains(QPoint(5, 5))
-    assert settings.saveThemeMode("decade")
+    assert settings.saveFloatingLauncherStyle("decade")
     for tool in tools:
         backend.recentToolDialogRequested.emit(tool.id)
     qtbot.waitUntil(lambda: len(visible_cards(qapp)) == 3, timeout=7000)
     qtbot.waitUntil(lambda: all(not w.property("entryAnimationRunning")
                               for w in visible_cards(qapp).values()), timeout=7000)
-    settings.saveThemeMode("zio")
+    settings.saveFloatingLauncherStyle("zio")
     qtbot.waitUntil(lambda: all(w.geometry().bottom() < controller._panel.y() - 15
                               for w in visible_cards(qapp).values()))
     assert set(visible_cards(qapp)) == {tool.id for tool in tools}
-    settings.saveThemeMode("light")
+    settings.saveFloatingLauncherStyle("default")
     qtbot.wait(100)
     assert window.findChild(QQuickWindow, "zioDockWindow") is None
     assert all(not card.property("handoffBlocked") for card in visible_cards(qapp).values())
@@ -735,7 +736,7 @@ def test_unified_click_focus_reuse_and_collapsed_return(zio_app, qapp, qtbot, mo
     from poptools.viewmodels.floating_launcher_controller import FloatingLauncherController
 
     window, controller, backend, settings, _, warnings = zio_app
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     tool = create_tool(backend, "Unified parameterless")
     qtbot.waitUntil(lambda: tool.id in ids(controller.toolsModel))
     panel = controller._panel
@@ -844,7 +845,7 @@ def test_unified_click_focus_reuse_and_collapsed_return(zio_app, qapp, qtbot, mo
 @pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
 def test_repeated_requests_during_return_open_one_replacement(zio_app, qapp, qtbot, theme):
     _, controller, backend, settings, _, warnings = zio_app
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     tool = create_tool(backend, "Queued return")
     qtbot.waitUntil(lambda: tool.id in ids(controller.toolsModel))
     backend.recentToolDialogRequested.emit(tool.id)
@@ -871,7 +872,7 @@ def test_async_floating_creation_cancels_after_user_switches_focus(
     zio_app, qapp, qtbot, monkeypatch, theme,
 ):
     window, controller, backend, settings, _, warnings = zio_app
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     tool = create_tool(backend, "Async cancellation")
     qtbot.waitUntil(lambda: tool.id in ids(controller.toolsModel))
     owner = (1, 10)
@@ -895,7 +896,7 @@ def test_async_floating_creation_cancels_after_user_switches_focus(
 @pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
 def test_ctrl_f_searches_main_and_floating_windows(zio_app, qtbot, theme):
     window, controller, backend, settings, _, warnings = zio_app
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     create_tool(backend, "Find this script")
     window.showNormal()
     window.requestActivate()

@@ -54,6 +54,12 @@ from poptools.viewmodels.tool_session_controller import ToolSessionController
 from poptools.viewmodels.update_controller import UpdateController
 
 
+def select_presentation(settings, mode):
+    style = mode if mode in ("decade", "zio") else "default"
+    return (settings.saveFloatingLauncherStyle(style)
+            and settings.saveThemeMode("dark" if style != "default" else mode))
+
+
 @pytest.fixture
 def launcher(qapp, tmp_path, monkeypatch):
     paths = AppPaths(tmp_path)
@@ -104,7 +110,7 @@ def test_decade_search_results_keep_full_pack_and_follow_open_cards(launcher):
     alpha = create_tool(backend, "Alpha search")
     beta = create_tool(backend, "Beta search")
     controller.refreshTools()
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     controller.setToolSearchQuery("Alpha")
     assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
     assert ids(controller.searchResultsModel) == [alpha.id]
@@ -114,7 +120,7 @@ def test_decade_search_results_keep_full_pack_and_follow_open_cards(launcher):
     assert controller.isCardOpen(alpha.id)
     controller.setCardOpen(alpha.id, False)
     assert ids(controller.searchResultsModel) == [alpha.id]
-    settings.saveThemeMode("light")
+    select_presentation(settings, "light")
     assert ids(controller.toolsModel) == [alpha.id]
     controller.setToolSearchQuery("")
     assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
@@ -137,7 +143,7 @@ def test_decade_drag_tracks_pointer_and_persists_arbitrary_left_edge_position(
     launcher, qapp, monkeypatch,
 ):
     controller, _, settings, _ = launcher
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     window = QWindow()
     available = qapp.primaryScreen().availableGeometry()
     controller.attachDrawerWindow(window, 76, 112, 560, 440)
@@ -168,7 +174,7 @@ def test_decade_drag_tracks_pointer_and_persists_arbitrary_left_edge_position(
 @pytest.mark.gui
 def test_decade_pack_keeps_original_list_and_search_results(launcher, qapp, qtbot):
     controller, backend, settings, _ = launcher
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     for index in range(12):
         create_tool(backend, f"Pack card {index:02}")
     controller.setToolSortMode("name")
@@ -183,7 +189,7 @@ import "components"
 import "theme"
 Item {
     required property var backend
-    Component.onCompleted: { Theme.decadeMode = true; Theme.darkMode = true }
+    Component.onCompleted: { LauncherStyle.style = "decade"; Theme.darkMode = true }
     FloatingLauncher { controller: backend }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/PackWheelHarness.qml")))
@@ -522,7 +528,7 @@ def test_startup_without_click_recovers_missing_focus_notification(launcher, qtb
 @pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
 def test_launcher_focus_group_and_external_activation(launcher, monkeypatch, theme):
     controller, _, settings, main = launcher
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     panel, popup, card = QWindow(), QWindow(), QWindow()
     popup.setTransientParent(panel)
     card.setObjectName("recentToolWindow")
@@ -572,7 +578,7 @@ def test_launcher_focus_group_and_external_activation(launcher, monkeypatch, the
 @pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
 def test_pointer_leave_does_not_collapse_or_steal_focus(launcher, qtbot, monkeypatch, theme):
     controller, _, settings, _ = launcher
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     monkeypatch.setattr(controller, "_pointer_inside", lambda: False)
     controller.toggleExpanded()
     for menu in (True, False):
@@ -589,7 +595,7 @@ def test_pointer_leave_does_not_collapse_or_steal_focus(launcher, qtbot, monkeyp
 @pytest.mark.parametrize("expanded", [True, False])
 def test_return_keeps_launcher_state(launcher, theme, expanded):
     controller, backend, settings, _ = launcher
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     tool = create_tool(backend, "Return")
     controller.refreshTools()
     controller.setCardOpen(tool.id, True)
@@ -634,7 +640,7 @@ def test_async_card_request_expires_on_focus_switch(launcher, monkeypatch):
 @pytest.mark.parametrize("theme", ["decade", "zio"])
 def test_pack_double_click_draws_one_card_and_preserves_rows(launcher, qtbot, theme):
     controller, backend, settings, _ = launcher
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     for index in range(3):
         create_tool(backend, f"Double card {index}")
     controller.refreshTools()
@@ -651,8 +657,8 @@ import "components"
 import "theme"
 Item {
     Component.onCompleted: {
-        Theme.decadeMode = testTheme === "decade"
-        Theme.zioMode = testTheme === "zio"
+        LauncherStyle.decade = testTheme === "decade"
+        LauncherStyle.zio = testTheme === "zio"
     }
     FloatingLauncher { controller: packTestController }
 }
@@ -1054,7 +1060,7 @@ def test_floating_updates_coalesce_within_one_event_turn(launcher, qtbot, monkey
 @pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
 def test_all_themes_draw_before_running(launcher, monkeypatch, command, theme):
     controller, backend, settings, _ = launcher
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     tool = create_tool(backend, "运行测试", command=command)
     runs = []
     dialogs = []
@@ -1113,8 +1119,8 @@ RecentToolDialog {
     jiraFeishuBackend: null
     Component.onCompleted: {
         Theme.darkMode = testTheme !== "light"
-        Theme.decadeMode = testTheme === "decade"
-        Theme.zioMode = testTheme === "zio"
+        LauncherStyle.decade = testTheme === "decade"
+        LauncherStyle.zio = testTheme === "zio"
     }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/PinCardHarness.qml")))
@@ -1212,11 +1218,10 @@ RecentToolDialog {
     jiraFeishuBackend: null
     Component.onCompleted: {
         Theme.darkMode = testDarkMode
-        Theme.glassMode = Qt.binding(function() { return testGlassMode && !Theme.mechanicalMode })
+        Theme.glassMode = Qt.binding(function() { return testGlassMode })
     }
     function setCardTheme(mode: string) {
-        Theme.decadeMode = mode === "decade"
-        Theme.zioMode = mode === "zio"
+        LauncherStyle.style = mode
     }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/RecentScriptHarness.qml")))
@@ -1371,7 +1376,7 @@ RecentToolDialog {
     deviceController: androidBackend
     presetUtilities: null
     jiraFeishuBackend: null
-    Component.onCompleted: { Theme.darkMode = testDarkMode; Theme.decadeMode = true }
+    Component.onCompleted: { Theme.darkMode = testDarkMode; LauncherStyle.style = "decade" }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/CardMotionHarness.qml")))
     window = component.create()
@@ -1526,7 +1531,7 @@ RecentToolDialog {
 @pytest.mark.parametrize("mode", ["light", "dark", "system"])
 def test_card_theme_fades_and_live_theme_switch(launcher, qtbot, mode):
     _, backend, settings, _ = launcher
-    assert settings.saveThemeMode(mode)
+    assert select_presentation(settings, mode)
     tool = create_tool(backend, "Theme transition", command="print('${message:Hello}')")
     engine = QQmlEngine()
     warnings = []
@@ -1543,7 +1548,8 @@ RecentToolDialog {
     presetUtilities: null
     jiraFeishuBackend: null
     Binding { target: Theme; property: "darkMode"; value: settingsBackend.darkTheme }
-    Binding { target: Theme; property: "decadeMode"; value: settingsBackend.themeMode === "decade" }
+    Binding { target: LauncherStyle; property: "style"
+        value: settingsBackend.floatingLauncherStyle }
     readonly property color themeAccent: Theme.primary
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/ThemeCardHarness.qml")))
@@ -1586,13 +1592,13 @@ RecentToolDialog {
         assert not window.property("activationAnimationRunning")
         QMetaObject.invokeMethod(window, "showFocusFeedback")
         assert not window.property("focusScanRunning")
-        assert settings.saveThemeMode("decade")
+        assert settings.saveFloatingLauncherStyle("decade")
         assert settings.darkTheme
         assert ConfigStore(settings.config_store.paths).theme_mode() == "decade"
         assert window.property("themeAccent").name() == "#f12786"
         QMetaObject.invokeMethod(window, "activateCard")
         assert window.property("activationAnimationRunning")
-        assert settings.saveThemeMode(mode)
+        assert select_presentation(settings, mode)
         assert not window.property("activationAnimationRunning")
         assert motion.property("spinAngle") == 0
         assert motion.property("fadeOpacity") == 1
@@ -1632,7 +1638,7 @@ def test_decade_pack_tracks_open_cards_across_refresh_filter_and_theme(launcher,
     alpha = create_tool(backend, "Pack Alpha")
     beta = create_tool(backend, "Pack Beta")
     controller.refreshTools()
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     requested = []
     backend.recentToolDialogRequested.connect(requested.append)
     monkeypatch.setattr(backend, "open_custom_tool_shortcut",
@@ -1643,9 +1649,9 @@ def test_decade_pack_tracks_open_cards_across_refresh_filter_and_theme(launcher,
     controller.setCardOpen(beta.id, True)
     controller.refreshTools()
     assert controller.toolsModel.count == 2
-    settings.saveThemeMode("light")
+    select_presentation(settings, "light")
     assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     assert controller.toolsModel.count == 2
     assert controller.beginCardReturn(alpha.id)
     assert controller.beginCardReturn(beta.id)
@@ -1667,7 +1673,7 @@ def test_decade_pack_dispatches_after_mouse_event_without_raising_the_face(
     controller, backend, settings, _ = launcher
     monkeypatch.setattr(controller, "_pointer_inside", lambda: True)
     tools = [create_tool(backend, f"Concurrent {i}") for i in range(3)]
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     controller.refreshTools()
     engine = QQmlEngine()
     engine.rootContext().setContextProperty("backend", controller)
@@ -1677,7 +1683,7 @@ import QtQuick
 import "components"
 import "theme"
 Item {
-    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    Component.onCompleted: { Theme.darkMode = true; LauncherStyle.style = "decade" }
     FloatingLauncher { controller: backend }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/ConcurrentPackHarness.qml")))
@@ -1764,7 +1770,7 @@ import "theme"
 Window {
     width: 440; height: 680; color: "transparent"
     flags: Qt.FramelessWindowHint
-    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    Component.onCompleted: { Theme.darkMode = true; LauncherStyle.style = "decade" }
     MechanicalCardFace {
         id: face; visible: false
         objectName: "departureTestFace"
@@ -1882,7 +1888,7 @@ import "theme"
 MechanicalCardMotion {
     width: 293; height: 453; designScale: 2/3
     cardFace: MechanicalCardFace {}
-    Component.onCompleted: Theme.decadeMode = true
+    Component.onCompleted: LauncherStyle.style = "decade"
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/AllRowExtraction.qml")))
     motion = component.create()
@@ -1982,7 +1988,7 @@ import "components"
 import "theme"
 Window {
     width: 880; height: 680; color: "transparent"
-    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    Component.onCompleted: { Theme.darkMode = true; LauncherStyle.style = "decade" }
     MechanicalCardMotion {
         id: waiting; objectName: "waitingCard"; width: 440; height: 680
         contentReady: false
@@ -2038,7 +2044,7 @@ import "components"
 import "theme"
 Item {
     id: root
-    Component.onCompleted: Theme.decadeMode = true
+    Component.onCompleted: LauncherStyle.style = "decade"
     CardRecallQueue { id: queue; objectName: "recallQueue" }
     component TestCard: QtObject {
         property bool visible: true
@@ -2116,7 +2122,7 @@ Item {
         }
     }
     Component.onCompleted: {
-        Theme.decadeMode = true
+        LauncherStyle.style = "decade"
         for (let i = 0; i < 10; i++) cards.push(factory.createObject(root))
         queue.recall(cards)
     }
@@ -2142,7 +2148,7 @@ Item {
 def test_swapping_pack_presentations_preserves_borrowed_and_docked_faces(launcher, qtbot):
     controller, backend, settings, _ = launcher
     tools = [create_tool(backend, f"Theme card {i}") for i in range(3)]
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     controller.refreshTools()
     engine = QQmlEngine()
     warnings = []
@@ -2155,7 +2161,7 @@ import "components"
 import "theme"
 Item {
     property string mode: "decade"
-    Binding { target: Theme; property: "decadeMode"; value: mode === "decade" }
+    Binding { target: LauncherStyle; property: "decade"; value: mode === "decade" }
     Binding { target: Theme; property: "darkMode"; value: mode !== "light" }
     FloatingLauncher { id: pack; controller: backend }
     Window {
@@ -2191,7 +2197,7 @@ Item {
         scripts.setProperty("kindFilter", "python")
         expected_filter = "python"
         for mode in ("light", "dark", "decade", "light", "decade"):
-            settings.saveThemeMode(mode)
+            select_presentation(settings, mode)
             root.setProperty("mode", mode)
             qtbot.wait(30)
             expected_height = 440 if mode == "decade" else 480
@@ -2240,11 +2246,11 @@ Item {
         QMetaObject.invokeMethod(scripts, "activateTool", Q_ARG("QVariant", tools[0].id),
                                  Q_ARG("QVariant", None))
         assert scripts.property("pendingLaunchCount") == 1
-        settings.saveThemeMode("light")
+        select_presentation(settings, "light")
         root.setProperty("mode", "light")
         qtbot.wait(30)
         assert requested == []  # Retiring the deck cancels its deferred requests.
-        settings.saveThemeMode("decade")
+        settings.saveFloatingLauncherStyle("decade")
         root.setProperty("mode", "decade")
         qtbot.wait(30)
         assert root.findChild(QObject, "deckCard_" + tools[0].id) is faces[tools[0].id]
@@ -2262,7 +2268,7 @@ def test_decade_pack_last_card_stays_rendered_at_scroll_end(launcher, qtbot):
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     for index in range(18):
         create_tool(backend, f"Stack {index:02}", kind="python" if index % 2 else "powershell")
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     controller.refreshTools()
     engine = QQmlEngine()
     engine.rootContext().setContextProperty("backend", controller)
@@ -2272,7 +2278,7 @@ import QtQuick
 import "components"
 import "theme"
 Item {
-    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    Component.onCompleted: { Theme.darkMode = true; LauncherStyle.style = "decade" }
     FloatingLauncher { controller: backend }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/StackScrollHarness.qml")))
@@ -2349,7 +2355,7 @@ import QtQuick
 import "components"
 import "theme"
 RecentToolDialog {
-    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    Component.onCompleted: { Theme.darkMode = true; LauncherStyle.style = "decade" }
     deviceController: androidBackend
     presetUtilities: null
     jiraFeishuBackend: null
@@ -2555,7 +2561,7 @@ def test_flight_rotation_fits_small_desktop_surface(qapp):
 import QtQuick
 import "components"
 import "theme"
-MechanicalCardMotion { Component.onCompleted: Theme.decadeMode = true }
+MechanicalCardMotion { Component.onCompleted: LauncherStyle.style = "decade" }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/SmallCardHarness.qml")))
     geometry = card_flight_geometry(QRectF(-160, 120, 150, 40), QRect(-288, 12, 276, 226),
                                     QRect(-300, 0, 300, 250))
@@ -2657,15 +2663,13 @@ RecentToolDialog {
     presetUtilities: null
     jiraFeishuBackend: null
     Component.onCompleted: {
-        Theme.darkMode = true; Theme.CARD_THEME = true; Theme.zioPalette = ZIO_PALETTE
-        Theme.glassMode = Qt.binding(function() { return testGlassMode && !Theme.mechanicalMode })
+        Theme.darkMode = true; LauncherStyle.style = "CARD_THEME"
+        Theme.glassMode = Qt.binding(function() { return testGlassMode })
         Theme.glassPalette = testGlassConfig.darkColors
         Theme.glassMaterial = testGlassConfig.material
     }
 }
-'''.replace(b"CARD_THEME", f"{card_theme}Mode".encode()).replace(
-        b"ZIO_PALETTE", json.dumps(json.loads((package_root() / "ui/qml/theme/configs/zio.json")
-                                             .read_text("utf-8"))["darkColors"]).encode()),
+'''.replace(b"CARD_THEME", card_theme.encode()),
                       QUrl.fromLocalFile(str(package_root() / "ui/qml/DecadeDesignHarness.qml")))
     window = component.create()
     assert isinstance(window, QQuickWindow), [error.toString() for error in component.errors()]
@@ -2887,7 +2891,7 @@ import "components"
 import "theme"
 Window {
     width: 600; height: 530; visible: true; color: "#F5F6FA"
-    Component.onCompleted: { Theme.darkMode = true; Theme.decadeMode = true }
+    Component.onCompleted: { Theme.darkMode = true; LauncherStyle.style = "decade" }
     MechanicalCardFace {
         objectName: "smallBack"
         x: 18; y: 20; width: 220; height: 342
@@ -3002,7 +3006,7 @@ def test_qml_windows_search_theme_sort_cycle_escape_and_render(
     for index in range(18):
         create_tool(backend, f"测试脚本 {index:02} · 很长的脚本名称用于验证省略",
                     kind="powershell" if index % 2 else "python")
-    settings.saveThemeMode("dark" if dark else "light")
+    select_presentation(settings, "dark" if dark else "light")
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     engine = QQmlEngine()
     warnings = []
@@ -3148,7 +3152,7 @@ def test_main_window_settings_navigation_and_close_to_tray(
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
     controller, backend, settings, _ = launcher
     settings.markUserGuideSeen()
-    settings.saveThemeMode("decade")
+    settings.saveFloatingLauncherStyle("decade")
     preset = PresetController()
     jira = JiraFeishuController(settings.config_store.paths.data_dir)
     terminal = DeveloperConsoleController(settings.python_environment)
@@ -3177,27 +3181,47 @@ def test_main_window_settings_navigation_and_close_to_tray(
         controller.openSettings()
         qtbot.waitUntil(window.isVisible)
         assert window.property("settingsSelected")
-        toggle = window.findChild(QObject, "floatingLauncherToggle")
-        assert toggle is not None and toggle.property("checked")
-        settings.saveFloatingLauncherEnabled(False)
-        assert not toggle.property("checked") and not controller.visible
-        settings.saveFloatingLauncherEnabled(True)
-        window.resize(960, 720)
-        qtbot.wait(150)
-
         def visual_items(item):
             yield item
             for child in item.childItems():
                 yield from visual_items(child)
 
-        for mode in ("light", "dark", "decade"):
+        def style_button(style):
+            return next((item for item in visual_items(window.contentItem())
+                         if item.objectName() == "launcherStyleChoice_" + style), None)
+
+        qtbot.waitUntil(lambda: style_button("off") is not None)
+        toggle = style_button("off")
+        assert window.findChild(QObject, "floatingLauncherToggle") is None
+        assert QMetaObject.invokeMethod(toggle, "clicked")
+        qtbot.waitUntil(lambda: not settings.floatingLauncherEnabled and not controller.visible)
+        settings.saveFloatingLauncherStyle("decade")
+        window.resize(960, 720)
+        qtbot.wait(150)
+
+        for mode in ("light", "dark", "system"):
             choice = next(item for item in visual_items(window.contentItem())
                           if item.objectName() == "themeChoice_" + mode)
             assert choice.isVisible()
             rect = choice.mapRectToItem(window.contentItem(), choice.boundingRect())
             QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=rect.center().toPoint())
             assert settings.themeMode == mode
-        assert window.property("chromeBackgroundColor").name() == "#19191f"
+        theme_color = window.property("chromeBackgroundColor")
+        style_buttons = [next(item for item in visual_items(window.contentItem())
+                              if item.objectName() == "launcherStyleChoice_" + style)
+                         for style in ("off", "default", "decade", "zio")]
+        rectangles = [button.mapRectToItem(window.contentItem(), button.boundingRect())
+                      for button in style_buttons]
+        assert max(r.top() for r in rectangles) - min(r.top() for r in rectangles) <= 1
+        assert max(r.width() for r in rectangles) - min(r.width() for r in rectangles) <= 1
+        for style, button in zip(("off", "default", "decade", "zio"), style_buttons, strict=True):
+            QMetaObject.invokeMethod(button, "clicked")
+            assert settings.floatingLauncherEnabled == (style != "off")
+            assert button.property("chosen")
+            if style != "off":
+                assert settings.floatingLauncherStyle == style
+            assert window.property("chromeBackgroundColor") == theme_color
+        settings.saveFloatingLauncherStyle("decade")
         assert window.grabWindow().save("build/floating-settings.png")
         if tray.available:
             assert not window.close()
@@ -3421,9 +3445,9 @@ def test_main_window_settings_navigation_and_close_to_tray(
             session_b = second.property("toolController")
             qtbot.waitUntil(lambda: controller.openCardCount == 2)
             assert controller.toolsModel.count == 2
-            settings.saveThemeMode("light")
+            select_presentation(settings, "light")
             assert set(ids(controller.toolsModel)) == {alpha.id, beta.id}
-            settings.saveThemeMode("decade")
+            settings.saveFloatingLauncherStyle("decade")
             assert controller.toolsModel.count == 2
             assert session_a.selectedTool["id"] == alpha.id
             assert session_b.selectedTool["id"] == beta.id
@@ -3522,7 +3546,7 @@ def test_main_window_settings_navigation_and_close_to_tray(
             assert reopened.property("toolController").running
             # All themes expose the same controls; bulk close preserves running jobs.
             for mode in ("decade", "light", "dark"):
-                settings.saveThemeMode(mode)
+                select_presentation(settings, mode)
                 backend.recentToolDialogRequested.emit(alpha.id)
                 backend.recentToolDialogRequested.emit(beta.id)
                 qtbot.waitUntil(lambda: len(tool_windows()) == 2)
@@ -3603,7 +3627,7 @@ def test_main_foreground_hides_launcher_but_background_main_does_not(
     launcher, monkeypatch, pinned, native_focus, theme,
 ):
     controller, _, settings, main = launcher
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     controller._pinned = pinned
     controller.toggleExpanded()
     visible = True
@@ -3655,7 +3679,7 @@ def test_main_foreground_hides_launcher_but_background_main_does_not(
 @pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
 def test_drawing_keeps_browsing_but_external_focus_dismisses(launcher, monkeypatch, theme):
     controller, backend, settings, _ = launcher
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     tool = create_tool(backend, "Keep browsing")
     inside = True
     card_focused = True
@@ -3689,7 +3713,7 @@ def test_card_handoff_survives_pointer_leave_until_explicit_window_switch(
     launcher, monkeypatch, theme, target,
 ):
     controller, backend, settings, _ = launcher
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     tool = create_tool(backend, "Focus handoff")
     card, other_card = QWindow(), QWindow()
     for window in (card, other_card):

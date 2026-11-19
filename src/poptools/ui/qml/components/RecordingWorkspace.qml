@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 ColumnLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var androidController
@@ -47,7 +50,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 190
         radius: Theme.radiusLarge
-        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
         GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
         border.width: 0
@@ -59,20 +62,20 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignHCenter
                 icon: root.controller.recording ? "radio_button_checked" : "videocam"
                 iconSize: 54
-                color: root.controller.recording ? Theme.errorColor : Theme.primary
+                color: root.controller.recording ? _visualPalette.errorColor : _visualPalette.primary
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: root.controller.recording
                     ? "正在录制画面、系统声音、麦克风并截取日志…"
                     : "录制设备画面、系统声音和麦克风，同时保存 logcat 日志"
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: Theme.fontComponentTitle
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: root.deviceState.label
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontSupporting
             }
         }
@@ -82,7 +85,7 @@ ColumnLayout {
         text: root.controller.recording
               ? "点击“结束记录”后自动导出到所选目录，生成时间戳文件夹"
               : "需要 Android 11+；音频不可用时仅录制画面"
-        color: Theme.textSecondary
+        color: _visualPalette.textSecondary
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
     }
@@ -94,16 +97,16 @@ ColumnLayout {
         Layout.preferredHeight: 40
         enabled: !root.controller.recording && !root.controller.exporting
         placeholderText: "请选择录制保存目录"
-        color: Theme.textPrimary
+        color: _visualPalette.textPrimary
         font.pixelSize: Theme.fontBody
         leftPadding: 13
         rightPadding: 45
         background: Rectangle {
             radius: Theme.radiusSmall
-            color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
             GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
-            border.color: parent.activeFocus ? Theme.primary : "#A8CFFF"
+            border.color: parent.activeFocus ? _visualPalette.primary : "#A8CFFF"
             border.width: parent.activeFocus ? 2 : 1
         }
         Component.onCompleted: text = root.controller.recordingOutputDirectory
@@ -125,11 +128,11 @@ ColumnLayout {
             iconName: "folder_open"
             glyphSize: 19
             tonal: true
-            foregroundColor: Theme.primaryText
+            foregroundColor: _visualPalette.primaryText
             border.width: 0
             radius: Theme.radiusControl
             z: 201
-            color: hovered ? Theme.primaryContainerHover : Theme.primaryContainer
+            color: hovered ? _visualPalette.primaryContainerHover : _visualPalette.primaryContainer
             onClicked: root.controller.chooseRecordingOutputDirectory()
         }
     }
@@ -170,7 +173,7 @@ ColumnLayout {
         Layout.fillWidth: true
         visible: root.statusMessage.length > 0
         text: root.statusMessage
-        color: root.statusError ? Theme.errorColor : Theme.success
+        color: root.statusError ? _visualPalette.errorColor : _visualPalette.success
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
     }

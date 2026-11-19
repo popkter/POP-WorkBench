@@ -1,6 +1,5 @@
 """Selected-row actions share the main page's existing management/run flows."""
 
-import json
 from pathlib import Path
 
 import pytest
@@ -8,7 +7,7 @@ from PySide6.QtCore import QObject, QPoint, Qt
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtTest import QTest
 
-from poptools.paths import package_root, resource_path
+from poptools.paths import resource_path
 from test_floating_launcher import create_tool
 from test_floating_launcher import launcher as launcher
 from test_script_list import evaluate
@@ -34,11 +33,8 @@ def click_button(window, button):
 def test_selected_actions_fit_shrink_title_and_match_theme(script_list, qtbot, width, theme):
     backend, engine, window, view, warnings = script_list
     QFontDatabase.addApplicationFont(str(resource_path("fonts", "MaterialIconsRound-Regular.otf")))
-    palette = json.loads((package_root() / "ui/qml/theme/configs/zio.json").read_text("utf-8"))
     evaluate(engine, view, f"Theme.darkMode = {str(theme != 'light').lower()};"
-             f"Theme.decadeMode = {str(theme == 'decade').lower()};"
-             f"Theme.zioMode = {str(theme == 'zio').lower()};"
-             f"Theme.zioPalette = {json.dumps(palette['darkColors'])};")
+             f'LauncherStyle.style = "{theme if theme in ("decade", "zio") else "default"}";')
     window.setColor(evaluate(engine, view, "Theme.surfaceContainerLow")[0])
     window.setWidth(width)
     a = create_tool(backend, "AI桌面卡片模拟 · 很长的脚本名称用于验证按钮出现后的文字省略",
@@ -54,6 +50,8 @@ def test_selected_actions_fit_shrink_title_and_match_theme(script_list, qtbot, w
     backend.selectTool(a.id)
     QTest.mouseMove(window, QPoint(width - 1, window.height() - 1))
     qtbot.wait(50)
+    # Flush the pending layout of the newly visible virtualized row actions.
+    window.grabWindow()
     assert 0 < title.width() < available_before
     assert title.property("truncated")
     assert not row_for(view, b.id).findChild(QObject, "scriptRowActions_" + b.id).isVisible()

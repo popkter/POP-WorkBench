@@ -4,13 +4,15 @@ import "../theme"
 
 // Only configures DWM. No images, timers or window-local desktop textures.
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var hostWindow
     property bool drawBackground: true
     property bool enabledForWindow: true
     readonly property var backend: typeof systemBackdropController !== "undefined"
         ? systemBackdropController : null
-    readonly property bool active: enabledForWindow && Theme.glassMode && !!hostWindow && hostWindow.visible
+    readonly property bool active: enabledForWindow && _visualPalette.glassMode && !!hostWindow && hostWindow.visible
         && hostWindow.visibility !== Window.Minimized
     property bool ready: false
     property string error: ""
@@ -18,7 +20,7 @@ Item {
 
     function synchronize() {
         if (!active) {
-            if (backend && configured && hostWindow) backend.configure(hostWindow, false, Theme.darkMode)
+            if (backend && configured && hostWindow) backend.configure(hostWindow, false, _visualPalette.darkMode)
             configured = false
             ready = false
             error = ""
@@ -29,7 +31,7 @@ Item {
             error = active ? "系统背景服务不可用" : ""
             return
         }
-        error = backend.configure(hostWindow, active, Theme.darkMode)
+        error = backend.configure(hostWindow, active, _visualPalette.darkMode)
         ready = active && error.length === 0
         configured = ready
     }
@@ -45,6 +47,6 @@ Item {
         visible: root.active && root.drawBackground
         // A cheap constant theme film bounds contrast over very bright/dark
         // desktops. DWM still owns and updates all pixels underneath it.
-        color: root.ready ? (Theme.glassPalette.desktopTint || "transparent") : Theme.surface
+        color: root.ready ? (Theme.glassPalette.desktopTint || "transparent") : _visualPalette.surface
     }
 }

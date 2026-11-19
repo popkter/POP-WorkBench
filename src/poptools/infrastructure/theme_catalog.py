@@ -97,6 +97,8 @@ class ThemeCatalog:
                 key=lambda path: (path.stem != DEFAULT_THEME_ID, path.stem.casefold()),
             )
             for path in paths:
+                if path.stem in {"decade", "zio"}:
+                    continue  # Former app themes are now independent launcher styles.
                 entry = self._load_entry(path)
                 if entry is not None:
                     # User themes are scanned last and intentionally override a

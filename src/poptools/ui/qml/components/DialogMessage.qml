@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 DesktopScrollView {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property alias text: message.text
     property alias foregroundColor: message.color
@@ -15,7 +18,7 @@ DesktopScrollView {
         id: message
         width: root.availableWidth
         textFormat: Text.PlainText
-        color: Theme.textSecondary
+        color: _visualPalette.textSecondary
         font.pixelSize: Theme.fontBody
         wrapMode: Text.Wrap
     }

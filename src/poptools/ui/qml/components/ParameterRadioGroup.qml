@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property var options: []
     property string currentValue: ""
@@ -35,28 +38,28 @@ Item {
                     x: control.leftPadding
                     y: (control.height - height) / 2
                     width: 22; height: 22; radius: 11
-                    color: Theme.inputDefault
-                    border.color: control.checked || control.activeFocus ? Theme.primary : Theme.outline
+                    color: _visualPalette.inputDefault
+                    border.color: control.checked || control.activeFocus ? _visualPalette.primary : _visualPalette.outline
                     border.width: 2
                     GlassSurface {
                         anchors.fill: parent; cornerRadius: parent.radius
-                        tintColor: Theme.inputDefault; pressed: control.down
+                        tintColor: _visualPalette.inputDefault; pressed: control.down
                     }
                     Rectangle {
                         anchors.centerIn: parent
                         width: 12; height: 12; radius: 6
-                        color: Theme.primary
+                        color: _visualPalette.primary
                         visible: control.checked
                         GlassSurface {
                             anchors.fill: parent; cornerRadius: parent.radius
-                            tintColor: Theme.primary; minimumTintOpacity: 0.96
+                            tintColor: _visualPalette.primary; minimumTintOpacity: 0.96
                         }
                     }
                 }
                 contentItem: Text {
                     text: control.text; font: control.font
                     leftPadding: control.indicator.width + control.spacing
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                     verticalAlignment: Text.AlignVCenter
                     wrapMode: Text.Wrap
                 }

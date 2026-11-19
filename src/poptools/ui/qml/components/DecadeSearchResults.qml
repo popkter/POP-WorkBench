@@ -1,9 +1,12 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var deck
@@ -63,7 +66,7 @@ Item {
         anchors.centerIn: parent
         visible: results.count === 0
         text: "无匹配卡片"
-        color: Theme.textSecondary
+        color: _visualPalette.textSecondary
         font.pixelSize: Theme.fontCaption
     }
 }

@@ -6,6 +6,8 @@ import QtQuick.Window
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: LauncherStyle.mechanical ? LauncherPalette : Theme
+
     id: root
     required property var controller
     required property ScriptCardStore cardStore
@@ -59,16 +61,17 @@ Item {
     }
     function closeMenus() { sort.closeMenu() }
     function syncProgress() {
-        if (Theme.zioMode) controller.setDrawerProgress(panel.revealProgress)
+        if (LauncherStyle.zio) controller.setDrawerProgress(panel.revealProgress)
     }
 
     ApplicationWindow {
+        readonly property var floatingStylePalette: root._visualPalette
         id: panel
         objectName: "zioDockWindow"
         transientParent: null
         title: "ZIO / 脚本腰带"
         width: root.preferredWidth; height: root.preferredHeight
-        visible: Theme.zioMode && root.controller.visible
+        visible: LauncherStyle.zio && root.controller.visible
         flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
         color: "transparent"
         property real revealProgress: root.controller.expanded ? 1 : 0
@@ -87,9 +90,9 @@ Item {
             root.closeMenus()
         }
         onFrameSwapped: root.framePresented()
-        palette.text: Theme.textPrimary
-        palette.highlight: Theme.primary
-        palette.highlightedText: Theme.primaryForeground
+        palette.text: _visualPalette.textPrimary
+        palette.highlight: _visualPalette.primary
+        palette.highlightedText: _visualPalette.primaryForeground
 
         Item {
             id: body
@@ -206,7 +209,7 @@ Item {
                 spacing: 12; clip: true
                 header: Item { width: 8; height: 1 }
                 footer: Item { width: 8; height: 1 }
-                model: Theme.zioMode ? root.controller.toolsModel : null
+                model: LauncherStyle.zio ? root.controller.toolsModel : null
                 boundsBehavior: Flickable.StopAtBounds
                 // Keep neighbouring faces mounted throughout a slide.
                 cacheBuffer: width
@@ -266,7 +269,7 @@ Item {
                         minimumContentX + Math.round((contentX - minimumContentX) / 84) * 84))
                 }
                 function settleBounds() {
-                    if (!Theme.zioMode) return
+                    if (!LauncherStyle.zio) return
                     forceLayout()
                     snapScroll()
                 }
@@ -347,7 +350,7 @@ Item {
                     objectName: "zioSlot_" + toolId
                     width: 72; height: 126
                     function mountFace() {
-                        if (Theme.zioMode) root.cardStore.mount(toolId, host, title, iconName)
+                        if (LauncherStyle.zio) root.cardStore.mount(toolId, host, title, iconName)
                     }
                     function activate() {
                         cards.currentIndex = index
@@ -364,13 +367,13 @@ Item {
                         function onRevisionChanged() { Qt.callLater(slot.mountFace) }
                     }
                     Connections {
-                        target: Theme
-                        function onZioModeChanged() { if (Theme.zioMode) Qt.callLater(slot.mountFace) }
+                        target: LauncherStyle
+                        function onZioChanged() { if (LauncherStyle.zio) Qt.callLater(slot.mountFace) }
                     }
                     Rectangle {
                         x: 0; y: 20; width: 72; height: 104; radius: 5
-                        color: Theme.primaryContainer
-                        border.color: Theme.primary
+                        color: _visualPalette.primaryContainer
+                        border.color: _visualPalette.primary
                         opacity: 0.2
                         visible: !slot.borrowed
                     }
@@ -390,14 +393,14 @@ Item {
                         sourceComponent: MechanicalCardFace {
                             cardTitle: slot.title
                             cardIcon: slot.iconName
-                            border.color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.25)
+                            border.color: Qt.rgba(_visualPalette.primary.r, _visualPalette.primary.g, _visualPalette.primary.b, 0.25)
                         }
                     }
                     Rectangle {
                         objectName: "zioRunningIndicator_" + slot.toolId
                         x: 33; y: 119; width: 6; height: 6; radius: 3
                         visible: slot.running
-                        color: Theme.success
+                        color: _visualPalette.success
                     }
                     MouseArea {
                         id: hover
@@ -415,7 +418,7 @@ Item {
                     anchors.centerIn: parent
                     visible: cards.count === 0
                     text: root.controller.toolsModel.totalCount === 0 ? "暂无脚本，请在工作台添加自定义脚本" : "没有匹配的脚本"
-                    color: Theme.textSecondary; font.pixelSize: 13
+                    color: _visualPalette.textSecondary; font.pixelSize: 13
                 }
             }
         }
@@ -461,7 +464,7 @@ Item {
             Accessible.name: root.controller.expanded ? "收起 ZIO 腰带" : "展开 ZIO 腰带"
             Accessible.onPressAction: root.controller.toggleExpanded()
         }
-        HoverHandler { onHoveredChanged: if (Theme.zioMode) root.controller.pointerChanged() }
+        HoverHandler { onHoveredChanged: if (LauncherStyle.zio) root.controller.pointerChanged() }
         Shortcut {
             sequence: "Ctrl+F"; context: Qt.WindowShortcut
             autoRepeat: false
@@ -470,7 +473,7 @@ Item {
         }
         Shortcut {
             sequence: "Esc"; context: Qt.WindowShortcut
-            enabled: Theme.zioMode && root.controller.expanded
+            enabled: LauncherStyle.zio && root.controller.expanded
             onActivated: root.controller.collapse()
         }
     }

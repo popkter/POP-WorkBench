@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 RowLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property var controller: null
     property bool chrome: false
@@ -24,8 +27,8 @@ RowLayout {
         disabledOpacity: root.chrome ? 0.4 : 1
         glyphSize: 20
         border.width: 0
-        color: hovered ? Theme.navigationHover : "transparent"
-        foregroundColor: root.chrome ? Theme.chromeForeground : Theme.textPrimary
+        color: hovered ? _visualPalette.navigationHover : "transparent"
+        foregroundColor: root.chrome ? _visualPalette.chromeForeground : _visualPalette.textPrimary
         Accessible.name: text
     }
     Action {
@@ -52,7 +55,7 @@ RowLayout {
         text: root.controller && root.controller.playing ? "暂停" : "播放"
         iconName: root.controller && root.controller.playing ? "pause" : "play_arrow"
         enabled: root.ready && !root.controller.busy
-        foregroundColor: Theme.primary
+        foregroundColor: _visualPalette.primary
         onClicked: root.controller.togglePlayback()
     }
     Action {
@@ -72,7 +75,7 @@ RowLayout {
         font.pixelSize: Theme.fontSupporting
         contentItem: Text {
             text: rateBox.displayText
-            color: Theme.textPrimary
+            color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontSupporting
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -109,7 +112,7 @@ RowLayout {
         font.pixelSize: Theme.fontSupporting
         contentItem: Text {
             text: resolutionBox.displayText
-            color: Theme.textPrimary
+            color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontSupporting
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -146,7 +149,7 @@ RowLayout {
         labelFontSize: Theme.fontSupporting
         enabled: root.controller !== null
         foregroundColor: root.controller && root.controller.listVisible
-            ? Theme.primary : Theme.textSecondary
+            ? _visualPalette.primary : _visualPalette.textSecondary
         onClicked: root.controller.toggleList()
     }
     Action {

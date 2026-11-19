@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 // Mechanical cover interior: inset window, diagonal brace, and outer control rail.
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property bool searching: false
     DecadePackShell {
@@ -31,7 +34,7 @@ Item {
                 rotation: -14
                 Rectangle {
                     x: 4; y: 8; width: parent.width - 8; height: 7
-                    color: Theme.primary
+                    color: _visualPalette.primary
                 }
             }
         }

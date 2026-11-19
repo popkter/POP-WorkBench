@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property var controller: null
     property bool actionsInTitleBar: false
@@ -40,7 +43,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: root.controller ? root.controller.fileName : "视频预览"
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: Theme.fontBody
                 elide: Text.ElideMiddle
             }
@@ -53,7 +56,7 @@ Item {
             Text {
                 visible: root.controller && root.controller.previewOptimizing
                 text: "正在优化拖动预览…"
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontSupporting
             }
         }
@@ -166,8 +169,8 @@ Item {
                 iconName: "fit_screen"
                 glyphSize: 20
                 labelFontSize: Theme.fontSupporting
-                color: hovered ? Theme.navigationHover : "transparent"
-                foregroundColor: Theme.textSecondary
+                color: hovered ? _visualPalette.navigationHover : "transparent"
+                foregroundColor: _visualPalette.textSecondary
                 border.width: 0
                 enabled: videoSurface.ready
                 Accessible.name: "恢复完整画面；画面上滚轮缩放，放大后拖动平移"
@@ -181,8 +184,8 @@ Item {
                 text: "截图"; iconName: "photo_camera"
                 glyphSize: 18
                 labelFontSize: Theme.fontSupporting
-                color: hovered ? Theme.navigationHover : "transparent"
-                foregroundColor: Theme.textPrimary
+                color: hovered ? _visualPalette.navigationHover : "transparent"
+                foregroundColor: _visualPalette.textPrimary
                 border.width: 0
                 enabled: videoSurface.ready && !root.captureBusy
                 Accessible.name: "截取当前可见视频画面并复制到剪贴板"
@@ -193,7 +196,7 @@ Item {
             Layout.fillWidth: true
             visible: text.length > 0
             text: root.controller ? root.controller.message : ""
-            color: Theme.errorColor
+            color: _visualPalette.errorColor
             font.pixelSize: Theme.fontSupporting
             wrapMode: Text.WordWrap
         }
@@ -217,7 +220,7 @@ Item {
             visible: parent.containsDrag
             color: "transparent"
             border.width: 2
-            border.color: Theme.primary
+            border.color: _visualPalette.primary
             radius: Theme.radiusSmall
         }
     }
@@ -242,20 +245,20 @@ Item {
         focus: false
         closePolicy: Popup.NoAutoClose
         background: AppPopupSurface {
-            fillColor: captureToast.error ? Theme.errorContainer : Theme.popupSurface
-            outlineColor: captureToast.error ? Theme.errorColor : Theme.outlineVariant
+            fillColor: captureToast.error ? _visualPalette.errorContainer : _visualPalette.popupSurface
+            outlineColor: captureToast.error ? _visualPalette.errorColor : _visualPalette.outlineVariant
         }
         contentItem: RowLayout {
             spacing: Theme.space12
             MaterialIcon {
                 icon: captureToast.error ? "error" : "check_circle"
                 iconSize: 22
-                color: captureToast.error ? Theme.errorColor : Theme.success
+                color: captureToast.error ? _visualPalette.errorColor : _visualPalette.success
             }
             Text {
                 Layout.fillWidth: true
                 text: captureToast.message
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: Theme.fontBody
                 elide: Text.ElideRight
             }
@@ -298,8 +301,8 @@ Item {
         onClosed: if (root.controller) root.controller.closeList()
         background: AppPopupSurface {
             objectName: "videoPlaylistBackground"
-            fillColor: Qt.rgba(Theme.popupSurface.r, Theme.popupSurface.g, Theme.popupSurface.b, 0.88)
-            outlineColor: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.45)
+            fillColor: Qt.rgba(_visualPalette.popupSurface.r, _visualPalette.popupSurface.g, _visualPalette.popupSurface.b, 0.88)
+            outlineColor: Qt.rgba(_visualPalette.outline.r, _visualPalette.outline.g, _visualPalette.outline.b, 0.45)
             cornerRadius: Theme.radiusSmall
             transform: Translate { x: listDrawer.slideOffset }
         }
@@ -311,14 +314,14 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: "播放列表（" + (root.controller ? root.controller.playlist.length : 0) + "）"
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                     font.pixelSize: Theme.fontBody
                 }
                 PrimaryButton {
                     Layout.preferredWidth: 28; Layout.preferredHeight: 28
                     text: "关闭播放列表"; iconName: "close"; compact: true
                     color: "transparent"; border.width: 0
-                    foregroundColor: Theme.textSecondary
+                    foregroundColor: _visualPalette.textSecondary
                     onClicked: root.controller.closeList()
                 }
             }
@@ -328,9 +331,9 @@ Item {
                 Layout.preferredHeight: 34
                 text: "添加视频"; iconName: "folder_open"
                 labelFontSize: Theme.fontSupporting
-                foregroundColor: Theme.textPrimary
-                color: hovered ? Theme.navigationHover : "transparent"
-                border.color: Theme.outline
+                foregroundColor: _visualPalette.textPrimary
+                color: hovered ? _visualPalette.navigationHover : "transparent"
+                border.color: _visualPalette.outline
                 onClicked: if (root.controller) root.controller.chooseFiles()
             }
             ListView {
@@ -351,9 +354,9 @@ Item {
                     height: 48
                     radius: Theme.radiusSmall
                     color: modelData.selected
-                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.24)
+                        ? Qt.rgba(_visualPalette.primary.r, _visualPalette.primary.g, _visualPalette.primary.b, 0.24)
                         : rowPointer.containsMouse
-                          ? Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.08)
+                          ? Qt.rgba(_visualPalette.textPrimary.r, _visualPalette.textPrimary.g, _visualPalette.textPrimary.b, 0.08)
                           : "transparent"
                     Text {
                         anchors.left: parent.left
@@ -361,7 +364,7 @@ Item {
                         anchors.right: remove.left
                         anchors.verticalCenter: parent.verticalCenter
                         text: row.modelData.name
-                        color: Theme.textPrimary
+                        color: _visualPalette.textPrimary
                         font.pixelSize: Theme.fontSupporting
                         elide: Text.ElideMiddle
                     }
@@ -385,7 +388,7 @@ Item {
                         width: 28; height: 28
                         text: "移出列表"; iconName: "close"; compact: true
                         color: "transparent"; border.width: 0
-                        foregroundColor: Theme.textSecondary
+                        foregroundColor: _visualPalette.textSecondary
                         onClicked: root.controller.removeVideo(row.index)
                     }
                 }
@@ -393,7 +396,7 @@ Item {
             Text {
                 visible: !root.controller || root.controller.playlist.length === 0
                 text: "打开或拖入视频以添加到列表"
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontSupporting
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true

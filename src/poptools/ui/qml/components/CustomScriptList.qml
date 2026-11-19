@@ -1,10 +1,13 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import "../theme"
 
 // Shared search, filters and sorting. Only this boundary selects a presentation.
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var listModel
@@ -16,7 +19,7 @@ Item {
     property alias cardStore: sharedCards
     property bool continuousRecall: false
     property real deckCardWidth: 0
-    readonly property bool deckMode: quickLaunch && Theme.decadeMode
+    readonly property bool deckMode: quickLaunch && LauncherStyle.decade
     readonly property bool layoutSettling: collectionView ? collectionView.settling : false
     readonly property int pendingLaunchCount: collectionView ? collectionView.pendingLaunchCount : 0
     readonly property ScriptCollectionView collectionView: viewLoader.item as ScriptCollectionView
@@ -125,15 +128,15 @@ Item {
             clearButtonEnabled: true
             placeholderText: "搜索名称、说明或标签..."
             text: root.searchQuery
-            color: Theme.textPrimary
+            color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontSupporting
             onTextChanged: if (root.searchQuery !== text)
                 root.searchEdited(text)
             background: Rectangle {
                 radius: Theme.radiusSmall
-                color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-                border.color: searchField.activeFocus ? Theme.primary : "transparent"
+                color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+                border.color: searchField.activeFocus ? _visualPalette.primary : "transparent"
                 border.width: searchField.activeFocus ? 1 : 0
                 MaterialIcon {
                     anchors.left: parent.left
@@ -141,7 +144,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     icon: "search"
                     iconSize: 20
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                 }
             }
         }
@@ -176,18 +179,18 @@ Item {
                     width: filterChip.modelData.value === "powershell" ? 95 : filterChip.modelData.value === "python" ? 69 : filterChip.modelData.value === "all" ? 52 : 54
                     height: 28
                     radius: Theme.radiusSmall
-                    color: Theme.glassMode ? "transparent"
-                        : root.kindFilter === modelData.value ? Theme.primaryContainer : Theme.surfaceContainerLow
+                    color: _visualPalette.glassMode ? "transparent"
+                        : root.kindFilter === modelData.value ? _visualPalette.primaryContainer : _visualPalette.surfaceContainerLow
                     GlassSurface {
                         anchors.fill: parent; cornerRadius: parent.radius
                         tintColor: root.kindFilter === filterChip.modelData.value
-                            ? Theme.primaryContainer : Theme.surfaceContainerLow
+                            ? _visualPalette.primaryContainer : _visualPalette.surfaceContainerLow
                     }
-                    border.color: root.kindFilter === modelData.value ? Theme.listSelected : Theme.outline
+                    border.color: root.kindFilter === modelData.value ? _visualPalette.listSelected : _visualPalette.outline
                     Text {
                         anchors.centerIn: parent
                         text: filterChip.modelData.label
-                        color: root.kindFilter === filterChip.modelData.value ? Theme.primary : Theme.textSecondary
+                        color: root.kindFilter === filterChip.modelData.value ? _visualPalette.primary : _visualPalette.textSecondary
                         font.pixelSize: Theme.fontCaption
                     }
                     MouseArea {
@@ -213,7 +216,7 @@ Item {
                         required property int index
                         width: index % 3 === 0 ? 3 : 1
                         height: 11
-                        color: index % 3 === 0 ? Theme.primary : Theme.primaryText
+                        color: index % 3 === 0 ? _visualPalette.primary : _visualPalette.primaryText
                     }
                 }
             }
@@ -222,7 +225,7 @@ Item {
                 Layout.minimumWidth: 0
                 Layout.leftMargin: 0
                 text: root.collectionView ? root.collectionView.headingText : ""
-                color: root.deckMode ? Theme.decadePackText : Theme.textSecondary
+                color: root.deckMode ? LauncherStyle.decadePackText : _visualPalette.textSecondary
                 font.pixelSize: Theme.fontCaption
                 font.weight: root.deckMode ? Font.DemiBold : Font.Normal
             }
@@ -258,16 +261,16 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: root.visibleCount + (root.collectionView ? root.collectionView.countSuffix : "")
-                    color: root.deckMode ? Theme.decadePackText : Theme.textSecondary
+                    color: root.deckMode ? LauncherStyle.decadePackText : _visualPalette.textSecondary
                     font.pixelSize: Theme.fontCaption
                 }
                 MaterialIcon {
                     visible: root.deckMode
-                    icon: "north_west"; iconSize: 13; color: Theme.primaryText
+                    icon: "north_west"; iconSize: 13; color: _visualPalette.primaryText
                 }
                 Text {
                     text: root.collectionView ? root.collectionView.actionText : ""
-                    color: root.deckMode ? Theme.primaryText : Theme.textSecondary
+                    color: root.deckMode ? _visualPalette.primaryText : _visualPalette.textSecondary
                     font.pixelSize: Theme.fontCaption
                 }
             }

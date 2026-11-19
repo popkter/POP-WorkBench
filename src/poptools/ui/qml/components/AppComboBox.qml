@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 ComboBox {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: control
 
     implicitHeight: 44
@@ -24,7 +27,7 @@ ComboBox {
 
     contentItem: Text {
         text: control.displayText
-        color: control.enabled ? Theme.textPrimary : Theme.textSecondary
+        color: control.enabled ? _visualPalette.textPrimary : _visualPalette.textSecondary
         font: control.font
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
@@ -35,16 +38,16 @@ ComboBox {
         y: (control.height - height) / 2
         icon: control.popup.visible ? "expand_less" : "expand_more"
         iconSize: 20
-        color: control.enabled ? Theme.textSecondary : Theme.outline
+        color: control.enabled ? _visualPalette.textSecondary : _visualPalette.outline
     }
 
     background: Rectangle {
         radius: Theme.radiusMedium
-        color: Theme.glassMode ? "transparent" : control.enabled ? Theme.popupSurface
-               : (Theme.inputDisabled || Theme.surfaceContainerLow)
-        border.color: control.activeFocus ? (Theme.borderColorFocused || Theme.primary)
-                    : control.enabled ? (Theme.borderColorDefault || Theme.outline)
-                    : Theme.outline
+        color: _visualPalette.glassMode ? "transparent" : control.enabled ? _visualPalette.popupSurface
+               : (_visualPalette.inputDisabled || _visualPalette.surfaceContainerLow)
+        border.color: control.activeFocus ? (_visualPalette.borderColorFocused || _visualPalette.primary)
+                    : control.enabled ? (_visualPalette.borderColorDefault || _visualPalette.outline)
+                    : _visualPalette.outline
         border.width: control.activeFocus ? 2 : 1
         GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5; pressed: control.down }
     }
@@ -59,7 +62,7 @@ ComboBox {
             rightPadding: Theme.space12
             text: control.textAt(index)
             color: control.currentIndex === index
-                   ? Theme.primaryText : Theme.textPrimary
+                   ? _visualPalette.primaryText : _visualPalette.textPrimary
             font: control.font
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -67,8 +70,8 @@ ComboBox {
         background: Rectangle {
             radius: Theme.radiusSmall
             color: control.currentIndex === index
-                   ? Theme.popupSelected
-                   : (parent.highlighted ? Theme.popupHover : "transparent")
+                   ? _visualPalette.popupSelected
+                   : (parent.highlighted ? _visualPalette.popupHover : "transparent")
         }
     }
 

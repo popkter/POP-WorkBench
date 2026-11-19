@@ -1,11 +1,14 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 Rectangle {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "customToolDetailPanel"
 
@@ -42,16 +45,16 @@ Rectangle {
     property bool sharedCardBackground: false
     property bool showHeading: true
     readonly property bool cardTypography: sharedCardBackground || decadeCardLayout
-    readonly property real panelPadding: decadeCardLayout ? Theme.decadeCardPadding : compactLayout ? Theme.space8 : Theme.detailPanelPadding
+    readonly property real panelPadding: decadeCardLayout ? LauncherStyle.decadeCardPadding : compactLayout ? Theme.space8 : Theme.detailPanelPadding
     property real minimumFormReservedHeight: Theme.detailFormReservedHeight
     readonly property bool narrowManagementLayout: allowManagement && width < Theme.detailCompactWidth
     readonly property bool compactConsoleActions: consolePanel.width < (splitConsole ? 560 : 458)
     readonly property bool showConsoleStatusText: !compactConsoleActions
         || consolePanel.width >= (splitConsole ? 340 : 280)
-    readonly property color consoleStatusColor: controller.running ? Theme.consoleWarning
-        : controller.statusText === "执行成功" ? Theme.success
-        : controller.statusText.indexOf("执行失败") === 0 ? Theme.consoleError
-        : Theme.consoleMuted
+    readonly property color consoleStatusColor: controller.running ? _visualPalette.consoleWarning
+        : controller.statusText === "执行成功" ? _visualPalette.success
+        : controller.statusText.indexOf("执行失败") === 0 ? _visualPalette.consoleError
+        : _visualPalette.consoleMuted
 
     signal editRequested()
     signal deleteRequested()
@@ -60,10 +63,10 @@ Rectangle {
     signal toastRequested(string message, bool error)
 
     radius: Theme.radiusMedium
-    color: sharedCardBackground || Theme.glassMode || splitConsole || decadeCardLayout ? "transparent" : Theme.surfaceContainerLow
+    color: sharedCardBackground || _visualPalette.glassMode || splitConsole || decadeCardLayout ? "transparent" : _visualPalette.surfaceContainerLow
     GlassSurface {
         anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
-        visible: Theme.glassMode && !root.sharedCardBackground && !root.splitConsole && !root.decadeCardLayout
+        visible: _visualPalette.glassMode && !root.sharedCardBackground && !root.splitConsole && !root.decadeCardLayout
     }
     border.width: 0
     clip: true
@@ -79,14 +82,14 @@ Rectangle {
 
     function kindColor() {
         const kind = root.displayedTool.executor ? root.displayedTool.executor.kind : ""
-        return kind === "python" ? Theme.tertiary
-            : kind === "batch" ? Theme.success : Theme.runtimeBadgeText
+        return kind === "python" ? _visualPalette.tertiary
+            : kind === "batch" ? _visualPalette.success : _visualPalette.runtimeBadgeText
     }
 
     function kindBackground() {
         const kind = root.displayedTool.executor ? root.displayedTool.executor.kind : ""
-        return kind === "python" ? Theme.tertiaryContainer
-            : kind === "batch" ? Theme.successContainer : Theme.runtimeBadge
+        return kind === "python" ? _visualPalette.tertiaryContainer
+            : kind === "batch" ? _visualPalette.successContainer : _visualPalette.runtimeBadge
     }
 
     function runSelectedTool() {
@@ -112,10 +115,10 @@ Rectangle {
         width: parent.width
         height: Math.max(0, consolePanel.y - root.separatorHeight)
         radius: Theme.radiusMedium
-        color: !Theme.glassMode && root.splitConsole ? Theme.surfaceContainerLow : "transparent"
+        color: !_visualPalette.glassMode && root.splitConsole ? _visualPalette.surfaceContainerLow : "transparent"
         GlassSurface {
             anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
-            visible: Theme.glassMode && root.splitConsole
+            visible: _visualPalette.glassMode && root.splitConsole
         }
         border.width: 0
         clip: true
@@ -159,8 +162,8 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: root.displayedTool.title || "请选择脚本"
-                        color: Theme.textPrimary
-                        font.pixelSize: root.cardTypography ? Theme.decadeCardTitleSize
+                        color: _visualPalette.textPrimary
+                        font.pixelSize: root.cardTypography ? LauncherStyle.decadeCardTitleSize
                             : root.compactLayout ? Theme.fontSectionTitle : Theme.fontDetailTitle
                         font.weight: Font.Bold
                         elide: Text.ElideRight
@@ -168,8 +171,8 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: root.displayedTool.description || "选择脚本以查看参数、运行状态和输出"
-                        color: Theme.textSecondary
-                        font.pixelSize: root.cardTypography ? Theme.decadeCardTextSize
+                        color: _visualPalette.textSecondary
+                        font.pixelSize: root.cardTypography ? LauncherStyle.decadeCardTextSize
                             : root.compactLayout ? Theme.fontSupporting : Theme.fontBody
                         wrapMode: root.compactLayout ? Text.Wrap : Text.NoWrap
                         maximumLineCount: root.compactLayout ? 2 : 1
@@ -201,7 +204,7 @@ Rectangle {
                 anchors.leftMargin: root.panelPadding
                 anchors.rightMargin: root.panelPadding
                 height: Theme.borderWidthThin
-                color: Theme.outlineVariant
+                color: _visualPalette.outlineVariant
             }
         }
 
@@ -285,9 +288,9 @@ Rectangle {
                     text: "编辑脚本"
                     iconName: ""
                     tonal: true
-                    color: hovered ? Theme.surfaceContainer : Theme.surfaceContainerLow
-                    border.color: Theme.outline
-                    foregroundColor: Theme.textPrimary
+                    color: hovered ? _visualPalette.surfaceContainer : _visualPalette.surfaceContainerLow
+                    border.color: _visualPalette.outline
+                    foregroundColor: _visualPalette.textPrimary
                     labelFontSize: Theme.fontSupporting
                     labelFontWeight: Font.Normal
                     glyphSize: 18
@@ -305,11 +308,11 @@ Rectangle {
                     height: Theme.controlHeightSmall
                     radius: Theme.radiusSmall
                     tonal: true
-                    color: Theme.dangerAction
-                    border.color: Theme.errorColor
+                    color: _visualPalette.dangerAction
+                    border.color: _visualPalette.errorColor
                     text: "删除脚本"
                     iconName: ""
-                    foregroundColor: Theme.textPrimary
+                    foregroundColor: _visualPalette.textPrimary
                     labelFontSize: Theme.fontSupporting
                     labelFontWeight: Font.Normal
                     glyphSize: 18
@@ -339,7 +342,7 @@ Rectangle {
                     text: root.controller.running ? "停止运行" : "运行脚本"
                     iconName: root.controller.running ? "stop" : "play_arrow"
                     tonal: true
-                    color: hovered ? Theme.primaryHover : Theme.primary
+                    color: hovered ? _visualPalette.primaryHover : _visualPalette.primary
                     border.width: 0
                     foregroundColor: "white"
                     labelFontSize: Theme.fontSupporting
@@ -368,7 +371,7 @@ Rectangle {
             height: 3
             radius: 1.5
             color: separatorMouse.containsMouse || separatorMouse.pressed
-                ? Theme.primary : Theme.outline
+                ? _visualPalette.primary : _visualPalette.outline
             visible: root.consoleExpanded
         }
         MouseArea {
@@ -420,13 +423,13 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: root.splitConsole ? 0 : root.panelPadding
         radius: 9
-        color: Theme.glassMode ? "transparent" : Theme.consoleBackground
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.consoleBackground
         GlassSurface {
             anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
-            tintColor: Theme.consoleBackground; tintStrength: 0.94
+            tintColor: _visualPalette.consoleBackground; tintStrength: 0.94
         }
         border.width: root.decadeCardLayout ? Theme.borderWidthThin : 0
-        border.color: Theme.outline
+        border.color: _visualPalette.outline
         clip: true
 
         function scrollConsoleToBottom() {
@@ -445,10 +448,10 @@ Rectangle {
             anchors.top: parent.top
             height: Theme.consoleHeaderHeight
             radius: Theme.radiusConsole
-            color: Theme.glassMode ? "transparent" : Theme.consoleHeaderBackground
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.consoleHeaderBackground
             GlassSurface {
                 anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
-                tintColor: Theme.consoleHeaderBackground
+                tintColor: _visualPalette.consoleHeaderBackground
                 tintStrength: 0.82; minimumTintOpacity: 0.74
             }
             RowLayout {
@@ -459,12 +462,12 @@ Rectangle {
                 spacing: root.compactConsoleActions ? 6 : 10
                 MaterialIcon {
                     visible: root.decadeCardLayout
-                    icon: "terminal"; iconSize: 24; color: Theme.consoleText
+                    icon: "terminal"; iconSize: 24; color: _visualPalette.consoleText
                 }
                 Text {
-                    text: "控制台输出"; color: Theme.consoleText
-                    font.pixelSize: root.cardTypography ? Theme.decadeCardTextSize : Theme.fontSupporting
-                    font.weight: Theme.glassMode && root.cardTypography ? Font.Bold : Font.DemiBold
+                    text: "控制台输出"; color: _visualPalette.consoleText
+                    font.pixelSize: root.cardTypography ? LauncherStyle.decadeCardTextSize : Theme.fontSupporting
+                    font.weight: _visualPalette.glassMode && root.cardTypography ? Font.Bold : Font.DemiBold
                     MouseArea {
                         anchors.fill: parent
                         enabled: root.decadeCardLayout
@@ -500,9 +503,9 @@ Rectangle {
                     compact: root.compactConsoleActions
                     Accessible.name: text
                     tonal: true
-                    color: hovered ? Theme.consoleBackground : "transparent"
+                    color: hovered ? _visualPalette.consoleBackground : "transparent"
                     border.width: 0
-                    foregroundColor: root.controller.running ? Theme.consoleError : Theme.success
+                    foregroundColor: root.controller.running ? _visualPalette.consoleError : _visualPalette.success
                     labelFontSize: 12
                     labelFontWeight: Font.Normal
                     glyphSize: 16
@@ -523,7 +526,7 @@ Rectangle {
                     tonal: true
                     color: "transparent"
                     border.width: 0
-                    foregroundColor: hovered ? Theme.consoleText : Theme.consoleMuted
+                    foregroundColor: hovered ? _visualPalette.consoleText : _visualPalette.consoleMuted
                     labelFontSize: 12
                     labelFontWeight: Font.Normal
                     glyphSize: 15
@@ -545,7 +548,7 @@ Rectangle {
                     tonal: true
                     color: "transparent"
                     border.width: 0
-                    foregroundColor: hovered ? Theme.consoleText : Theme.consoleMuted
+                    foregroundColor: hovered ? _visualPalette.consoleText : _visualPalette.consoleMuted
                     labelFontSize: 12
                     labelFontWeight: Font.Normal
                     glyphSize: 15
@@ -565,9 +568,9 @@ Rectangle {
                     compact: root.compactConsoleActions
                     Accessible.name: root.consoleExpanded ? "收起控制台输出" : "展开控制台输出"
                     tonal: true
-                    color: hovered ? Theme.consoleBackground : "transparent"
+                    color: hovered ? _visualPalette.consoleBackground : "transparent"
                     border.width: 0
-                    foregroundColor: Theme.consoleText
+                    foregroundColor: _visualPalette.consoleText
                     labelFontSize: 12
                     labelFontWeight: Font.Normal
                     glyphSize: 16
@@ -623,8 +626,8 @@ Rectangle {
                 readOnly: true
                 selectByMouse: true
                 wrapMode: TextEdit.WrapAnywhere
-                color: Theme.consoleText
-                selectionColor: Theme.primary
+                color: _visualPalette.consoleText
+                selectionColor: _visualPalette.primary
                 selectedTextColor: "white"
                 font.family: "Cascadia Mono"
                 font.pixelSize: Theme.fontCaption
@@ -644,12 +647,12 @@ Rectangle {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: root.decadeCardLayout ? 0 : Theme.consoleFooterHeight
-            color: Theme.glassMode ? "transparent" : Theme.consoleBackground
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 }
-            border.color: Theme.darkMode ? "#2A3442" : "#25303D"
-            border.width: Theme.glassMode ? 0 : 1
-            Text { anchors.left: parent.left; anchors.leftMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: "脚本输出"; color: Theme.consoleMuted; font.pixelSize: Theme.fontSmall }
-            Text { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: root.controller.statusText; color: Theme.consoleMuted; font.pixelSize: Theme.fontSmall }
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.consoleBackground
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.consoleBackground; z: -0.5 }
+            border.color: _visualPalette.darkMode ? "#2A3442" : "#25303D"
+            border.width: _visualPalette.glassMode ? 0 : 1
+            Text { anchors.left: parent.left; anchors.leftMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: "脚本输出"; color: _visualPalette.consoleMuted; font.pixelSize: Theme.fontSmall }
+            Text { anchors.right: parent.right; anchors.rightMargin: 15; anchors.verticalCenter: parent.verticalCenter; text: root.controller.statusText; color: _visualPalette.consoleMuted; font.pixelSize: Theme.fontSmall }
         }
     }
 

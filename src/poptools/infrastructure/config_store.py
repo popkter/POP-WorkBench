@@ -52,7 +52,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 TOOL_SORT_MODES = ("added_time", "name", "usage", "custom")
-THEME_MODES = ("system", "light", "dark", "decade", "zio")
+THEME_MODES = ("system", "light", "dark")
+FLOATING_LAUNCHER_STYLES = ("default", "decade", "zio")
 THEME_STYLE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 LOCAL_SCRIPT_ENTRIES = ("tools", "scripts")
 
@@ -468,6 +469,9 @@ class ConfigStore:
             app = {}
             config["app"] = app
         value = app.get("theme", "system")
+        if value in ("decade", "zio"):
+            app.setdefault("floating_launcher_style", value)
+            value = "dark"
         if value not in THEME_MODES:
             value = "system"
         if app.get("theme") != value:
@@ -486,6 +490,19 @@ class ConfigStore:
         app["theme"] = mode
         self.save_config(config)
 
+    def floating_launcher_style(self) -> str:
+        self.theme_mode()  # Migrate former theme selections before reading the style.
+        value = self.load_config().get("app", {}).get("floating_launcher_style", "default")
+        return value if value in FLOATING_LAUNCHER_STYLES else "default"
+
+    def set_floating_launcher_style(self, style: str) -> None:
+        if style not in FLOATING_LAUNCHER_STYLES:
+            raise ValueError("未知的悬浮窗样式")
+        config = self.load_config()
+        config.setdefault("app", {})["floating_launcher_style"] = style
+        config["app"]["floating_launcher_enabled"] = True
+        self.save_config(config)
+
     def theme_style(self) -> str:
         config = self.load_config()
         app = config.get("app")
@@ -493,6 +510,8 @@ class ConfigStore:
             app = {}
             config["app"] = app
         value = app.get("theme_style", "material3")
+        if value in ("decade", "zio"):
+            value = "material3"
         if not isinstance(value, str) or THEME_STYLE_PATTERN.fullmatch(value) is None:
             value = "material3"
         if app.get("theme_style") != value:

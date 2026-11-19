@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import "../theme"
 
 RowLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property string title: ""
     property string description: ""
@@ -15,12 +18,12 @@ RowLayout {
         Layout.preferredWidth: Theme.controlHeight
         Layout.preferredHeight: Theme.controlHeight
         radius: Theme.radiusMedium
-        color: root.destructive ? Theme.errorContainer : Theme.primaryContainer
+        color: root.destructive ? _visualPalette.errorContainer : _visualPalette.primaryContainer
         MaterialIcon {
             anchors.centerIn: parent
             icon: root.iconName
             iconSize: 22
-            color: root.destructive ? Theme.errorColor : Theme.primaryText
+            color: root.destructive ? _visualPalette.errorColor : _visualPalette.primaryText
         }
     }
     ColumnLayout {
@@ -32,7 +35,7 @@ RowLayout {
             Layout.fillWidth: true
             text: root.title
             textFormat: Text.PlainText
-            color: Theme.textPrimary
+            color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontSectionTitle
             font.weight: Font.DemiBold
             wrapMode: Text.Wrap
@@ -47,7 +50,7 @@ RowLayout {
             visible: root.description.length > 0
             text: root.description
             textFormat: Text.PlainText
-            color: Theme.textSecondary
+            color: _visualPalette.textSecondary
             font.pixelSize: Theme.fontSupporting
             wrapMode: Text.Wrap
             maximumLineCount: 3

@@ -1,7 +1,10 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 Rectangle {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property string cardTitle: ""
     property string cardIcon: "terminal"
@@ -11,11 +14,11 @@ Rectangle {
     property real packViewportBottom: NaN
     property rect packPort: Qt.rect(0, 0, 0, 0)
     property rect packPortOrigin: Qt.rect(0, 0, 0, 0)
-    readonly property color accent: Theme.primary
-    radius: Theme.zioMode ? Math.max(4, Theme.decadeCardRadius * width / 440) : Theme.decadeCardRadius * width / 440
-    color: Theme.zioMode && width < 120 ? Theme.decadeCardBackFill : Theme.decadeCardSurface
+    readonly property color accent: LauncherStyle.accent
+    radius: LauncherStyle.zio ? Math.max(4, LauncherStyle.decadeCardRadius * width / 440) : LauncherStyle.decadeCardRadius * width / 440
+    color: LauncherStyle.zio && width < 120 ? LauncherStyle.decadeCardBackFill : LauncherStyle.decadeCardSurface
     border.color: root.accent
-    border.width: Theme.zioMode ? Math.max(1.2, Theme.decadeCardBorderWidth * width / 440) : Theme.decadeCardBorderWidth * width / 440
+    border.width: LauncherStyle.zio ? Math.max(1.2, LauncherStyle.decadeCardBorderWidth * width / 440) : LauncherStyle.decadeCardBorderWidth * width / 440
     clip: true
     function attachTo(host) {
         parent = host
@@ -29,7 +32,7 @@ Rectangle {
 
     // One design coordinate system keeps the pack face and flying face identical.
     Item {
-        visible: !Theme.zioMode
+        visible: !LauncherStyle.zio
         width: 432
         height: root.height / scale
         scale: root.width > 0 ? root.width / width : 1
@@ -49,7 +52,7 @@ Rectangle {
         Text {
             x: 18; y: 38; width: parent.width - 36
             text: root.cardTitle
-            color: Theme.textPrimary; font.pixelSize: Theme.decadeCardTitleSize; font.weight: Font.DemiBold
+            color: _visualPalette.textPrimary; font.pixelSize: LauncherStyle.decadeCardTitleSize; font.weight: Font.DemiBold
             elide: Text.ElideRight
         }
         Rectangle {
@@ -57,17 +60,17 @@ Rectangle {
             x: 18; y: 70
             width: parent.width - 36
             height: Theme.borderWidthThin
-            color: Theme.decadeCounterBorder
+            color: LauncherStyle.decadeCounterBorder
         }
     }
     Text {
-        visible: Theme.zioMode
+        visible: LauncherStyle.zio
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.margins: parent.width * 0.08
         text: root.cardTitle
-        color: Theme.textPrimary
+        color: _visualPalette.textPrimary
         font.pixelSize: Math.max(10, 18 * parent.width / 440)
         font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignHCenter

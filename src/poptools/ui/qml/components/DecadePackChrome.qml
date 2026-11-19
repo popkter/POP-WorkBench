@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 // The inner case stays still while the cover opens around its right-hand spine.
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "decadePackChrome"
     DecadePackShell { anchors.fill: parent; fillColor: "#181A1E" }
@@ -23,7 +26,7 @@ Item {
         width: Math.max(0, parent.width - 26)
         height: Math.max(0, parent.height - 48)
         radius: 3
-        color: Theme.decadePackSurface
+        color: LauncherStyle.decadePackSurface
         border.width: 1
         border.color: "#393C42"
     }
@@ -35,7 +38,7 @@ Item {
                 required property int index
                 width: index % 3 === 0 ? 3 : 1
                 height: 6
-                color: index % 3 === 0 ? Theme.primary : "#DDD2DC"
+                color: index % 3 === 0 ? _visualPalette.primary : "#DDD2DC"
             }
         }
     }

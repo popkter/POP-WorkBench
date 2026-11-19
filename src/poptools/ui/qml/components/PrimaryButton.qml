@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import "../theme"
 
 Rectangle {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property string text: "运行"
     property string iconName: "play_arrow"
@@ -15,7 +18,7 @@ Rectangle {
     property bool iconSpinning: false
     property color foregroundColor: "transparent"
     property real labelFontSize: Theme.fontButton
-    property int labelFontWeight: Theme.glassMode ? Font.Bold : Font.DemiBold
+    property int labelFontWeight: _visualPalette.glassMode ? Font.Bold : Font.DemiBold
     property real glyphSize: Theme.iconMedium
     property real contentSpacing: compact ? 0 : Theme.controlSpacing
     property real disabledOpacity: 1
@@ -25,35 +28,35 @@ Rectangle {
     readonly property bool hovered: mouseArea.containsMouse
     readonly property bool pressed: mouseArea.pressed
     readonly property color contentColor: foregroundColor.a > 0 ? foregroundColor
-                                          : !enabled ? Theme.textSecondary
-                                          : dangerStyle ? (Theme.glassMode && Theme.darkMode ? Theme.surface : Theme.primaryForeground)
-                                          : successStyle ? Theme.successForeground
-                                          : tonal ? Theme.primaryText : Theme.primaryForeground
+                                          : !enabled ? _visualPalette.textSecondary
+                                          : dangerStyle ? (_visualPalette.glassMode && _visualPalette.darkMode ? _visualPalette.surface : _visualPalette.primaryForeground)
+                                          : successStyle ? _visualPalette.successForeground
+                                          : tonal ? _visualPalette.primaryText : _visualPalette.primaryForeground
     signal clicked()
 
     implicitHeight: Theme.controlHeight
     implicitWidth: compact ? Theme.controlHeight : Math.max(Theme.controlHeight, buttonLabel.implicitWidth + (iconName.length > 0 ? glyphSize + contentSpacing : 0) + Theme.space32)
     opacity: enabled ? 1 : disabledOpacity
     radius: Theme.radiusControl
-    readonly property color regularBackground: !enabled ? (Theme.buttonDisabled || Theme.surfaceContainerHigh)
-                    : dangerStyle ? (mouseArea.containsMouse ? Qt.darker(Theme.errorColor, 1.08) : Theme.errorColor)
-                    : successStyle ? (mouseArea.containsMouse ? Qt.darker(Theme.success, 1.08) : Theme.success)
-                    : tonal ? (mouseArea.containsMouse ? Theme.primaryContainerHover : Theme.primaryContainer)
-                            : (mouseArea.containsMouse ? Theme.primaryHover : Theme.primary)
-    color: Theme.glassMode ? Qt.rgba(regularBackground.r, regularBackground.g,
+    readonly property color regularBackground: !enabled ? (_visualPalette.buttonDisabled || _visualPalette.surfaceContainerHigh)
+                    : dangerStyle ? (mouseArea.containsMouse ? Qt.darker(_visualPalette.errorColor, 1.08) : _visualPalette.errorColor)
+                    : successStyle ? (mouseArea.containsMouse ? Qt.darker(_visualPalette.success, 1.08) : _visualPalette.success)
+                    : tonal ? (mouseArea.containsMouse ? _visualPalette.primaryContainerHover : _visualPalette.primaryContainer)
+                            : (mouseArea.containsMouse ? _visualPalette.primaryHover : _visualPalette.primary)
+    color: _visualPalette.glassMode ? Qt.rgba(regularBackground.r, regularBackground.g,
                                     regularBackground.b, 0.6) : regularBackground
     border.width: mouseArea.pressed ? Theme.borderWidthMedium : Theme.borderWidthThin
-    border.color: !enabled ? Theme.outline
-                    : mouseArea.pressed ? Theme.buttonShadow
-                    : dangerStyle ? Theme.errorColor
-                    : mouseArea.containsMouse ? Theme.primaryHover
-                    : Theme.primary
+    border.color: !enabled ? _visualPalette.outline
+                    : mouseArea.pressed ? _visualPalette.buttonShadow
+                    : dangerStyle ? _visualPalette.errorColor
+                    : mouseArea.containsMouse ? _visualPalette.primaryHover
+                    : _visualPalette.primary
 
     GlassSurface {
         anchors.fill: parent; cornerRadius: root.radius
         tintColor: root.color; pressed: root.pressed
         minimumTintOpacity: 0.96
-        visible: Theme.glassMode && root.color.a > 0
+        visible: _visualPalette.glassMode && root.color.a > 0
     }
 
     RowLayout {

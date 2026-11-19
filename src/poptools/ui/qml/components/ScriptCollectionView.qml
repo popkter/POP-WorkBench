@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 // Common collection mechanics. Presentations supply their delegate and activation.
 ListView {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var listModel
@@ -93,7 +96,7 @@ ListView {
         anchors.centerIn: parent
         visible: root.visibleCount === 0
         text: root.emptyText
-        color: Theme.textSecondary
+        color: _visualPalette.textSecondary
         font.pixelSize: Theme.fontSupporting
     }
     ScrollBar.vertical: ScrollBar {

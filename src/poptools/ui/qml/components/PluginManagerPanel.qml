@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 ColumnLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var backend
     spacing: Theme.space8
@@ -16,9 +19,9 @@ ColumnLayout {
         border.width: 0
         labelFontSize: Theme.fontSupporting
         labelFontWeight: Font.Normal
-        foregroundColor: tonal ? Theme.primaryText : Theme.primaryForeground
-        color: tonal ? (hovered ? Theme.primaryContainerHover : Theme.runtimeBadge)
-            : (hovered ? Theme.primaryHover : Theme.primary)
+        foregroundColor: tonal ? _visualPalette.primaryText : _visualPalette.primaryForeground
+        color: tonal ? (hovered ? _visualPalette.primaryContainerHover : _visualPalette.runtimeBadge)
+            : (hovered ? _visualPalette.primaryHover : _visualPalette.primary)
     }
     Repeater {
         model: root.backend ? root.backend.plugins : []
@@ -27,11 +30,11 @@ ColumnLayout {
             Layout.fillWidth: true
             implicitHeight: pluginContent.implicitHeight + Theme.space24
             radius: Theme.radiusSmall
-            color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
             GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
             border.width: 1
-            border.color: Theme.inputBorder
+            border.color: _visualPalette.inputBorder
 
             ColumnLayout {
                 id: pluginContent
@@ -50,7 +53,7 @@ ColumnLayout {
                             - (installedBadge.visible ? installedBadge.implicitWidth + Theme.space16 : Theme.space8))
                         Layout.minimumWidth: 0
                         text: modelData.name + (modelData.version ? "  " + modelData.version : "")
-                        color: Theme.textPrimary
+                        color: _visualPalette.textPrimary
                         font.pixelSize: Theme.fontSupporting
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
@@ -61,12 +64,12 @@ ColumnLayout {
                         implicitWidth: installedLabel.implicitWidth + Theme.space12
                         implicitHeight: installedLabel.implicitHeight + Theme.space4
                         radius: Theme.radiusTiny
-                        color: Theme.successContainer
+                        color: _visualPalette.successContainer
                         Text {
                             id: installedLabel
                             anchors.centerIn: parent
                             text: "已安装"
-                            color: Theme.success
+                            color: _visualPalette.success
                             font.pixelSize: Theme.fontCaption
                         }
                     }
@@ -75,7 +78,7 @@ ColumnLayout {
                 Text {
                     Layout.fillWidth: true
                     text: modelData.path || ""
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: Theme.fontCaption
                     elide: Text.ElideMiddle
                 }
@@ -85,7 +88,7 @@ ColumnLayout {
                     text: (modelData.status === "已安装" ? "" : modelData.status)
                         + (modelData.latest
                            ? (modelData.status === "已安装" ? "最新 " : " · 最新 ") + modelData.latest : "")
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: Theme.fontCaption
                     wrapMode: Text.Wrap
                 }
@@ -177,7 +180,7 @@ ColumnLayout {
             Text {
                 Layout.fillWidth: true
                 text: "卸载后相关功能将不可用。" + (confirm.pluginId === "python" ? "Python 环境及已安装依赖也会删除。" : "") + "用户脚本、配置和输出文件会保留。"
-                color: Theme.textSecondary; font.pixelSize: Theme.fontBody
+                color: _visualPalette.textSecondary; font.pixelSize: Theme.fontBody
                 wrapMode: Text.Wrap
             }
             RowLayout {

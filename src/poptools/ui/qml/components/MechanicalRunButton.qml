@@ -1,10 +1,13 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Shapes
 import "../theme"
 
 // Draw in window pixels, even though the surrounding card uses a 440 x 680
 // design space. The entire module is a mouse/keyboard target in both themes.
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property bool running: false
     property string statusText: ""
@@ -12,8 +15,8 @@ Item {
     readonly property real nativeScale: Math.max(0.1, uiScale)
     readonly property bool hovered: pointer.containsMouse
     readonly property bool pressed: pointer.pressed
-    readonly property color actionColor: running ? Theme.errorColor : Theme.primary
-    readonly property color actionTextColor: running ? Theme.errorColor : Theme.primaryText
+    readonly property color actionColor: running ? _visualPalette.errorColor : _visualPalette.primary
+    readonly property color actionTextColor: running ? _visualPalette.errorColor : _visualPalette.primaryText
     readonly property string text: running ? "停止运行"
         : statusText === "执行成功" || statusText.indexOf("执行失败") === 0 ? "再次运行" : "运行脚本"
     readonly property string stateLabel: running ? "运行中"
@@ -21,7 +24,7 @@ Item {
         : statusText.indexOf("执行失败") === 0 ? "执行失败" : statusText || "就绪"
     signal clicked()
     implicitWidth: 408
-    implicitHeight: Theme.mechanicalCardRunHeight / nativeScale
+    implicitHeight: LauncherStyle.mechanicalCardRunHeight / nativeScale
     opacity: enabled ? 1 : 0.45
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
@@ -46,26 +49,26 @@ Item {
         transformOrigin: Item.TopLeft
 
         Rectangle {
-            visible: Theme.zioMode
+            visible: LauncherStyle.zio
             anchors.fill: parent
             radius: 3
             border.width: root.pressed || root.activeFocus ? 2 : 1
             border.color: root.running ? root.actionColor
-                : root.hovered || root.activeFocus ? Theme.primaryText : Theme.decadeCardActionBorder
+                : root.hovered || root.activeFocus ? _visualPalette.primaryText : LauncherStyle.decadeCardActionBorder
             gradient: Gradient {
                 GradientStop {
                     position: 0
-                    color: root.running ? Theme.errorContainer
-                        : root.hovered ? Theme.primaryContainerHover : Theme.decadeCardActionFill
+                    color: root.running ? _visualPalette.errorContainer
+                        : root.hovered ? _visualPalette.primaryContainerHover : LauncherStyle.decadeCardActionFill
                 }
                 GradientStop {
                     position: 1
-                    color: root.running ? Theme.errorContainer : Theme.decadeCardSurface
+                    color: root.running ? _visualPalette.errorContainer : LauncherStyle.decadeCardSurface
                 }
             }
         }
         Repeater {
-            model: Theme.zioMode ? 2 : 0
+            model: LauncherStyle.zio ? 2 : 0
             Item {
                 required property int index
                 x: index === 0 ? 5 : module.width - width - 5
@@ -79,7 +82,7 @@ Item {
             }
         }
         Column {
-            visible: Theme.zioMode
+            visible: LauncherStyle.zio
             x: 12
             width: Math.max(0, module.width / 2 - 55)
             anchors.verticalCenter: parent.verticalCenter
@@ -95,7 +98,7 @@ Item {
                 Text {
                     width: parent.width - 10
                     text: root.stateLabel
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: 11
                     elide: Text.ElideRight
                 }
@@ -103,7 +106,7 @@ Item {
             Text {
                 width: parent.width
                 text: "ZI-O DRIVER"
-                color: Theme.decadeCounterLeading
+                color: LauncherStyle.decadeCounterLeading
                 font.family: "Consolas"
                 font.pixelSize: 9
                 font.letterSpacing: 0.7
@@ -113,20 +116,20 @@ Item {
         Item {
             id: driveCore
             objectName: "zioRunDriveCore"
-            visible: Theme.zioMode
+            visible: LauncherStyle.zio
             anchors.centerIn: parent
             width: 66; height: 66
             Rectangle {
                 anchors.fill: parent
                 radius: width / 2
-                color: Theme.decadeCardSurface
+                color: LauncherStyle.decadeCardSurface
                 border.width: 1
-                border.color: Theme.outlineVariant
+                border.color: _visualPalette.outlineVariant
             }
             Rectangle {
                 anchors.centerIn: parent
                 width: 58; height: 58; radius: width / 2
-                color: Theme.decadeCardSurface
+                color: LauncherStyle.decadeCardSurface
                 border.width: 1
                 border.color: root.actionColor
                 Repeater {
@@ -150,27 +153,27 @@ Item {
                 anchors.centerIn: parent
                 width: 42; height: 42; radius: width / 2
                 border.width: root.pressed ? 2 : 1
-                border.color: root.running ? Theme.errorColor : Theme.primaryText
+                border.color: root.running ? _visualPalette.errorColor : _visualPalette.primaryText
                 gradient: Gradient {
                     GradientStop {
                         position: 0
-                        color: root.running ? Theme.errorContainer : Theme.primaryHover
+                        color: root.running ? _visualPalette.errorContainer : _visualPalette.primaryHover
                     }
                     GradientStop {
                         position: 1
-                        color: root.running ? Theme.errorContainer : Theme.primary
+                        color: root.running ? _visualPalette.errorContainer : _visualPalette.primary
                     }
                 }
                 MaterialIcon {
                     anchors.centerIn: parent
                     icon: root.running ? "stop" : "play_arrow"
                     iconSize: 23
-                    color: root.running ? Theme.errorColor : Theme.primaryForeground
+                    color: root.running ? _visualPalette.errorColor : _visualPalette.primaryForeground
                 }
             }
         }
         Column {
-            visible: Theme.zioMode
+            visible: LauncherStyle.zio
             x: module.width / 2 + 43
             width: Math.max(0, module.width - x - 10)
             anchors.verticalCenter: parent.verticalCenter
@@ -186,7 +189,7 @@ Item {
             Text {
                 width: parent.width
                 text: root.running ? "STOP" : "EXECUTE"
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.family: "Consolas"
                 font.pixelSize: 9
                 font.letterSpacing: 0.8
@@ -195,14 +198,14 @@ Item {
 
         Shape {
             objectName: "decadeRunReader"
-            visible: !Theme.zioMode
+            visible: !LauncherStyle.zio
             anchors.fill: parent
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
                 strokeColor: root.actionColor
                 strokeWidth: root.pressed || root.activeFocus ? 2 : 1
-                fillColor: root.running ? Theme.errorContainer
-                    : root.hovered ? Theme.primaryContainer : Theme.decadeCardActionFill
+                fillColor: root.running ? _visualPalette.errorContainer
+                    : root.hovered ? _visualPalette.primaryContainer : LauncherStyle.decadeCardActionFill
                 startX: 1; startY: 1
                 PathLine { x: module.width - 11; y: 1 }
                 PathLine { x: module.width - 1; y: 11 }
@@ -213,7 +216,7 @@ Item {
             }
         }
         Item {
-            visible: !Theme.zioMode
+            visible: !LauncherStyle.zio
             anchors.fill: parent
             Rectangle {
                 x: 6; y: 4; width: parent.width - 18; height: 1

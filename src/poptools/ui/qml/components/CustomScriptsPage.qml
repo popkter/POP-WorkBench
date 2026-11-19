@@ -1,11 +1,14 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 Rectangle {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "customScriptsPage"
     required property var controller
@@ -88,7 +91,7 @@ Rectangle {
                 Layout.maximumWidth: Theme.scriptListMaximumWidth
                 Layout.fillHeight: true
                 radius: Theme.radiusMedium
-                color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
                 GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
                 border.width: 0

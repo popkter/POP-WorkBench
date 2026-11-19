@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 ColumnLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
 
     required property var controller
@@ -60,8 +63,8 @@ ColumnLayout {
         Layout.fillHeight: true
         Layout.minimumHeight: 180
         radius: Theme.radiusLarge
-        color: Theme.glassMode ? "transparent" : Theme.consoleBackground
-        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 }
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.consoleBackground
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.consoleBackground; z: -0.5 }
         clip: true
 
         MouseArea {
@@ -121,14 +124,14 @@ ColumnLayout {
                 anchors.horizontalCenter: parent.horizontalCenter
                 icon: root.controller.running ? "cast_connected" : "cast"
                 iconSize: 54
-                color: Theme.consoleMuted
+                color: _visualPalette.consoleMuted
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: root.controller.running
                       ? "正在连接设备并准备投屏…"
                       : "点击“开始投屏”，设备画面将在此处显示"
-                color: Theme.consoleText
+                color: _visualPalette.consoleText
                 font.pixelSize: Theme.fontBody
             }
         }

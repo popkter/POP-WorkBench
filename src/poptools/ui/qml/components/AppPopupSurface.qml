@@ -4,10 +4,12 @@ import QtQuick.Window
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
 
-    property color fillColor: Theme.popupSurface
-    property color outlineColor: Theme.outlineVariant
+    property color fillColor: _visualPalette.popupSurface
+    property color outlineColor: _visualPalette.outlineVariant
     property int cornerRadius: Theme.radiusMedium
     property bool dialogSurface: false
     // Hosts without an isolated page texture (e.g. floating cards) need an
@@ -15,7 +17,7 @@ Item {
     property real minimumOpacity: 0.97
     property bool tooltipSurface: false
     readonly property var hostWindow: root.Window.window
-    readonly property Item pageBackgroundSource: Theme.glassMode && hostWindow
+    readonly property Item pageBackgroundSource: _visualPalette.glassMode && hostWindow
         && hostWindow.popupBackgroundSource !== undefined ? hostWindow.popupBackgroundSource : null
     property Item backgroundSource: pageBackgroundSource || glassLens.windowBackgroundSource
     readonly property bool usesPageBackground: !!pageBackgroundSource && backgroundSource === pageBackgroundSource
@@ -34,7 +36,7 @@ Item {
         source: surface
         autoPaddingEnabled: true
         shadowEnabled: true
-        shadowColor: root.dialogSurface ? Theme.dialogShadow : Theme.popupShadow
+        shadowColor: root.dialogSurface ? _visualPalette.dialogShadow : _visualPalette.popupShadow
         shadowBlur: root.dialogSurface ? 0.9 : 0.65
         shadowVerticalOffset: root.dialogSurface ? 18 : 10
         shadowHorizontalOffset: 0
@@ -43,19 +45,19 @@ Item {
     GlassSurface {
         id: glassLens
         anchors.fill: parent; cornerRadius: root.cornerRadius
-        tintColor: root.usesPageBackground && !Theme.darkMode && !root.tooltipSurface
+        tintColor: root.usesPageBackground && !_visualPalette.darkMode && !root.tooltipSurface
             ? Theme.glassMaterial.lightPagePopupTint || "#A6B3C5" : root.fillColor
         opacityFloor: root.usesPageBackground
             ? (root.tooltipSurface ? Theme.glassMaterial.pageTooltipOpacity || 0.88
-                : Theme.darkMode ? Theme.glassMaterial.darkPagePopupOpacity || 0.72
+                : _visualPalette.darkMode ? Theme.glassMaterial.darkPagePopupOpacity || 0.72
                     : Theme.glassMaterial.pagePopupOpacity || 0.32) : root.minimumOpacity
         minimumTintOpacity: root.usesPageBackground ? opacityFloor
-            : Theme.darkMode ? (windowBackdropTinted ? Theme.glassMaterial.surfaceOpacity || 0.16 : 0.55)
+            : _visualPalette.darkMode ? (windowBackdropTinted ? Theme.glassMaterial.surfaceOpacity || 0.16 : 0.55)
                 : (windowBackdropTinted ? Theme.glassMaterial.lightSurfaceOpacity || 0.1 : 0.4)
-        backgroundBaseColor: root.usesPageBackground && !Theme.darkMode
-            ? Theme.glassMaterial.lightPageBackdropColor || "#B6C2D2" : Theme.surface
+        backgroundBaseColor: root.usesPageBackground && !_visualPalette.darkMode
+            ? Theme.glassMaterial.lightPageBackdropColor || "#B6C2D2" : _visualPalette.surface
         tintStrength: root.usesPageBackground ? opacityFloor
-            : Theme.darkMode ? Theme.glassMaterial.darkTintStrength || 0.32
+            : _visualPalette.darkMode ? Theme.glassMaterial.darkTintStrength || 0.32
                 : Theme.glassMaterial.lightTintStrength || 0.25
         blurRadius: root.usesPageBackground ? Theme.glassMaterial.popupBlurRadius || 64 : -1
         backgroundSource: root.backgroundSource
@@ -66,7 +68,7 @@ Item {
         id: surface
         anchors.fill: parent
         radius: root.cornerRadius
-        color: Theme.glassMode ? "transparent" : root.fillColor
+        color: _visualPalette.glassMode ? "transparent" : root.fillColor
         border.color: root.outlineColor
         border.width: 1
     }

@@ -1,9 +1,12 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 Loader {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var parameter
     required property var controller
@@ -32,27 +35,27 @@ Loader {
         z: -1
         visible: root.framed
         radius: Theme.radiusMedium
-        color: Theme.glassMode ? "transparent" : Theme.surface
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surface
         GlassSurface { anchors.fill: parent; cornerRadius: parent.radius }
-        border.color: root.item && root.item.activeFocus ? Theme.primary : Theme.outline
+        border.color: root.item && root.item.activeFocus ? _visualPalette.primary : _visualPalette.outline
     }
     component ParameterDefaultButton: PrimaryButton {
         showHoverTips: !root.decadeCardLayout
         enabled: !root.controller.running
-        width: root.decadeCardLayout ? Theme.decadeCardFieldActionSize : 30
+        width: root.decadeCardLayout ? LauncherStyle.decadeCardFieldActionSize : 30
         height: width
         compact: true
         text: "设为默认值"
         iconName: "save"
         glyphSize: 19
         tonal: true
-        foregroundColor: Theme.primaryText
+        foregroundColor: _visualPalette.primaryText
         border.width: root.decadeCardLayout ? Theme.borderWidthThin : 0
-        border.color: Theme.decadeCardActionBorder
+        border.color: LauncherStyle.decadeCardActionBorder
         radius: Theme.radiusControl
         // Keep the button above the text edit menu's input overlay.
         z: 201
-        color: hovered ? Theme.primaryContainerHover : Theme.runtimeBadge
+        color: hovered ? _visualPalette.primaryContainerHover : _visualPalette.runtimeBadge
     }
 
     sourceComponent: root.parameter.kind === "choice"
@@ -71,14 +74,14 @@ Loader {
                 || root.parameter.kind === "directory"
             text: String(root.initialValue ?? "")
             placeholderText: root.parameter.placeholder || ""
-            placeholderTextColor: Theme.textSecondary
-            selectionColor: Theme.primary
-            selectedTextColor: Theme.primaryForeground
-            color: Theme.textPrimary
+            placeholderTextColor: _visualPalette.textSecondary
+            selectionColor: _visualPalette.primary
+            selectedTextColor: _visualPalette.primaryForeground
+            color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontBody
             leftPadding: root.contentLeftPadding
             rightPadding: root.decadeCardLayout
-                ? (pathPickerVisible ? Theme.decadeCardFieldActionSize * 2 + 14 : Theme.decadeCardFieldActionSize + 12)
+                ? (pathPickerVisible ? LauncherStyle.decadeCardFieldActionSize * 2 + 14 : LauncherStyle.decadeCardFieldActionSize + 12)
                 : pathPickerVisible ? 81 : 45
             validator: root.parameter.kind === "integer" ? integerValidator
                 : root.parameter.kind === "number" ? numberValidator : null
@@ -105,7 +108,7 @@ Loader {
             ParameterDefaultButton {
                 anchors.right: parent.right
                 anchors.rightMargin: parameterTextField.pathPickerVisible
-                    ? (root.decadeCardLayout ? Theme.decadeCardFieldActionSize + 12 : 42) : 6
+                    ? (root.decadeCardLayout ? LauncherStyle.decadeCardFieldActionSize + 12 : 42) : 6
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: root.controller.setParameterDefault(
                     root.parameter.id, parameterTextField.text)
@@ -117,7 +120,7 @@ Loader {
                 anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
                 visible: parameterTextField.pathPickerVisible
-                width: root.decadeCardLayout ? Theme.decadeCardFieldActionSize : 30
+                width: root.decadeCardLayout ? LauncherStyle.decadeCardFieldActionSize : 30
                 height: width
                 compact: true
                 text: root.parameter.kind === "directory"
@@ -125,15 +128,15 @@ Loader {
                 iconName: "folder_open"
                 glyphSize: 19
                 tonal: true
-                foregroundColor: Theme.primaryText
+                foregroundColor: _visualPalette.primaryText
                 border.width: root.decadeCardLayout ? Theme.borderWidthThin : 0
-                border.color: Theme.decadeCardActionBorder
+                border.color: LauncherStyle.decadeCardActionBorder
                 radius: Theme.radiusControl
                 // Above AppTextEditMenu's input-event overlay (z: 200).
                 z: 201
                 color: hovered
-                    ? Theme.primaryContainerHover
-                    : Theme.primaryContainer
+                    ? _visualPalette.primaryContainerHover
+                    : _visualPalette.primaryContainer
                 onClicked: {
                     const selectedPath = root.parameter.kind === "directory"
                         ? root.controller.chooseParameterDirectory(parameterTextField.text)
@@ -154,10 +157,10 @@ Loader {
             Accessible.name: root.parameter.label
             text: String(root.initialValue ?? "")
             placeholderText: root.parameter.placeholder || ""
-            placeholderTextColor: Theme.textSecondary
-            selectionColor: Theme.primary
-            selectedTextColor: Theme.primaryForeground
-            color: Theme.textPrimary
+            placeholderTextColor: _visualPalette.textSecondary
+            selectionColor: _visualPalette.primary
+            selectedTextColor: _visualPalette.primaryForeground
+            color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontBody
             leftPadding: root.contentLeftPadding
             rightPadding: 45

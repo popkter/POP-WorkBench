@@ -47,7 +47,7 @@ QtObject {
             if (!card || !card.visible)
                 continue
             activeCards = activeCards.concat([card])
-            if (Theme.decadeMode) {
+            if (LauncherStyle.decade) {
                 launchingCard = card
                 if (!card.returnPending && !card.recycleAnimationRunning)
                     card.closeCardAnimated()

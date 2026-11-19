@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 AppDialog {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var parentWindow
@@ -48,13 +51,13 @@ AppDialog {
                     Layout.fillWidth: true
                     text: root.message
                     textFormat: Text.PlainText
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                     font.pixelSize: Theme.fontBody
                     wrapMode: Text.Wrap
                 }
                 Text {
                     text: "Python 环境目录"
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: Theme.fontSupporting
                 }
                 AppTextField {
@@ -67,15 +70,15 @@ AppDialog {
                     AppTextEditMenu { target: environmentField }
                     background: Rectangle {
                         radius: Theme.radiusControl
-                        color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-                        border.color: Theme.outlineVariant
+                        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+                        border.color: _visualPalette.outlineVariant
                     }
                 }
                 Text {
                     visible: root.packageNames.length > 0
                     text: "待安装依赖"
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: Theme.fontSupporting
                 }
                 TextArea {
@@ -84,23 +87,23 @@ AppDialog {
                     readOnly: true
                     text: root.packageNames
                     padding: Theme.space12
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                     font.family: "Cascadia Mono"
                     font.pixelSize: Theme.fontCaption
                     wrapMode: TextEdit.Wrap
                     selectByMouse: true
                     background: Rectangle {
                         radius: Theme.radiusControl
-                        color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-                        border.color: Theme.outlineVariant
+                        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+                        border.color: _visualPalette.outlineVariant
                     }
                 }
                 Text {
                     Layout.fillWidth: true
                     visible: root.packageNames.length > 0
                     text: "确认后开始安装，可随时取消。"
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: Theme.fontCaption
                     wrapMode: Text.Wrap
                 }
@@ -109,13 +112,13 @@ AppDialog {
                     visible: root.installStatus.length > 0
                     text: root.installStatus
                     textFormat: Text.PlainText
-                    color: root.installStatus.indexOf("失败") >= 0 ? Theme.errorColor : Theme.textSecondary
+                    color: root.installStatus.indexOf("失败") >= 0 ? _visualPalette.errorColor : _visualPalette.textSecondary
                     font.pixelSize: Theme.fontSupporting
                     wrapMode: Text.Wrap
                 }
             }
         }
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: _visualPalette.outlineVariant }
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.space8

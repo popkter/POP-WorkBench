@@ -1,11 +1,14 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 Rectangle {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var updateBackend
@@ -26,8 +29,8 @@ Rectangle {
         tonal: true
         radius: Theme.radiusControl
         border.width: 0
-        color: hovered ? Theme.primaryContainerHover : Theme.runtimeBadge
-        foregroundColor: Theme.primaryText
+        color: hovered ? _visualPalette.primaryContainerHover : _visualPalette.runtimeBadge
+        foregroundColor: _visualPalette.primaryText
         labelFontSize: Theme.fontSupporting
         labelFontWeight: Font.Normal
         glyphSize: 18
@@ -43,7 +46,7 @@ Rectangle {
         Layout.fillWidth: true
         implicitHeight: sectionLayout.implicitHeight + Theme.detailPanelPadding * 2
         radius: Theme.radiusMedium
-        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
         GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
         border.width: 0
@@ -62,13 +65,13 @@ Rectangle {
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
                     radius: Theme.radiusMedium
-                    color: Theme.glassMode ? "transparent" : Theme.runtimeBadge
-                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.runtimeBadge; z: -0.5 }
+                    color: _visualPalette.glassMode ? "transparent" : _visualPalette.runtimeBadge
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.runtimeBadge; z: -0.5 }
                     MaterialIcon {
                         anchors.centerIn: parent
                         icon: section.iconName
                         iconSize: 24
-                        color: Theme.primaryText
+                        color: _visualPalette.primaryText
                     }
                 }
                 ColumnLayout {
@@ -78,7 +81,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: section.title
-                        color: Theme.textPrimary
+                        color: _visualPalette.textPrimary
                         font.pixelSize: Theme.fontSectionTitle
                         font.weight: Font.Bold
                         elide: Text.ElideRight
@@ -86,7 +89,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: section.description
-                        color: Theme.textSecondary
+                        color: _visualPalette.textSecondary
                         font.pixelSize: Theme.fontSupporting
                         wrapMode: Text.Wrap
                     }
@@ -95,7 +98,7 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 1
-                color: Theme.outlineVariant
+                color: _visualPalette.outlineVariant
             }
             ColumnLayout {
                 id: sectionBody
@@ -114,11 +117,11 @@ Rectangle {
         Layout.fillWidth: true
         implicitHeight: Math.max(Theme.inputHeight, rowGrid.implicitHeight + Theme.space16)
         radius: Theme.radiusSmall
-        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
         GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
         border.width: 1
-        border.color: Theme.inputBorder
+        border.color: _visualPalette.inputBorder
 
         GridLayout {
             id: rowGrid
@@ -136,7 +139,7 @@ Rectangle {
                 Text {
                     Layout.fillWidth: true
                     text: setting.label
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                     font.pixelSize: Theme.fontSupporting
                     font.weight: Font.DemiBold
                     wrapMode: Text.Wrap
@@ -145,7 +148,7 @@ Rectangle {
                     Layout.fillWidth: true
                     visible: text.length > 0
                     text: setting.description
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: Theme.fontCaption
                     wrapMode: Text.Wrap
                 }
@@ -170,10 +173,10 @@ Rectangle {
         Layout.fillWidth: true
         implicitHeight: Math.max(Theme.inputHeight, toggleText.implicitHeight + Theme.space16)
         radius: Theme.radiusSmall
-        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
         GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
-        border.color: Theme.inputBorder
+        border.color: _visualPalette.inputBorder
         border.width: 1
         RowLayout {
             anchors.fill: parent
@@ -188,7 +191,7 @@ Rectangle {
                 Text {
                     Layout.fillWidth: true
                     text: toggleRow.label
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                     font.pixelSize: Theme.fontSupporting
                     font.weight: Font.DemiBold
                     wrapMode: Text.Wrap
@@ -197,7 +200,7 @@ Rectangle {
                     Layout.fillWidth: true
                     visible: text.length > 0
                     text: toggleRow.description
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: Theme.fontCaption
                     wrapMode: Text.Wrap
                 }
@@ -274,9 +277,7 @@ Rectangle {
                             model: [
                                 {label: "浅色", value: "light", icon: "light_mode"},
                                 {label: "深色", value: "dark", icon: "dark_mode"},
-                                {label: "系统", value: "system", icon: "computer"},
-                                {label: "Decade", value: "decade", icon: "style"},
-                                {label: "ZIO", value: "zio", icon: "watch"}
+                                {label: "系统", value: "system", icon: "computer"}
                             ]
                             delegate: PrimaryButton {
                                 required property var modelData
@@ -287,8 +288,6 @@ Rectangle {
                                 implicitHeight: 32
                                 text: modelData.label
                                 iconName: modelData.icon
-                                iconComponent: modelData.value === "zio" ? zioThemeIcon : null
-                                Component { id: zioThemeIcon; ZioDial {} }
                                 glyphSize: 18
                                 contentSpacing: Theme.space4
                                 labelFontSize: Theme.fontSupporting
@@ -296,11 +295,11 @@ Rectangle {
                                 radius: Theme.radiusControl
                                 tonal: true
                                 border.width: root.controller.themeMode === modelData.value ? 1 : 0
-                                border.color: Theme.primary
+                                border.color: _visualPalette.primary
                                 color: root.controller.themeMode === modelData.value
-                                    ? Theme.primaryContainer : hovered ? Theme.navigationHover : "transparent"
+                                    ? _visualPalette.primaryContainer : hovered ? _visualPalette.navigationHover : "transparent"
                                 foregroundColor: root.controller.themeMode === modelData.value
-                                    ? Theme.primaryText : Theme.textPrimary
+                                    ? _visualPalette.primaryText : _visualPalette.textPrimary
                                 Accessible.name: modelData.label + "主题"
                                 onClicked: root.controller.saveThemeMode(modelData.value)
                             }
@@ -308,7 +307,6 @@ Rectangle {
                     }
                     ToggleRow {
                         objectName: "glassMaterialToggle"
-                        visible: !Theme.mechanicalMode
                         label: "Glass 液态玻璃"
                         description: root.glassCaptureError || "由 Windows 系统合成器模糊桌面和后方窗口，无需抓帧"
                         checked: root.controller.themeStyle === "glass"
@@ -316,12 +314,45 @@ Rectangle {
                             root.controller.saveThemeStyle(value ? "glass" : "material3")
                         }
                     }
-                    ToggleRow {
-                        objectName: "floatingLauncherToggle"
-                        label: "后台悬浮入口"
-                        description: Theme.zioMode ? "切换到其他应用时，在屏幕底部显示腰带 Dock" : "切换到其他应用时，在屏幕右侧显示快捷入口"
-                        checked: root.controller.floatingLauncherEnabled
-                        onToggled: function(value) { root.controller.saveFloatingLauncherEnabled(value) }
+                    SettingRow {
+                        label: "悬浮窗样式"
+                        stacked: true
+                        Repeater {
+                            model: [
+                                {label: "关闭", value: "off", icon: "block"},
+                                {label: "默认", value: "default", icon: "widgets"},
+                                {label: "Decade", value: "decade", icon: "style"},
+                                {label: "ZIO", value: "zio", icon: "watch"}
+                            ]
+                            delegate: PrimaryButton {
+                                required property var modelData
+                                objectName: "launcherStyleChoice_" + modelData.value
+                                readonly property bool chosen: modelData.value === "off"
+                                    ? !root.controller.floatingLauncherEnabled
+                                    : root.controller.floatingLauncherEnabled
+                                        && root.controller.floatingLauncherStyle === modelData.value
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 0
+                                Layout.minimumWidth: 0
+                                implicitHeight: 32
+                                text: modelData.label
+                                iconName: modelData.icon
+                                glyphSize: 18
+                                contentSpacing: Theme.space4
+                                labelFontSize: Theme.fontSupporting
+                                labelFontWeight: Font.Normal
+                                radius: Theme.radiusControl
+                                tonal: true
+                                border.width: chosen ? 1 : 0
+                                border.color: _visualPalette.primary
+                                color: chosen
+                                    ? _visualPalette.primaryContainer : hovered ? _visualPalette.navigationHover : "transparent"
+                                foregroundColor: chosen
+                                    ? _visualPalette.primaryText : _visualPalette.textPrimary
+                                Accessible.name: modelData.label + "悬浮窗样式"
+                                onClicked: root.controller.saveFloatingLauncherStyle(modelData.value)
+                            }
+                        }
                     }
                 }
 
@@ -344,8 +375,8 @@ Rectangle {
                             tonal: true
                             radius: Theme.radiusControl
                             border.width: 0
-                            color: hovered ? Theme.surfaceContainer : "transparent"
-                            foregroundColor: Theme.textSecondary
+                            color: hovered ? _visualPalette.surfaceContainer : "transparent"
+                            foregroundColor: _visualPalette.textSecondary
                             labelFontSize: Theme.fontSupporting
                             labelFontWeight: Font.Normal
                             labelElide: Text.ElideMiddle
@@ -379,7 +410,7 @@ Rectangle {
                         Layout.fillWidth: true
                         visible: text.length > 0
                         text: root.controller.configurationStatus
-                        color: Theme.textSecondary
+                        color: _visualPalette.textSecondary
                         font.pixelSize: Theme.fontCaption
                         wrapMode: Text.Wrap
                     }
@@ -417,8 +448,8 @@ Rectangle {
                             Layout.minimumWidth: 0
                             implicitHeight: 34
                             radius: Theme.radiusControl
-                            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
+                            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
                             RowLayout {
                                 anchors.fill: parent
                                 anchors.margins: 2
@@ -441,9 +472,9 @@ Rectangle {
                                         tonal: true
                                         border.width: 0
                                         color: root.updateBackend.updateCheckFrequency === modelData.value
-                                            ? Theme.primaryContainer : hovered ? Theme.navigationHover : "transparent"
+                                            ? _visualPalette.primaryContainer : hovered ? _visualPalette.navigationHover : "transparent"
                                         foregroundColor: root.updateBackend.updateCheckFrequency === modelData.value
-                                            ? Theme.primaryText : Theme.textPrimary
+                                            ? _visualPalette.primaryText : _visualPalette.textPrimary
                                         onClicked: root.updateBackend.setUpdateCheckFrequency(modelData.value)
                                     }
                                 }
@@ -464,7 +495,7 @@ Rectangle {
                         Layout.fillWidth: true
                         visible: text.length > 0
                         text: root.updateBackend.status
-                        color: root.updateBackend.state === "error" ? Theme.errorColor : Theme.textSecondary
+                        color: root.updateBackend.state === "error" ? _visualPalette.errorColor : _visualPalette.textSecondary
                         font.pixelSize: Theme.fontCaption
                         wrapMode: Text.Wrap
                     }
@@ -526,7 +557,7 @@ Rectangle {
                             Text {
                                 Layout.fillWidth: true
                                 text: "泡泡的工作台 · Pop’s Workbench"
-                                color: Theme.textPrimary
+                                color: _visualPalette.textPrimary
                                 font.pixelSize: Theme.fontComponentTitle
                                 font.weight: Font.DemiBold
                                 wrapMode: Text.Wrap
@@ -534,7 +565,7 @@ Rectangle {
                             Text {
                                 Layout.fillWidth: true
                                 text: "脚本、设备与日常工具 · v" + root.controller.appVersion
-                                color: Theme.textSecondary
+                                color: _visualPalette.textSecondary
                                 font.pixelSize: Theme.fontCaption
                                 wrapMode: Text.Wrap
                             }

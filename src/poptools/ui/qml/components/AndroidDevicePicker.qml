@@ -1,10 +1,13 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 // Shared choices for the regular popup and the Decade card's inline section.
 ColumnLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var deviceState
@@ -20,7 +23,7 @@ ColumnLayout {
         Text {
             Layout.fillWidth: true
             text: "Android 设备"
-            color: Theme.textPrimary
+            color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontSupporting
             font.weight: Font.DemiBold
         }
@@ -34,8 +37,8 @@ ColumnLayout {
             Layout.preferredHeight: 28
             glyphSize: 18
             radius: Theme.radiusTiny
-            color: hovered ? Theme.surfaceContainerHigh : "transparent"
-            foregroundColor: Theme.textSecondary
+            color: hovered ? _visualPalette.surfaceContainerHigh : "transparent"
+            foregroundColor: _visualPalette.textSecondary
             border.width: 0
             enabled: root.controller && !root.controller.androidDeviceRefreshing
             iconSpinning: root.controller && root.controller.androidDeviceRefreshing
@@ -48,13 +51,13 @@ ColumnLayout {
     Rectangle {
         Layout.fillWidth: true
         Layout.preferredHeight: 1
-        color: Theme.outlineVariant
+        color: _visualPalette.outlineVariant
     }
     Text {
         Layout.fillWidth: true
         visible: root.explicitTarget
         text: "脚本已指定目标，界面选择仅作用于未指定目标的调用。"
-        color: Theme.textSecondary
+        color: _visualPalette.textSecondary
         font.pixelSize: Theme.fontSmall
         wrapMode: Text.WordWrap
     }
@@ -63,8 +66,8 @@ ColumnLayout {
         Layout.preferredHeight: 64
         visible: deviceList.count === 0
         radius: Theme.radiusSmall
-        color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
         RowLayout {
             anchors.fill: parent
             anchors.margins: Theme.space12
@@ -72,7 +75,7 @@ ColumnLayout {
             MaterialIcon {
                 icon: "smartphone"
                 iconSize: 24
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
             }
             ColumnLayout {
                 Layout.fillWidth: true
@@ -82,14 +85,14 @@ ColumnLayout {
                     Layout.fillWidth: true
                     text: root.controller && root.controller.androidDeviceRefreshing
                         ? "正在查找设备…" : "未连接设备"
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                     font.pixelSize: Theme.fontSupporting
                     elide: Text.ElideRight
                 }
                 Text {
                     Layout.fillWidth: true
                     text: "检查连接与 USB 调试授权"
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: Theme.fontSmall
                     wrapMode: Text.WordWrap
                 }
@@ -112,8 +115,8 @@ ColumnLayout {
             height: 52
             radius: Theme.radiusSmall
             color: modelData.serial === root.deviceState.serial
-                ? Theme.primaryContainer
-                : rowMouse.containsMouse ? Theme.surfaceContainerHigh : "transparent"
+                ? _visualPalette.primaryContainer
+                : rowMouse.containsMouse ? _visualPalette.surfaceContainerHigh : "transparent"
             RowLayout {
                 anchors.fill: parent
                 anchors.margins: Theme.space8
@@ -122,7 +125,7 @@ ColumnLayout {
                     icon: "smartphone"
                     iconSize: 18
                     color: deviceRow.modelData.serial === root.deviceState.serial
-                        ? Theme.primary : Theme.textSecondary
+                        ? _visualPalette.primary : _visualPalette.textSecondary
                 }
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -136,7 +139,7 @@ ColumnLayout {
                             : deviceRow.modelData.serial
                         elide: Text.ElideRight
                         color: deviceRow.modelData.serial === root.deviceState.serial
-                            ? Theme.primary : Theme.textPrimary
+                            ? _visualPalette.primary : _visualPalette.textPrimary
                         font.pixelSize: Theme.fontSupporting
                     }
                     Text {
@@ -145,13 +148,13 @@ ColumnLayout {
                         visible: !!deviceRow.modelData.model
                         text: deviceRow.modelData.serial
                         elide: Text.ElideMiddle
-                        color: Theme.textSecondary
+                        color: _visualPalette.textSecondary
                         font.pixelSize: Theme.fontSmall
                     }
                 }
                 MaterialIcon {
                     visible: modelData.serial === root.deviceState.serial
-                    icon: "check"; iconSize: 18; color: Theme.primary
+                    icon: "check"; iconSize: 18; color: _visualPalette.primary
                 }
             }
             MouseArea {

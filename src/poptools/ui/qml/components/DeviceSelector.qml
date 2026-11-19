@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 Column {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "toolDeviceSelector"
     required property var controller
@@ -16,7 +19,7 @@ Column {
     property bool inlineMode: false
     property bool inlineExpanded: false
     property real uiScale: 1
-    property real controlHeight: iconOnly ? Theme.decadeCardActionSize : compact ? Theme.captionActionHeight : 41
+    property real controlHeight: iconOnly ? LauncherStyle.decadeCardActionSize : compact ? Theme.captionActionHeight : 41
     property real labelFontSize: Theme.fontSupporting
     property bool outlined: false
     readonly property bool popupVisible: inlineMode ? inlineExpanded : devicePopup.opened
@@ -69,7 +72,7 @@ Column {
     Text {
         visible: !root.compact
         text: "目标设备" + (root.requiredDevice ? " *" : "")
-        color: Theme.textPrimary
+        color: _visualPalette.textPrimary
         font.pixelSize: Theme.fontCaption
         font.weight: Font.DemiBold
     }
@@ -79,17 +82,17 @@ Column {
         height: root.controlHeight
         radius: root.outlined ? Theme.radiusControl * root.uiScale
             : root.iconOnly ? Theme.radiusSmall : root.compact ? Theme.radiusTiny : Theme.radiusConsole
-        color: root.outlined ? (Theme.glassMode ? "transparent" : selectorMouse.containsMouse
-            || root.popupVisible ? Theme.surfaceContainer : Theme.surfaceContainerLow)
-            : root.iconOnly ? (selectorMouse.containsMouse || root.popupVisible ? Theme.primaryContainer : Theme.decadeCardActionFill) : root.compact
-            ? (selectorMouse.containsMouse || root.popupVisible ? Theme.navigationHover : "transparent")
-            : selectorMouse.containsMouse ? Theme.surfaceContainer : Theme.surfaceContainerLow
+        color: root.outlined ? (_visualPalette.glassMode ? "transparent" : selectorMouse.containsMouse
+            || root.popupVisible ? _visualPalette.surfaceContainer : _visualPalette.surfaceContainerLow)
+            : root.iconOnly ? (selectorMouse.containsMouse || root.popupVisible ? _visualPalette.primaryContainer : LauncherStyle.decadeCardActionFill) : root.compact
+            ? (selectorMouse.containsMouse || root.popupVisible ? _visualPalette.navigationHover : "transparent")
+            : selectorMouse.containsMouse ? _visualPalette.surfaceContainer : _visualPalette.surfaceContainerLow
         border.width: root.outlined ? 1 : root.iconOnly ? Theme.borderWidthThin : root.compact ? 0 : 1
-        border.color: root.iconOnly ? Theme.decadeCardActionBorder : Theme.outlineVariant
+        border.color: root.iconOnly ? LauncherStyle.decadeCardActionBorder : _visualPalette.outlineVariant
         GlassSurface {
             anchors.fill: parent; cornerRadius: parent.radius; z: -0.5
-            visible: Theme.glassMode && root.outlined
-            tintColor: Theme.surfaceContainerLow
+            visible: _visualPalette.glassMode && root.outlined
+            tintColor: _visualPalette.surfaceContainerLow
         }
         activeFocusOnTab: true
         Accessible.role: Accessible.ComboBox
@@ -105,7 +108,7 @@ Column {
             spacing: (root.compact ? 6 : 10) * root.uiScale
             MaterialIcon {
                 icon: "smartphone"; iconSize: (root.compact ? 16 : 19) * root.uiScale
-                color: root.deviceState.available ? Theme.success : Theme.textSecondary
+                color: root.deviceState.available ? _visualPalette.success : _visualPalette.textSecondary
             }
             Text {
                 objectName: "deviceSelectorLabel"
@@ -116,7 +119,7 @@ Column {
                       ? (root.deviceState.pluginMissing ? "安装 Android 插件" : "选择设备")
                       : root.deviceState.available
                         ? (root.deviceState.name || root.deviceState.label) : root.deviceState.label
-                color: root.compact ? Theme.chromeForeground : Theme.textPrimary
+                color: root.compact ? _visualPalette.chromeForeground : _visualPalette.textPrimary
                 font.pixelSize: root.labelFontSize * root.uiScale
                 elide: root.compact ? Text.ElideRight : Text.ElideMiddle
             }
@@ -124,13 +127,13 @@ Column {
                 visible: !root.compact
                 text: root.deviceState.available ? "已连接"
                     : root.deviceState.serial ? "不可用" : "未选择"
-                color: root.deviceState.available ? Theme.success : Theme.textSecondary
+                color: root.deviceState.available ? _visualPalette.success : _visualPalette.textSecondary
                 font.pixelSize: Theme.fontSmall
             }
             MaterialIcon {
                 icon: root.popupVisible ? "expand_less" : "expand_more"
                 iconSize: (root.compact ? 14 : 18) * root.uiScale
-                color: root.compact ? Theme.chromeForeground : Theme.textSecondary
+                color: root.compact ? _visualPalette.chromeForeground : _visualPalette.textSecondary
             }
         }
         Item {
@@ -145,13 +148,13 @@ Column {
                 radius: 2
                 color: "transparent"
                 border.width: 1.5
-                border.color: Theme.textPrimary
+                border.color: _visualPalette.textPrimary
                 Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 3
                     width: 2; height: 2; radius: 1
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                 }
             }
         }
@@ -175,7 +178,7 @@ Column {
             ? "脚本已指定目标，界面选择仅作用于未指定目标的调用。"
             : root.deviceState.serial ? "原设备不可用，请重新连接或选择其他设备。"
             : "运行前请选择已连接的 Android 设备。"
-        color: Theme.textSecondary
+        color: _visualPalette.textSecondary
         font.pixelSize: Theme.fontSmall
         wrapMode: Text.WordWrap
     }
@@ -189,10 +192,10 @@ Column {
         padding: Theme.space8
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: AppPopupSurface {
-            fillColor: Theme.glassMode ? Theme.popupSurface : Theme.surfaceContainerLow
+            fillColor: _visualPalette.glassMode ? _visualPalette.popupSurface : _visualPalette.surfaceContainerLow
             minimumOpacity: Theme.glassMaterial.tooltipOpacity === undefined
                 ? 0.97 : Theme.glassMaterial.tooltipOpacity
-            outlineColor: Theme.outlineVariant
+            outlineColor: _visualPalette.outlineVariant
             cornerRadius: Theme.radiusMedium
         }
         onHeightChanged: { if (opened) root.positionDeviceMenu() }

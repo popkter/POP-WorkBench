@@ -1,13 +1,16 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 PrimaryButton {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     property color backgroundColor: "transparent"
-    property color hoverColor: Theme.primaryContainerHover
+    property color hoverColor: _visualPalette.primaryContainerHover
     property bool popupAbove: false
     property bool cycleOnClick: false
     readonly property bool menuOpen: sortPopup.visible
@@ -28,7 +31,7 @@ PrimaryButton {
     showHoverTips: false
     glyphSize: 24
     tonal: true
-    foregroundColor: Theme.primary
+    foregroundColor: _visualPalette.primary
     border.width: 0
     radius: Theme.radiusSmall
     color: root.hovered || sortPopup.opened
@@ -57,7 +60,7 @@ PrimaryButton {
 
     Popup {
         id: sortPopup
-        popupType: Theme.glassMode ? Popup.Item : root.popupAbove ? Popup.Window : Popup.Item
+        popupType: _visualPalette.glassMode ? Popup.Item : root.popupAbove ? Popup.Window : Popup.Item
         parent: Overlay.overlay
         width: 188
         height: contentColumn.implicitHeight + 16
@@ -81,8 +84,8 @@ PrimaryButton {
                     Layout.preferredHeight: 44
                     radius: Theme.radiusMedium
                     color: modelData.value === root.controller.toolSortMode
-                           ? Theme.primaryContainer
-                           : (optionMouse.containsMouse ? Theme.surfaceContainerHigh : "transparent")
+                           ? _visualPalette.primaryContainer
+                           : (optionMouse.containsMouse ? _visualPalette.surfaceContainerHigh : "transparent")
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: Theme.space12
@@ -92,19 +95,19 @@ PrimaryButton {
                             icon: optionRow.modelData.icon
                             iconSize: 20
                             color: optionRow.modelData.value === root.controller.toolSortMode
-                                   ? Theme.primary : Theme.textSecondary
+                                   ? _visualPalette.primary : _visualPalette.textSecondary
                         }
                         Text {
                             Layout.fillWidth: true
                             text: optionRow.modelData.label
-                            color: Theme.textPrimary
+                            color: _visualPalette.textPrimary
                             font.pixelSize: Theme.fontSupporting
                         }
                         MaterialIcon {
                             visible: optionRow.modelData.value === root.controller.toolSortMode
                             icon: "check"
                             iconSize: 19
-                            color: Theme.primary
+                            color: _visualPalette.primary
                         }
                     }
                     MouseArea {

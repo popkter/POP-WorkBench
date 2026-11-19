@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 ToolTip {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     popupType: Popup.Item
 
@@ -24,7 +27,7 @@ ToolTip {
 
     contentItem: Text {
         text: root.text
-        color: Theme.textPrimary
+        color: _visualPalette.textPrimary
         font.pixelSize: Theme.fontCaption
         font.weight: Font.Medium
         horizontalAlignment: Text.AlignHCenter
@@ -36,8 +39,8 @@ ToolTip {
         tooltipSurface: true
         minimumOpacity: Theme.glassMaterial.tooltipOpacity === undefined
             ? 0.97 : Theme.glassMaterial.tooltipOpacity
-        fillColor: Theme.popupSurface
-        outlineColor: Theme.outline
+        fillColor: _visualPalette.popupSurface
+        outlineColor: _visualPalette.outline
         cornerRadius: Theme.radiusSmall
     }
 

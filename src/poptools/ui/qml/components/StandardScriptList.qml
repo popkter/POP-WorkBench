@@ -1,9 +1,12 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import "../theme"
 
 ScriptCollectionView {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property bool quickLaunch: false
     readonly property real rowActionSize: width < 280 ? 24 : 26
@@ -119,7 +122,7 @@ ScriptCollectionView {
         y: root.dropLineY - height / 2
         width: root.width - (root.needsVerticalScroll ? root.scrollGutter : 0) - 8
         height: 2
-        color: Theme.primary
+        color: _visualPalette.primary
         visible: root.reordering && root.dropTargetId !== "" && root.dropTargetId !== root.draggedToolId
     }
     onActivationRequested: function (id, row) {
@@ -159,9 +162,9 @@ ScriptCollectionView {
             anchors.fill: parent
             anchors.bottomMargin: Theme.space4
             radius: Theme.radiusControl
-            color: Theme.glassMode ? "transparent" : scriptRow.selected ? Theme.listSelected
-                : rowMouse.containsMouse ? Theme.surfaceContainer
-                : Theme.darkMode && scriptRow.index % 2 === 0 ? Theme.listAlternate : "transparent"
+            color: _visualPalette.glassMode ? "transparent" : scriptRow.selected ? _visualPalette.listSelected
+                : rowMouse.containsMouse ? _visualPalette.surfaceContainer
+                : _visualPalette.darkMode && scriptRow.index % 2 === 0 ? _visualPalette.listAlternate : "transparent"
             GlassListHighlight {
                 anchors.fill: parent
                 cornerRadius: parent.radius
@@ -181,19 +184,19 @@ ScriptCollectionView {
                 visible: root.reorderEnabled
                 icon: "drag_indicator"
                 iconSize: 16
-                color: scriptRow.running ? Theme.outline : Theme.textSecondary
+                color: scriptRow.running ? _visualPalette.outline : _visualPalette.textSecondary
                 Layout.preferredWidth: 16
             }
             Rectangle {
                 Layout.preferredWidth: 26
                 Layout.preferredHeight: 26
                 radius: 5
-                color: scriptRow.executorKind === "python" ? Theme.tertiaryContainer : scriptRow.executorKind === "powershell" ? Theme.runtimeBadge : Theme.successContainer
+                color: scriptRow.executorKind === "python" ? _visualPalette.tertiaryContainer : scriptRow.executorKind === "powershell" ? _visualPalette.runtimeBadge : _visualPalette.successContainer
                 MaterialIcon {
                     anchors.centerIn: parent
                     icon: scriptRow.iconName || (scriptRow.executorKind === "batch" ? "smartphone" : "terminal")
                     iconSize: 16
-                    color: scriptRow.executorKind === "python" ? Theme.tertiary : scriptRow.executorKind === "powershell" ? Theme.runtimeBadgeText : Theme.success
+                    color: scriptRow.executorKind === "python" ? _visualPalette.tertiary : scriptRow.executorKind === "powershell" ? _visualPalette.runtimeBadgeText : _visualPalette.success
                 }
             }
             Text {
@@ -201,7 +204,7 @@ ScriptCollectionView {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 text: scriptRow.title
-                color: scriptRow.selected ? Theme.primary : Theme.textPrimary
+                color: scriptRow.selected ? _visualPalette.primary : _visualPalette.textPrimary
                 font.pixelSize: Theme.fontSupporting
                 font.weight: scriptRow.selected ? Font.Bold : Font.Normal
                 elide: Text.ElideRight
@@ -225,7 +228,7 @@ ScriptCollectionView {
                     buttonSize: root.rowActionSize
                     text: "删除脚本"
                     iconName: "delete_outline"
-                    tint: hovered ? Theme.errorColor : Theme.primary
+                    tint: hovered ? _visualPalette.errorColor : _visualPalette.primary
                     enabled: !scriptRow.running
                     onClicked: root.toolActionRequested(scriptRow.toolId, "delete")
                 }
@@ -241,20 +244,20 @@ ScriptCollectionView {
                     buttonSize: root.rowActionSize
                     text: scriptRow.running ? "停止运行" : "运行脚本"
                     iconName: scriptRow.running ? "stop" : "play_arrow"
-                    tint: scriptRow.running ? Theme.errorColor : Theme.primary
+                    tint: scriptRow.running ? _visualPalette.errorColor : _visualPalette.primary
                     onClicked: root.toolActionRequested(scriptRow.toolId, "run")
                 }
             }
             MaterialIcon {
                 icon: scriptRow.running ? "hourglass_top" : "chevron_right"
                 iconSize: 14
-                color: scriptRow.running ? Theme.primary : Theme.textSecondary
+                color: scriptRow.running ? _visualPalette.primary : _visualPalette.textSecondary
                 Layout.preferredWidth: 14
             }
             Text {
                 visible: root.quickLaunch && scriptRow.cardOpen
                 text: "已打开"
-                color: Theme.primary
+                color: _visualPalette.primary
                 font.pixelSize: Theme.fontCaption
             }
         }

@@ -5,6 +5,8 @@ import QtQuick.Window
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var hostWindow
     property var androidBackend: null
@@ -40,7 +42,7 @@ Item {
     signal editRequested()
     signal deleteRequested()
     signal runRequested()
-    readonly property bool dark: Theme.darkMode
+    readonly property bool dark: _visualPalette.darkMode
     readonly property bool active: hostWindow.active
     readonly property real contentLeftInset: hostWindow.titleBarHeight
     // JetBrains Runtime uses three 47-DIP controls, with 10-DIP glyphs.
@@ -66,8 +68,8 @@ Item {
         implicitHeight: Theme.captionActionHeight
         compact: false
         showHoverTips: false
-        color: hovered || pressed ? Theme.navigationHover : "transparent"
-        foregroundColor: Theme.chromeForeground
+        color: hovered || pressed ? _visualPalette.navigationHover : "transparent"
+        foregroundColor: _visualPalette.chromeForeground
         border.width: 0
         radius: Theme.radiusTiny
         labelFontSize: Theme.fontSupporting
@@ -144,8 +146,8 @@ Item {
                 Layout.preferredHeight: 16
                 Layout.leftMargin: Theme.space8
                 Layout.rightMargin: Theme.space8
-                color: Theme.navigationBorder
-                visible: !Theme.glassMode
+                color: _visualPalette.navigationBorder
+                visible: !_visualPalette.glassMode
             }
             ChromeAction {
                 objectName: "titleBarShareScript"
@@ -168,7 +170,7 @@ Item {
                 Accessible.name: "删除脚本"
                 iconName: "delete_outline"
                 enabled: root.scriptSelected && !root.scriptRunning
-                foregroundColor: hovered ? Theme.errorColor : Theme.chromeForeground
+                foregroundColor: hovered ? _visualPalette.errorColor : _visualPalette.chromeForeground
                 onClicked: root.deleteRequested()
             }
             ChromeAction {
@@ -179,7 +181,7 @@ Item {
                 Accessible.name: root.scriptRunning ? "停止运行" : "运行脚本"
                 iconName: root.scriptRunning ? "stop" : "play_arrow"
                 enabled: root.scriptSelected
-                foregroundColor: root.scriptRunning ? Theme.errorColor : Theme.success
+                foregroundColor: root.scriptRunning ? _visualPalette.errorColor : _visualPalette.success
                 onClicked: root.runRequested()
             }
         }
@@ -220,7 +222,7 @@ Item {
             iconName: root.recordingExporting ? "hourglass_top"
                 : root.presetRunning ? "stop"
                 : root.recordingSelected ? "fiber_manual_record" : "cast_connected"
-            foregroundColor: root.presetRunning ? Theme.errorColor : Theme.success
+            foregroundColor: root.presetRunning ? _visualPalette.errorColor : _visualPalette.success
             enabled: !root.recordingExporting && (root.presetRunning
                 || (presetDevicePicker.deviceState.available
                     && (!root.recordingSelected || !!(root.recordingController

@@ -136,7 +136,7 @@ class FloatingLauncherController(QObject):
         for screen in app.screens():
             self._screen_added(screen)
         settings.floatingLauncherEnabledChanged.connect(self.reconcile)
-        settings.themeChanged.connect(self._update_card_filter)
+        settings.floatingLauncherStyleChanged.connect(self._update_card_filter)
         self._tools_refresh_timer = QTimer(self)
         self._tools_refresh_timer.setSingleShot(True)
         self._tools_refresh_timer.timeout.connect(self.refreshTools)
@@ -171,7 +171,8 @@ class FloatingLauncherController(QObject):
     def _update_card_filter(self) -> None:
         self._model.set_excluded_ids(set())
         self._search_results.set_excluded_ids(set())
-        self._model.set_filter("" if self._settings.themeMode == "decade" else self._search_query)
+        self._model.set_filter(
+            "" if self._settings.floatingLauncherStyle == "decade" else self._search_query)
 
     @Slot(str, result=bool)
     def isCardOpen(self, tool_id: str) -> bool:
@@ -189,7 +190,7 @@ class FloatingLauncherController(QObject):
 
     @Slot(str, result=bool)
     def beginCardReturn(self, tool_id: str) -> bool:
-        if (self._settings.themeMode not in ("decade", "zio") or not self._visible
+        if (self._settings.floatingLauncherStyle not in ("decade", "zio") or not self._visible
                 or tool_id not in self._open_cards):
             return False
         self._returning_cards.add(tool_id)
@@ -242,7 +243,7 @@ class FloatingLauncherController(QObject):
     def setToolSearchQuery(self, query: str) -> None:
         self._search_query = query
         self._search_results.set_filter(query)
-        self._model.set_filter("" if self._settings.themeMode == "decade" else query)
+        self._model.set_filter("" if self._settings.floatingLauncherStyle == "decade" else query)
 
     @Slot()
     def _schedule_tools_refresh(self, *_args: object) -> None:
@@ -257,7 +258,7 @@ class FloatingLauncherController(QObject):
         )
         running = {tool.id for tool in tools
                    if self._backend.execution_coordinator.running(tool.id)}
-        if self._settings.themeMode != "zio":
+        if self._settings.floatingLauncherStyle != "zio":
             tools.sort(key=lambda tool: tool.id not in running)
         tool_ids = {tool.id for tool in tools}
         for model in (self._model, self._search_results):
@@ -327,7 +328,7 @@ class FloatingLauncherController(QObject):
         if self._dock_mode:
             geometry = self._panel.geometry()
             return QRectF(geometry.center().x() - 24, geometry.bottom() + 1 - 48, 48, 48)
-        geometry_fn = (decade_pack_geometry if self._settings.themeMode == "decade"
+        geometry_fn = (decade_pack_geometry if self._settings.floatingLauncherStyle == "decade"
                        else edge_geometry)
         closed, _ = geometry_fn(self._screen.availableGeometry(), self._notch_size,
                                 self._panel_size, self._ratio)
@@ -528,7 +529,7 @@ class FloatingLauncherController(QObject):
         if not self._dragging or self._screen is None:
             return
         available = self._screen.availableGeometry()
-        if self._drawer_mode and self._settings.themeMode == "decade":
+        if self._drawer_mode and self._settings.floatingLauncherStyle == "decade":
             top, _ = decade_pack_geometry(available, self._notch_size, self._panel_size, 0)
             bottom, _ = decade_pack_geometry(available, self._notch_size, self._panel_size, 1)
             travel = max(1, bottom.y() - top.y())
@@ -679,12 +680,12 @@ class FloatingLauncherController(QObject):
                 self.dockScreenChanged.emit()
             return
         geometry_fn = (decade_pack_geometry if self._drawer_mode
-                       and self._settings.themeMode == "decade" else edge_geometry)
+                       and self._settings.floatingLauncherStyle == "decade" else edge_geometry)
         notch, panel = geometry_fn(
             self._screen.availableGeometry(), self._notch_size, self._panel_size, self._ratio,
         )
         if self._drawer_mode:
-            if self._settings.themeMode == "decade":
+            if self._settings.floatingLauncherStyle == "decade":
                 geometry = panel.united(notch)
                 if self._panel.geometry() != geometry:
                     self._panel.setGeometry(geometry)

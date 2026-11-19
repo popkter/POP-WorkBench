@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 AppDialog {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "userGuideDialog"
     required property var controller
@@ -43,10 +46,10 @@ AppDialog {
                 text: "关闭使用手册"; iconName: "close"
                 glyphSize: Theme.iconMedium
                 tonal: true
-                foregroundColor: Theme.textSecondary
+                foregroundColor: _visualPalette.textSecondary
                 border.width: 0
                 radius: height / 2
-                color: hovered ? Theme.surfaceContainerHigh : "transparent"
+                color: hovered ? _visualPalette.surfaceContainerHigh : "transparent"
                 Accessible.name: "关闭使用手册"
                 onClicked: root.finishGuide()
             }
@@ -62,13 +65,13 @@ AppDialog {
                     text: modelData.title; iconName: modelData.icon
                     implicitHeight: Theme.controlHeightSmall; labelFontSize: Theme.fontSupporting
                     tonal: true
-                    color: root.sectionIndex === index ? Theme.primaryContainer : Theme.surfaceContainerLow
-                    foregroundColor: root.sectionIndex === index ? Theme.primaryText : Theme.textSecondary
+                    color: root.sectionIndex === index ? _visualPalette.primaryContainer : _visualPalette.surfaceContainerLow
+                    foregroundColor: root.sectionIndex === index ? _visualPalette.primaryText : _visualPalette.textSecondary
                     onClicked: root.sectionIndex = index
                 }
             }
         }
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: _visualPalette.outlineVariant }
         Flickable {
             id: guideScroll
             objectName: "guideScroll"
@@ -85,19 +88,19 @@ AppDialog {
                         required property var modelData
                         Layout.fillWidth: true
                         implicitHeight: cardContent.implicitHeight + Theme.space32
-                        radius: Theme.radiusMedium; color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-                        border.color: Theme.outlineVariant
+                        radius: Theme.radiusMedium; color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+                        border.color: _visualPalette.outlineVariant
                         ColumnLayout {
                             id: cardContent
                             anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.space16 }
                             spacing: Theme.space8
                             RowLayout {
                                 Layout.fillWidth: true; spacing: Theme.space8
-                                MaterialIcon { visible: !!modelData.icon; icon: modelData.icon || "info"; iconSize: 20; color: Theme.primary }
+                                MaterialIcon { visible: !!modelData.icon; icon: modelData.icon || "info"; iconSize: 20; color: _visualPalette.primary }
                                 Text {
                                     Layout.fillWidth: true; text: modelData.title
-                                    color: Theme.textPrimary; font.pixelSize: Theme.fontTitleSmall
+                                    color: _visualPalette.textPrimary; font.pixelSize: Theme.fontTitleSmall
                                     font.weight: Font.DemiBold; wrapMode: Text.Wrap
                                 }
                                 DialogActionButton {
@@ -109,16 +112,16 @@ AppDialog {
                             Text {
                                 Layout.fillWidth: true; text: modelData.body || ""
                                 textFormat: Text.PlainText; wrapMode: Text.Wrap
-                                color: Theme.textSecondary; font.pixelSize: Theme.fontBody
+                                color: _visualPalette.textSecondary; font.pixelSize: Theme.fontBody
                             }
                             TextArea {
                                 Layout.fillWidth: true; visible: !!modelData.code
                                 text: modelData.code || ""; readOnly: true; selectByMouse: true
                                 wrapMode: TextEdit.Wrap; textFormat: TextEdit.PlainText
                                 font.family: "Cascadia Mono"; font.pixelSize: Theme.fontCode
-                                color: Theme.consoleText; padding: Theme.space12
-                                background: Rectangle { radius: Theme.radiusConsole; color: Theme.glassMode ? "transparent" : Theme.consoleBackground
-                                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 } }
+                                color: _visualPalette.consoleText; padding: Theme.space12
+                                background: Rectangle { radius: Theme.radiusConsole; color: _visualPalette.glassMode ? "transparent" : _visualPalette.consoleBackground
+                                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.consoleBackground; z: -0.5 } }
                             }
                         }
                     }
@@ -133,14 +136,14 @@ AppDialog {
                 }
             }
         }
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: _visualPalette.outlineVariant }
         RowLayout {
             Layout.fillWidth: true; spacing: Theme.space12
             Text {
                 objectName: "guideCopyStatus"
                 Layout.fillWidth: true
                 text: root.copyStatus || "可随时从「设置 → 关于 → 用户手册」重新打开"
-                color: root.copyStatus ? Theme.success : Theme.textSecondary
+                color: root.copyStatus ? _visualPalette.success : _visualPalette.textSecondary
                 font.pixelSize: Theme.fontCaption; wrapMode: Text.Wrap
             }
             DialogActionButton {

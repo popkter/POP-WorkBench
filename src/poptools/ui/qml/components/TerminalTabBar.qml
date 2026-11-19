@@ -1,20 +1,23 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     property bool vertical: false
     readonly property color selectedBackground: vertical
-        ? Qt.tint(Theme.terminalBackground,
-            Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.32)) : Theme.terminalTabSelected
+        ? Qt.tint(_visualPalette.terminalBackground,
+            Qt.rgba(_visualPalette.primary.r, _visualPalette.primary.g, _visualPalette.primary.b, 0.32)) : _visualPalette.terminalTabSelected
     readonly property color hoverBackground: vertical
-        ? Qt.tint(Theme.terminalBackground, Qt.rgba(Theme.terminalForeground.r,
-            Theme.terminalForeground.g, Theme.terminalForeground.b, 0.06)) : Theme.terminalTabHover
+        ? Qt.tint(_visualPalette.terminalBackground, Qt.rgba(_visualPalette.terminalForeground.r,
+            _visualPalette.terminalForeground.g, _visualPalette.terminalForeground.b, 0.06)) : _visualPalette.terminalTabHover
     signal terminalFocusRequested()
     implicitHeight: 32
     readonly property real interactiveWidth: Math.min(width,
@@ -162,12 +165,12 @@ Item {
         contentItem: MaterialIcon {
             icon: scrollButton.glyph
             iconSize: 12
-            color: Theme.chromeForeground
+            color: _visualPalette.chromeForeground
         }
         background: Rectangle {
             radius: Theme.radiusTiny
             color: scrollButton.hovered || scrollButton.down
-                ? Theme.navigationHover : "transparent"
+                ? _visualPalette.navigationHover : "transparent"
         }
         HoverTips {
             visible: scrollButton.enabled && scrollButton.hovered
@@ -232,26 +235,26 @@ Item {
                     width: root.vertical ? terminalTabFlick.width : root.responsiveTerminalTabWidth
                     height: root.vertical ? 32 : root.height
                     radius: Theme.radiusSmall
-                    color: Theme.glassMode ? "transparent" : tab.selected ? root.selectedBackground
+                    color: _visualPalette.glassMode ? "transparent" : tab.selected ? root.selectedBackground
                         : tabHover.hovered ? root.hoverBackground : "transparent"
                     GlassListHighlight {
                         objectName: "terminalTabGlass_" + tab.tabInfo.tabId
                         anchors.fill: parent; cornerRadius: parent.radius
                         selected: tab.selected
                         hovered: tabHover.hovered
-                        hoverColor: Theme.terminalForeground
+                        hoverColor: _visualPalette.terminalForeground
                         outlineVisible: root.vertical && selected
                         tintColor: root.vertical
-                            ? (tab.selected ? Theme.primary : Theme.terminalForeground)
+                            ? (tab.selected ? _visualPalette.primary : _visualPalette.terminalForeground)
                             : (tab.selected ? root.selectedBackground : root.hoverBackground)
                         tintStrength: root.vertical ? (tab.selected ? 0.18 : 0.04) : 0.86
                         minimumTintOpacity: root.vertical ? 0.04 : 0.65
                         pointerReactive: root.vertical
                     }
-                    border.width: !Theme.glassMode && tab.selected && (root.vertical || Theme.darkMode) ? 1 : 0
+                    border.width: !_visualPalette.glassMode && tab.selected && (root.vertical || _visualPalette.darkMode) ? 1 : 0
                     border.color: root.vertical
-                        ? (Theme.glassMode ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.42)
-                            : Theme.navigationActiveBorder) : Theme.terminalTabBorder
+                        ? (_visualPalette.glassMode ? Qt.rgba(_visualPalette.primary.r, _visualPalette.primary.g, _visualPalette.primary.b, 0.42)
+                            : _visualPalette.navigationActiveBorder) : _visualPalette.terminalTabBorder
                     objectName: "terminalTab_" + tabInfo.tabId
                     Accessible.role: Accessible.PageTab
                     Accessible.name: tabInfo.title || "终端"
@@ -265,7 +268,7 @@ Item {
                         z: 2
                         visible: root.vertical && tab.selected
                         x: 0; y: 6; width: 3; height: parent.height - 12
-                        radius: 1.5; color: Theme.navigationActiveBorder
+                        radius: 1.5; color: _visualPalette.navigationActiveBorder
                     }
                     RowLayout {
                         z: 1
@@ -273,8 +276,8 @@ Item {
                         MaterialIcon {
                             icon: "terminal"
                             iconSize: 16
-                            color: tab.selected ? Theme.terminalForeground
-                                : root.vertical ? Theme.terminalMuted : Theme.chromeForeground
+                            color: tab.selected ? _visualPalette.terminalForeground
+                                : root.vertical ? _visualPalette.terminalMuted : _visualPalette.chromeForeground
                         }
                         Text {
                             id: tabTitle
@@ -283,8 +286,8 @@ Item {
                             visible: root.renamingTabId !== tab.tabInfo.tabId
                             text: tab.tabInfo.title || "终端"
                             color: tab.selected
-                                ? Theme.terminalForeground
-                                : root.vertical ? Theme.terminalMuted : Theme.chromeForeground
+                                ? _visualPalette.terminalForeground
+                                : root.vertical ? _visualPalette.terminalMuted : _visualPalette.chromeForeground
                             font.pixelSize: Theme.fontSupporting
                             elide: Text.ElideRight
                         }
@@ -295,14 +298,14 @@ Item {
                             Layout.minimumWidth: 0
                             Layout.preferredHeight: 28
                             visible: root.renamingTabId === tab.tabInfo.tabId
-                            color: Theme.terminalForeground
+                            color: _visualPalette.terminalForeground
                             font.pixelSize: Theme.fontSupporting
                             leftPadding: 6; rightPadding: 6; topPadding: 0; bottomPadding: 0
                             selectByMouse: true
                             background: Rectangle {
                                 radius: Theme.radiusTiny
-                                color: Theme.terminalBackground
-                                border.color: Theme.primary
+                                color: _visualPalette.terminalBackground
+                                border.color: _visualPalette.primary
                                 border.width: 1
                             }
                             onVisibleChanged: if (visible) {
@@ -333,8 +336,8 @@ Item {
                             glyphSize: 15
                             tonal: true
                             foregroundColor: tab.selected
-                                ? (Theme.darkMode ? Theme.terminalTabAction : Theme.terminalMuted)
-                                : root.vertical ? Theme.terminalMuted : Theme.chromeForeground
+                                ? (_visualPalette.darkMode ? _visualPalette.terminalTabAction : _visualPalette.terminalMuted)
+                                : root.vertical ? _visualPalette.terminalMuted : _visualPalette.chromeForeground
                             color: hovered
                                 ? root.hoverBackground
                                 : "transparent"
@@ -371,7 +374,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 1
                         height: 20
-                        color: Theme.terminalTabDivider
+                        color: _visualPalette.terminalTabDivider
                         opacity: 1
                         visible: !root.vertical && !tab.selected
                             && tab.index < root.controller.terminalTabs.length - 1
@@ -399,9 +402,9 @@ Item {
         iconName: "add"
         glyphSize: 20
         tonal: true
-        foregroundColor: root.vertical ? Theme.terminalForeground : Theme.chromeForeground
+        foregroundColor: root.vertical ? _visualPalette.terminalForeground : _visualPalette.chromeForeground
         border.width: 0
-        color: hovered || pressed ? (root.vertical ? root.hoverBackground : Theme.navigationHover) : "transparent"
+        color: hovered || pressed ? (root.vertical ? root.hoverBackground : _visualPalette.navigationHover) : "transparent"
         enabled: root.controller.canCreateTerminalTab
         disabledOpacity: 1
         onClicked: root.createTab()

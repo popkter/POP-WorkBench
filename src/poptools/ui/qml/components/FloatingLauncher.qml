@@ -6,6 +6,8 @@ import QtQuick.Window
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: LauncherStyle.mechanical ? LauncherPalette : Theme
+
     id: root
     required property var controller
     property string searchQuery: ""
@@ -22,7 +24,7 @@ Item {
         }
         if (!searchFocusPending || panel.revealProgress !== 1) return
         searchFocusPending = false
-        if (Theme.decadeMode) {
+        if (LauncherStyle.decade) {
             titleSearch.forceActiveFocus()
             titleSearch.selectAll()
         } else {
@@ -37,18 +39,18 @@ Item {
     function takeCardFace(toolId) { return scripts.takeCardFace(toolId) }
     function cancelCardLaunch(toolId) { scripts.cancelCardLaunch(toolId) }
     function dockCardFace(toolId, face, callback) {
-        if (Theme.zioMode && zioDock)
+        if (LauncherStyle.zio && zioDock)
             zioDock.dockCardFace(toolId, face)
         else
             scripts.dockCardFace(toolId, face)
-        if (!Theme.mechanicalMode || !(Theme.zioMode ? zioDock && zioDock.dockWindow.visible : panel.visible)) {
+        if (!LauncherStyle.mechanical || !(LauncherStyle.zio ? zioDock && zioDock.dockWindow.visible : panel.visible)) {
             callback()
             return
         }
         // Close the old surface only after the pack has presented the same item.
         pendingDocks.push(callback)
         dockDeadline.restart()
-        if (Theme.zioMode && zioDock) zioDock.dockWindow.update()
+        if (LauncherStyle.zio && zioDock) zioDock.dockWindow.update()
         else panel.update()
     }
     function finishCardDocks() {
@@ -96,11 +98,11 @@ Item {
                 request.attempts++
                 if (!root.controller.expanded)
                     request.callback(root.collapsedReturnOrigin(request.toolId))
-                else if (((Theme.zioMode ? zioDock && zioDock.dockWindow.revealProgress === 1 && zioDock.dockWindow.visible
+                else if (((LauncherStyle.zio ? zioDock && zioDock.dockWindow.revealProgress === 1 && zioDock.dockWindow.visible
                         : panel.revealProgress === 1 && panel.visible
                         && (root.continuousRecall || !scripts.layoutSettling)))
-                        || request.attempts > (Theme.decadeMode ? 90 : 30))
-                    request.callback(Theme.zioMode && zioDock ? zioDock.cardRect(request.toolId) : scripts.returnCardRect(request.toolId))
+                        || request.attempts > (LauncherStyle.decade ? 90 : 30))
+                    request.callback(LauncherStyle.zio && zioDock ? zioDock.cardRect(request.toolId) : scripts.returnCardRect(request.toolId))
                 else
                     root.pendingReturns.push(request)
             }
@@ -110,7 +112,7 @@ Item {
     }
 
     function cardOrigin(toolId) {
-        return Theme.zioMode && zioDock ? zioDock.cardRect(toolId) : controller.cardLaunchOrigin(toolId)
+        return LauncherStyle.zio && zioDock ? zioDock.cardRect(toolId) : controller.cardLaunchOrigin(toolId)
     }
     function dockBounds() {
         if (!zioDock) return Qt.rect(0, 0, 0, 0)
@@ -118,14 +120,14 @@ Item {
         return Qt.rect(dock.x, dock.y, dock.width, dock.height)
     }
     function attachThemeWindow() {
-        if (Theme.zioMode) {
+        if (LauncherStyle.zio) {
             if (!zioDock) return
             panelSlide.stop()
             controller.attachDockWindow(zioDock.dockWindow, zioDock.preferredWidth, zioDock.preferredHeight)
             zioDock.syncProgress()
         } else {
-            controller.attachDrawerWindow(panel, Theme.floatingTipWidth, Theme.floatingTipHeight,
-                Theme.floatingPanelWidth, Theme.floatingPanelHeight)
+            controller.attachDrawerWindow(panel, LauncherStyle.floatingTipWidth, LauncherStyle.floatingTipHeight,
+                LauncherStyle.floatingPanelWidth, LauncherStyle.floatingPanelHeight)
             panel.updateReveal()
             controller.setDrawerProgress(panel.revealProgress)
         }
@@ -135,14 +137,14 @@ Item {
         attachThemeWindow()
     }
     Connections {
-        target: Theme
-        function onZioModeChanged() { if (root.attached) root.attachThemeWindow() }
-        function onFloatingPanelWidthChanged() { if (root.attached && !Theme.zioMode) root.attachThemeWindow() }
-        function onFloatingPanelHeightChanged() { if (root.attached && !Theme.zioMode) root.attachThemeWindow() }
+        target: LauncherStyle
+        function onZioChanged() { if (root.attached) root.attachThemeWindow() }
+        function onFloatingPanelWidthChanged() { if (root.attached && !LauncherStyle.zio) root.attachThemeWindow() }
+        function onFloatingPanelHeightChanged() { if (root.attached && !LauncherStyle.zio) root.attachThemeWindow() }
     }
     Loader {
         id: zioDockLoader
-        active: Theme.zioMode
+        active: LauncherStyle.zio
         onLoaded: if (root.attached) root.attachThemeWindow()
         sourceComponent: ZioDock {
             controller: root.controller
@@ -152,13 +154,14 @@ Item {
                 root.searchQuery = query
                 root.controller.setToolSearchQuery(query)
             }
-            onPreferredWidthChanged: if (root.attached && Theme.zioMode) root.attachThemeWindow()
+            onPreferredWidthChanged: if (root.attached && LauncherStyle.zio) root.attachThemeWindow()
             onFramePresented: if (root.pendingDocks.length > 0) root.finishCardDocks()
             onRecallRequested: root.controller.recallAllCards()
         }
     }
 
     ApplicationWindow {
+        readonly property var floatingStylePalette: root._visualPalette
         id: panel
         readonly property bool glassBackgroundReady: desktopBackground.ready
         DesktopBackground {
@@ -172,8 +175,8 @@ Item {
         objectName: "floatingScriptPanelWindow"
         transientParent: null
         title: "自定义脚本快捷运行"
-        width: Theme.floatingTipWidth
-        height: Theme.floatingTipHeight
+        width: LauncherStyle.floatingTipWidth
+        height: LauncherStyle.floatingTipHeight
         readonly property bool revealRequested: root.controller.visible && root.controller.expanded
         property real revealProgress: 0
         readonly property real motionProgress: (1 - Math.cos(Math.PI * revealProgress)) / 2
@@ -182,13 +185,13 @@ Item {
         readonly property real caseWidth: width / 2
         property bool pendingMaskSettlement: false
         property bool dragMaskActive: false
-        visible: root.attached && root.controller.visible && !Theme.zioMode
+        visible: root.attached && root.controller.visible && !LauncherStyle.zio
         flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
         color: "transparent"
-        palette.text: Theme.textPrimary
-        palette.windowText: Theme.textPrimary
-        palette.highlight: Theme.primary
-        palette.highlightedText: Theme.primaryForeground
+        palette.text: _visualPalette.textPrimary
+        palette.windowText: _visualPalette.textPrimary
+        palette.highlight: _visualPalette.primary
+        palette.highlightedText: _visualPalette.primaryForeground
         contentItem.clip: true
 
         onVisibleChanged: if (!visible) {
@@ -206,7 +209,7 @@ Item {
         }
 
         function updateReveal() {
-            if (!root.attached || Theme.zioMode)
+            if (!root.attached || LauncherStyle.zio)
                 return;
             const requested = root.controller.visible && root.controller.expanded;
             if (!requested)
@@ -227,14 +230,14 @@ Item {
                 return;
             panelSlide.from = revealProgress;
             panelSlide.to = targetProgress;
-            panelSlide.easing.type = Theme.decadeMode ? Easing.Linear
+            panelSlide.easing.type = LauncherStyle.decade ? Easing.Linear
                 : requested ? Easing.OutCubic : Easing.InCubic;
             panelSlide.start();
         }
         Connections {
             target: root.controller
             function onStateChanged() {
-                if (Theme.zioMode) return;
+                if (LauncherStyle.zio) return;
                 if (root.controller.dragging) {
                     panel.dragMaskActive = true;
                     panel.pendingMaskSettlement = false;
@@ -254,9 +257,9 @@ Item {
             objectName: "floatingPanelSlideAnimation"
             target: panel
             property: "revealProgress"
-            duration: Theme.decadeMode ? 450 : Theme.motionStandard
+            duration: LauncherStyle.decade ? 450 : Theme.motionStandard
             onRunningChanged: {
-                if (Theme.zioMode) return;
+                if (LauncherStyle.zio) return;
                 if (running) {
                     panel.pendingMaskSettlement = false;
                     root.controller.setDrawerAnimating(true);
@@ -271,7 +274,7 @@ Item {
         Item {
             id: drawerSurface
             objectName: "floatingDrawerSurface"
-            x: Theme.decadeMode ? 0 : (panel.width - Theme.floatingTipWidth)
+            x: LauncherStyle.decade ? 0 : (panel.width - LauncherStyle.floatingTipWidth)
                 * (1 - panel.revealProgress)
             width: panel.width
             height: panel.height
@@ -281,7 +284,7 @@ Item {
             DecadePackHinge {
                 id: packHinge
                 objectName: "decadePackScrollHinge"
-                scrollView: Theme.decadeMode ? scripts.collectionView : null
+                scrollView: LauncherStyle.decade ? scripts.collectionView : null
                 interactive: panel.revealProgress === 1 && !root.continuousRecall
                 onDraggingChanged: root.controller.setMenuOpen(dragging)
                 x: tip.x + tip.width - width / 2
@@ -289,7 +292,7 @@ Item {
                 width: 8 + 12 * panel.packExpansion
                 height: Math.max(1, tip.height - 24 * panel.packExpansion)
                 z: 4
-                visible: Theme.decadeMode && panel.coverOpening > 0
+                visible: LauncherStyle.decade && panel.coverOpening > 0
                 opacity: panel.coverOpening
             }
             Item {
@@ -300,7 +303,7 @@ Item {
                 width: 30
                 height: panel.height - 60
                 z: 3
-                visible: Theme.decadeMode && panel.revealProgress === 1
+                visible: LauncherStyle.decade && panel.revealProgress === 1
                 DecadePackControls {
                     id: sideActions
                     y: Math.round((parent.height - height - 36) / 2)
@@ -318,7 +321,7 @@ Item {
                     glyphSize: 16
                     backgroundColor: "transparent"
                     hoverColor: "transparent"
-                    foregroundColor: hovered ? Theme.primaryText : "#A9B0BA"
+                    foregroundColor: hovered ? _visualPalette.primaryText : "#A9B0BA"
                     border.width: 0
                     radius: 1
                     DecadePackControlFace {
@@ -331,26 +334,26 @@ Item {
             Rectangle {
                 id: tip
                 objectName: "floatingDrawerTip"
-                z: Theme.decadeMode ? 2 : 0
+                z: LauncherStyle.decade ? 2 : 0
                 x: 0
-                y: root.controller.drawerTipOffset * (Theme.decadeMode ? 1 - panel.packExpansion : 1)
-                width: Theme.decadeMode ? Theme.floatingTipWidth
-                    + (panel.caseWidth - Theme.floatingTipWidth) * panel.packExpansion : Theme.floatingTipWidth
-                height: Theme.decadeMode ? Theme.floatingTipHeight
-                    + (panel.height - Theme.floatingTipHeight) * panel.packExpansion : Theme.floatingTipHeight
-                topLeftRadius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
-                bottomLeftRadius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
-                color: Theme.decadeMode || Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                y: root.controller.drawerTipOffset * (LauncherStyle.decade ? 1 - panel.packExpansion : 1)
+                width: LauncherStyle.decade ? LauncherStyle.floatingTipWidth
+                    + (panel.caseWidth - LauncherStyle.floatingTipWidth) * panel.packExpansion : LauncherStyle.floatingTipWidth
+                height: LauncherStyle.decade ? LauncherStyle.floatingTipHeight
+                    + (panel.height - LauncherStyle.floatingTipHeight) * panel.packExpansion : LauncherStyle.floatingTipHeight
+                topLeftRadius: LauncherStyle.decade ? LauncherStyle.decadePackRadius : Theme.radiusMedium
+                bottomLeftRadius: LauncherStyle.decade ? LauncherStyle.decadePackRadius : Theme.radiusMedium
+                color: LauncherStyle.decade || _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
                 GlassSurface {
                     anchors.fill: parent
                     cornerRadius: Theme.radiusMedium
-                    tintColor: Theme.surfaceContainerLow
+                    tintColor: _visualPalette.surfaceContainerLow
                     z: -0.5
                 }
-                border.width: Theme.decadeMode ? 0 : 1
-                border.color: Theme.decadeMode ? Theme.decadePackRail : Theme.outlineVariant
+                border.width: LauncherStyle.decade ? 0 : 1
+                border.color: LauncherStyle.decade ? LauncherStyle.decadePackRail : _visualPalette.outlineVariant
                 opacity: grip.containsMouse || root.controller.dragging || root.controller.expanded
-                    ? 1 : Theme.decadeMode ? 0.92 : Theme.floatingIdleOpacity
+                    ? 1 : LauncherStyle.decade ? 0.92 : Theme.floatingIdleOpacity
                 Behavior on opacity {
                     NumberAnimation { duration: Theme.motionStandard }
                 }
@@ -364,12 +367,12 @@ Item {
                                         height * Screen.devicePixelRatio)
                     fillMode: Image.PreserveAspectFit
                     smooth: true
-                    visible: !Theme.decadeMode
+                    visible: !LauncherStyle.decade
                 }
                 Flipable {
                     objectName: "decadePackCoverBook"
                     anchors.fill: parent
-                    visible: Theme.decadeMode
+                    visible: LauncherStyle.decade
                     front: DecadePackCover {
                         objectName: "decadeFloatingPackCover"
                         anchors.fill: parent
@@ -396,7 +399,7 @@ Item {
                         AppTextField {
                             id: titleSearch
                             objectName: "floatingTitleSearch"
-                            visible: Theme.decadeMode
+                            visible: LauncherStyle.decade
                             enabled: panel.revealProgress === 1
                             x: 20; y: 40
                             width: Math.max(60, parent.width - 80)
@@ -408,7 +411,7 @@ Item {
                             text: root.searchQuery
                             color: "#D4D8DF"
                             placeholderTextColor: "#7F8895"
-                            font.pixelSize: Theme.decadeMode ? Theme.fontCaption : Theme.fontSupporting
+                            font.pixelSize: LauncherStyle.decade ? Theme.fontCaption : Theme.fontSupporting
                             onTextChanged: {
                                 if (root.searchQuery !== text) {
                                     root.searchQuery = text;
@@ -431,7 +434,7 @@ Item {
                                 Rectangle {
                                     x: 1; y: 8
                                     width: 2; height: parent.height - 16
-                                    color: titleSearch.activeFocus ? Theme.primary : "#515B68"
+                                    color: titleSearch.activeFocus ? _visualPalette.primary : "#515B68"
                                 }
                                 MaterialIcon {
                                     anchors.left: parent.left
@@ -439,7 +442,7 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     icon: "search"
                                     iconSize: 16
-                                    color: titleSearch.activeFocus ? Theme.primaryText : "#8D98A6"
+                                    color: titleSearch.activeFocus ? _visualPalette.primaryText : "#8D98A6"
                                 }
                             }
                         }
@@ -455,14 +458,14 @@ Item {
                 }
                 Accessible.role: Accessible.Button
                 Accessible.name: root.controller.expanded ? "收起自定义脚本" : "展开自定义脚本"
-                Accessible.description: Theme.decadeMode ? "点击放大并打开卡包，沿屏幕左侧上下拖动"
+                Accessible.description: LauncherStyle.decade ? "点击放大并打开卡包，沿屏幕左侧上下拖动"
                     : "点击展开或收起，拖动调整屏幕边缘的位置"
                 Accessible.onPressAction: if (!panelSlide.running) root.controller.toggleExpanded()
                 MouseArea {
                     id: grip
                     objectName: "floatingDragGrip"
                     anchors.fill: parent
-                    enabled: !Theme.decadeMode || panel.revealProgress === 0
+                    enabled: !LauncherStyle.decade || panel.revealProgress === 0
                     hoverEnabled: true
                     preventStealing: true
                     cursorShape: dragStarted ? Qt.ClosedHandCursor : Qt.OpenHandCursor
@@ -507,28 +510,28 @@ Item {
             Rectangle {
                 id: panelSurface
                 objectName: "floatingPanelSurface"
-                x: Theme.decadeMode ? tip.x : Theme.floatingTipWidth
-                y: Theme.decadeMode ? tip.y : 0
-                width: Theme.decadeMode ? tip.width : drawerSurface.width - Theme.floatingTipWidth
-                height: Theme.decadeMode ? tip.height : panel.height
-                enabled: panel.revealRequested && (!Theme.decadeMode || panel.revealProgress === 1)
-                visible: !Theme.decadeMode || panel.revealProgress > 0
-                radius: Theme.decadeMode ? Theme.decadePackRadius : Theme.radiusMedium
-                topLeftRadius: !Theme.decadeMode && tip.y < radius ? 0 : radius
-                bottomLeftRadius: !Theme.decadeMode && tip.y + tip.height > height - radius ? 0 : radius
-                color: Theme.decadeMode || Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                x: LauncherStyle.decade ? tip.x : LauncherStyle.floatingTipWidth
+                y: LauncherStyle.decade ? tip.y : 0
+                width: LauncherStyle.decade ? tip.width : drawerSurface.width - LauncherStyle.floatingTipWidth
+                height: LauncherStyle.decade ? tip.height : panel.height
+                enabled: panel.revealRequested && (!LauncherStyle.decade || panel.revealProgress === 1)
+                visible: !LauncherStyle.decade || panel.revealProgress > 0
+                radius: LauncherStyle.decade ? LauncherStyle.decadePackRadius : Theme.radiusMedium
+                topLeftRadius: !LauncherStyle.decade && tip.y < radius ? 0 : radius
+                bottomLeftRadius: !LauncherStyle.decade && tip.y + tip.height > height - radius ? 0 : radius
+                color: LauncherStyle.decade || _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
                 GlassSurface {
                     anchors.fill: parent; cornerRadius: parent.radius
-                    tintColor: Theme.surfaceContainerLow; z: -0.5
+                    tintColor: _visualPalette.surfaceContainerLow; z: -0.5
                 }
-                border.width: Theme.decadeMode ? 0 : 1
-                border.color: Theme.outlineVariant
+                border.width: LauncherStyle.decade ? 0 : 1
+                border.color: _visualPalette.outlineVariant
 
-                DecadePackChrome { anchors.fill: parent; visible: Theme.decadeMode }
+                DecadePackChrome { anchors.fill: parent; visible: LauncherStyle.decade }
 
                 // Join the grip to the panel without an internal border or corner gap.
                 Rectangle {
-                    visible: !Theme.decadeMode
+                    visible: !LauncherStyle.decade
                     x: -1
                     y: tip.y + panelSurface.border.width
                     width: 2
@@ -539,28 +542,28 @@ Item {
                 ColumnLayout {
                     id: mainColumn
                     anchors.fill: parent
-                    anchors.leftMargin: Theme.decadeMode ? 12 : 0
-                    anchors.rightMargin: Theme.decadeMode ? 14 : 0
-                    anchors.topMargin: Theme.decadeMode ? 24 : 0
-                    anchors.bottomMargin: Theme.decadeMode ? 24 : 0
+                    anchors.leftMargin: LauncherStyle.decade ? 12 : 0
+                    anchors.rightMargin: LauncherStyle.decade ? 14 : 0
+                    anchors.topMargin: LauncherStyle.decade ? 24 : 0
+                    anchors.bottomMargin: LauncherStyle.decade ? 24 : 0
                     spacing: 0
                     RowLayout {
-                        visible: !Theme.decadeMode
+                        visible: !LauncherStyle.decade
                         Layout.fillWidth: true
                         Layout.topMargin: Theme.space12
                         Layout.leftMargin: Theme.space16
                         Layout.rightMargin: Theme.space8
                         Text {
-                            visible: !Theme.decadeMode
+                            visible: !LauncherStyle.decade
                             Layout.fillWidth: true
                             text: "自定义脚本"
-                            color: Theme.textPrimary
+                            color: _visualPalette.textPrimary
                             font.pixelSize: Theme.fontComponentTitle
                             font.weight: Font.DemiBold
                         }
 
                         PrimaryButton {
-                            objectName: Theme.decadeMode ? "standardHiddenPin" : "floatingPinButton"
+                            objectName: LauncherStyle.decade ? "standardHiddenPin" : "floatingPinButton"
                             Layout.preferredWidth: Theme.controlHeightSmall
                             Layout.preferredHeight: Theme.controlHeightSmall
                             width: Theme.controlHeightSmall
@@ -570,11 +573,11 @@ Item {
                             text: root.controller.pinned ? "取消置顶" : "置顶卡包"
                             iconName: "push_pin"
                             tonal: true
-                            radius: Theme.decadeMode ? Theme.radiusTiny : Theme.radiusControl
+                            radius: LauncherStyle.decade ? Theme.radiusTiny : Theme.radiusControl
                             border.width: 0
-                            color: root.controller.pinned ? Theme.primaryContainer
-                                : hovered ? Theme.surfaceContainer : "transparent"
-                            foregroundColor: Theme.decadeMode ? Theme.primaryText : root.controller.pinned ? Theme.primary : Theme.textSecondary
+                            color: root.controller.pinned ? _visualPalette.primaryContainer
+                                : hovered ? _visualPalette.surfaceContainer : "transparent"
+                            foregroundColor: LauncherStyle.decade ? _visualPalette.primaryText : root.controller.pinned ? _visualPalette.primary : _visualPalette.textSecondary
                             Accessible.role: Accessible.CheckBox
                             Accessible.name: text
                             Accessible.checked: root.controller.pinned
@@ -582,21 +585,21 @@ Item {
                             onClicked: root.controller.togglePinned()
                         }
                         PrimaryButton {
-                            objectName: Theme.decadeMode ? "standardHiddenRecall" : "floatingRecallAllButton"
+                            objectName: LauncherStyle.decade ? "standardHiddenRecall" : "floatingRecallAllButton"
                             Layout.preferredWidth: Theme.controlHeightSmall
                             Layout.preferredHeight: Theme.controlHeightSmall
                             width: Theme.controlHeightSmall
                             height: Theme.controlHeightSmall
                             compact: true
                             showHoverTips: false
-                            text: Theme.decadeMode ? "收回全部卡牌" : "关闭全部脚本弹窗"
+                            text: LauncherStyle.decade ? "收回全部卡牌" : "关闭全部脚本弹窗"
                             iconName: "layers_clear"
                             tonal: true
-                            radius: Theme.decadeMode ? Theme.radiusTiny : Theme.radiusControl
+                            radius: LauncherStyle.decade ? Theme.radiusTiny : Theme.radiusControl
                             border.width: 0
-                            disabledOpacity: Theme.decadeMode ? 0.4 : 1
+                            disabledOpacity: LauncherStyle.decade ? 0.4 : 1
                             enabled: root.controller.openCardCount > 0 || scripts.pendingLaunchCount > 0
-                            color: hovered ? Theme.surfaceContainer : "transparent"
+                            color: hovered ? _visualPalette.surfaceContainer : "transparent"
                             Accessible.role: Accessible.Button
                             Accessible.name: text
                             function recall() {
@@ -607,24 +610,24 @@ Item {
                             onClicked: recall()
                         }
                         PrimaryButton {
-                            objectName: Theme.decadeMode ? "standardHiddenCollapse" : "floatingCollapseButton"
+                            objectName: LauncherStyle.decade ? "standardHiddenCollapse" : "floatingCollapseButton"
                             Layout.preferredWidth: Theme.controlHeightSmall
                             Layout.preferredHeight: Theme.controlHeightSmall
                             width: Theme.controlHeightSmall
                             height: Theme.controlHeightSmall
                             compact: true
                             showHoverTips: false
-                            text: Theme.decadeMode ? "合上卡包" : "收起"
-                            iconName: Theme.decadeMode ? "remove" : "chevron_right"
+                            text: LauncherStyle.decade ? "合上卡包" : "收起"
+                            iconName: LauncherStyle.decade ? "remove" : "chevron_right"
                             tonal: true
-                            radius: Theme.decadeMode ? Theme.radiusTiny : Theme.radiusControl
+                            radius: LauncherStyle.decade ? Theme.radiusTiny : Theme.radiusControl
                             border.width: 0
-                            color: hovered ? Theme.surfaceContainer : "transparent"
+                            color: hovered ? _visualPalette.surfaceContainer : "transparent"
                             onClicked: root.controller.collapse()
                         }
                     }
                     CustomScriptList {
-                        deckCardWidth: Theme.decadeMode ? Math.max(1, Math.min(
+                        deckCardWidth: LauncherStyle.decade ? Math.max(1, Math.min(
                             searchResults.width - 2, searchResults.height * 432 / 672)) : 0
                         continuousRecall: root.continuousRecall
                         id: scripts
@@ -634,7 +637,7 @@ Item {
                         controller: root.controller
                         listModel: root.controller.toolsModel
                         quickLaunch: true
-                        showSearchAndFilters: !Theme.decadeMode
+                        showSearchAndFilters: !LauncherStyle.decade
                         searchQuery: root.searchQuery
                         onSearchEdited: function(query) {
                             root.searchQuery = query;
@@ -656,7 +659,7 @@ Item {
             sequence: "Ctrl+F"
             context: Qt.WindowShortcut
             autoRepeat: false
-            enabled: panel.visible && !Theme.zioMode
+            enabled: panel.visible && !LauncherStyle.zio
             onActivated: root.focusSearch()
         }
         Shortcut {

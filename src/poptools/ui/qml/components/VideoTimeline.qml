@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 ColumnLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     property real pixelsPerSecond: 100
@@ -114,7 +117,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Text {
             text: root.controller ? root.timeText(root.controller.position) + " / " + root.timeText(root.duration) : ""
-            color: Theme.textPrimary
+            color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontSupporting
             font.family: "Consolas"
         }
@@ -122,7 +125,7 @@ ColumnLayout {
         Text {
             visible: root.width >= 500
             text: root.controller && root.controller.detailed ? "逐帧刻度" : "时间轴"
-            color: Theme.textSecondary
+            color: _visualPalette.textSecondary
             font.pixelSize: Theme.fontMicro
         }
         VideoToolbar {
@@ -146,8 +149,8 @@ ColumnLayout {
         Rectangle {
             y: 34; width: parent.width; height: 66
             radius: 4
-            color: Theme.glassMode ? "transparent" : Theme.surfaceContainerHigh
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainerHigh; z: -0.5 }
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerHigh
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainerHigh; z: -0.5 }
         }
         Rectangle {
             x: -root.viewStart * root.pixelsPerSecond
@@ -155,7 +158,7 @@ ColumnLayout {
             width: root.duration * root.pixelsPerSecond
             height: 66
             radius: 4
-            color: Theme.primary
+            color: _visualPalette.primary
             opacity: 0.16
         }
         Repeater {
@@ -176,13 +179,13 @@ ColumnLayout {
                     fillMode: Image.PreserveAspectFit
                     cache: false
                 }
-                Rectangle { width: 1; height: parent.height; color: Theme.outline; opacity: 0.5 }
+                Rectangle { width: 1; height: parent.height; color: _visualPalette.outline; opacity: 0.5 }
             }
         }
         Text {
             x: 7; y: 36; width: parent.width - 14
             text: root.controller ? root.controller.fileName : ""
-            color: Theme.textSecondary
+            color: _visualPalette.textSecondary
             font.pixelSize: Theme.fontMicro
             elide: Text.ElideRight
         }
@@ -194,7 +197,7 @@ ColumnLayout {
                 x: (time - root.viewStart) * root.pixelsPerSecond
                 y: 24; width: 1; height: 3
                 visible: time <= root.duration
-                color: Theme.outline
+                color: _visualPalette.outline
             }
         }
         Repeater {
@@ -208,16 +211,16 @@ ColumnLayout {
                 Text {
                     text: root.tickStep < 1 ? time.toFixed(root.tickStep < 0.01 ? 3 : root.tickStep < 0.1 ? 2 : 1) + "s"
                         : root.timeText(time).split(".")[0]
-                    color: Theme.textSecondary
+                    color: _visualPalette.textSecondary
                     font.pixelSize: Theme.fontMicro
                 }
-                Rectangle { y: 20; width: 1; height: 7; color: Theme.textSecondary }
+                Rectangle { y: 20; width: 1; height: 7; color: _visualPalette.textSecondary }
             }
         }
         Rectangle {
             visible: root.hovering && !pointer.pressed
             x: root.hoverX; y: 22; width: 1; height: 78
-            color: Theme.textPrimary
+            color: _visualPalette.textPrimary
             opacity: 0.45
         }
         Item {
@@ -228,11 +231,11 @@ ColumnLayout {
             visible: root.duration > 0
             Rectangle {
                 x: -1; y: 12; width: 2; height: parent.height - 12
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
             }
             Canvas {
                 x: -7; width: 14; height: 17
-                property color handleColor: Theme.textPrimary
+                property color handleColor: _visualPalette.textPrimary
                 onHandleColorChanged: requestPaint()
                 onPaint: {
                     const ctx = getContext("2d")
@@ -315,7 +318,7 @@ ColumnLayout {
     Text {
         Layout.fillWidth: true
         text: "点击或拖动定位 · 悬停预览 · Ctrl + 滚轮缩放 · ← / → 逐帧"
-        color: Theme.textSecondary
+        color: _visualPalette.textSecondary
         font.pixelSize: Theme.fontMicro
         elide: Text.ElideRight
     }
@@ -332,9 +335,9 @@ ColumnLayout {
         x: Math.max(8, Math.min(parent.width - width - 8, root.previewPoint.x - width / 2))
         y: Math.max(8, root.previewPoint.y - height - 10)
         background: AppPopupSurface {
-            fillColor: Theme.popupSurface
+            fillColor: _visualPalette.popupSurface
             cornerRadius: Theme.radiusSmall
-            outlineColor: Theme.outline
+            outlineColor: _visualPalette.outline
         }
         contentItem: ColumnLayout {
             spacing: 5
@@ -359,7 +362,7 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignHCenter
                 text: root.timeText(root.previewMatches && root.controller.previewSource
                     ? root.controller.previewTime : root.hoverTime)
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: Theme.fontSupporting
             }
         }

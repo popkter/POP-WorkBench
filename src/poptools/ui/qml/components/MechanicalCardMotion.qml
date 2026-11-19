@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 // The execution window and its live form own the complete flight and reveal.
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "mechanicalCardMotion"
     property alias surface: liveContent
@@ -66,19 +69,19 @@ Item {
     property int packExitDirection: -1
     readonly property bool portFlight: desktopFlight && flightGeometry.preserveSource && portBounds.height > 0
     readonly property bool sleeveFlight: desktopFlight && flightGeometry.preserveSource && isFinite(packTop)
-    readonly property bool mechanicalEnabled: Theme.mechanicalMode
+    readonly property bool mechanicalEnabled: LauncherStyle.mechanical
     property real fadeOpacity: 1
     readonly property bool desktopFlight: flightGeometry !== null
     readonly property bool entering: prepared || entry.running || fadeEntry.running
     readonly property bool activating: activation.running
     readonly property bool focusing: focusScanAnimation.running
     readonly property bool recycling: returning
-    readonly property real displayedSpinAngle: Theme.zioMode ? 0 : entering && entrySpinEnabled
+    readonly property real displayedSpinAngle: LauncherStyle.zio ? 0 : entering && entrySpinEnabled
         ? 360 * easeInOut(phase(travelDuration / flightDuration, scanStartDuration / flightDuration))
         : spinAngle
     readonly property bool activationBack: (activating || entering)
         && displayedSpinAngle > 90 && displayedSpinAngle < 270
-    readonly property color accent: Theme.primary
+    readonly property color accent: LauncherStyle.accent
     readonly property real draw: easeOut(phase(0, 0.38))
     readonly property real turn: easeOut(phase(0.12, 0.62))
     readonly property real flightProgress: returning ? 1 - returnProgress
@@ -107,7 +110,7 @@ Item {
         : initialScale + (1 - initialScale) * freeTravel
     readonly property real faceAspectCompensation: desktopFlight && flightScale > 0
         ? flightScaleX / flightScale : 1
-    readonly property real flightTilt: !Theme.zioMode && desktopFlight
+    readonly property real flightTilt: !LauncherStyle.zio && desktopFlight
         ? (flightGeometry.preserveSource ? packExitDirection
             : flightGeometry.targetX < flightGeometry.sourceX ? -1 : 1)
             * 8 * Math.sin(Math.PI * (sleeveFlight ? freeTravel : flightProgress)) : 0
@@ -233,7 +236,7 @@ Item {
         const tick = returning ? 1 - returnProgress : phase(0, travelDuration / flightDuration)
         const eased = travelAt(tick)
         const free = sleeveFlight ? Math.max(0, (eased - .5) * 2) : eased
-        const angle = (Theme.zioMode ? 0 : 8) * Math.sin(Math.PI * (sleeveFlight ? free : tick)) * Math.PI / 180
+        const angle = (LauncherStyle.zio ? 0 : 8) * Math.sin(Math.PI * (sleeveFlight ? free : tick)) * Math.PI / 180
         const startScale = Math.min(g.sourceWidth / width, g.sourceHeight / height)
         const gateScale = portFlight && portSource.width > 0
             ? Math.min(portSource.width / width, portSource.height / height) : startScale
@@ -305,7 +308,7 @@ Item {
         portSource = cardFace ? cardFace.packPortOrigin : Qt.rect(0, 0, 0, 0)
         packExitDirection = cardFace ? cardFace.packExitDirection : -1
         ensureFace()
-        entrySpinEnabled = !Theme.zioMode
+        entrySpinEnabled = !LauncherStyle.zio
         flightGeometry = geometry
         progress = 0
         prepared = true
@@ -370,10 +373,10 @@ Item {
     }
     function activate() {
         // Coalesce rapid clicks instead of snapping a partly rotated card back.
-        if (activating || (Theme.zioMode && focusing))
+        if (activating || (LauncherStyle.zio && focusing))
             return
         finish()
-        if (Theme.zioMode) {
+        if (LauncherStyle.zio) {
             focusScanAnimation.start()
         } else if (mechanicalEnabled) {
             // The entry already mounted the face. A flip changes only visual
@@ -493,11 +496,11 @@ Item {
             Rotation {
                 origin.x: card.width / 2; origin.y: card.height / 2
                 axis { x: 0; y: 1; z: 0 }
-                angle: root.desktopFlight || Theme.zioMode ? 0 : -72 * (1 - root.turn)
+                angle: root.desktopFlight || LauncherStyle.zio ? 0 : -72 * (1 - root.turn)
             },
             Rotation {
                 origin.x: card.width / 2; origin.y: card.height / 2
-                angle: Theme.zioMode ? 0 : root.desktopFlight ? root.flightTilt : -6 * (1 - root.draw)
+                angle: LauncherStyle.zio ? 0 : root.desktopFlight ? root.flightTilt : -6 * (1 - root.draw)
             },
             Translate {
                 x: root.desktopFlight ? 0 : card.width * 0.10 * (1 - root.draw)
@@ -555,7 +558,7 @@ Item {
                     // gradual highlights avoid a hard white line on dark cards.
                     height: 156 * root.designScale
                     y: parent.height * root.scan - height * .55
-                    opacity: Theme.zioMode && root.focusing ? 0
+                    opacity: LauncherStyle.zio && root.focusing ? 0
                         : root.entering || root.recycling || root.focusing
                         || (root.activating && root.spinAngle >= 360)
                         ? Math.sin(Math.PI * root.scan) * 0.95 : 0
@@ -564,7 +567,7 @@ Item {
                         GradientStop { position: 0.18; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.016) }
                         GradientStop { position: 0.38; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.125) }
                         GradientStop { position: 0.52; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.396) }
-                        GradientStop { position: 0.62; color: Qt.rgba(Theme.primaryText.r, Theme.primaryText.g, Theme.primaryText.b, 0.333) }
+                        GradientStop { position: 0.62; color: Qt.rgba(_visualPalette.primaryText.r, _visualPalette.primaryText.g, _visualPalette.primaryText.b, 0.333) }
                         GradientStop { position: 0.78; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.125) }
                         GradientStop { position: 1; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0) }
                     }
@@ -574,7 +577,7 @@ Item {
                     anchors.fill: parent
                     radius: Theme.radiusMedium
                     color: root.accent
-                    opacity: Theme.zioMode && root.focusing
+                    opacity: LauncherStyle.zio && root.focusing
                         ? Math.sin(Math.PI * root.focusScanProgress) * 0.07 : 0
                 }
                 Rectangle {

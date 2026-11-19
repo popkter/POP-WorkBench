@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 ColumnLayout {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "jiraFeishuWorkspace"
 
@@ -77,7 +80,7 @@ ColumnLayout {
     }
 
     component FieldLabel: Text {
-        color: Theme.textSecondary
+        color: _visualPalette.textSecondary
         font.pixelSize: Theme.fontLabel
         font.weight: Font.Medium
     }
@@ -87,15 +90,15 @@ ColumnLayout {
         Layout.preferredHeight: 46
         leftPadding: Theme.space16
         rightPadding: Theme.space16
-        color: Theme.textPrimary
-        placeholderTextColor: Theme.textSecondary
+        color: _visualPalette.textPrimary
+        placeholderTextColor: _visualPalette.textSecondary
         selectByMouse: true
         font.pixelSize: Theme.fontBody
         background: Rectangle {
             radius: Theme.radiusMedium
-            color: Theme.glassMode ? "transparent" : Theme.surface
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
-            border.color: parent.activeFocus ? Theme.primary : Theme.outline
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surface
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surface; z: -0.5 }
+            border.color: parent.activeFocus ? _visualPalette.primary : _visualPalette.outline
             border.width: parent.activeFocus ? 2 : 1
         }
     }
@@ -106,10 +109,10 @@ ColumnLayout {
         radius: Theme.radiusMedium
         tonal: true
         color: dangerStyle
-               ? (hovered ? Qt.darker(Theme.errorContainer, 1.05) : Theme.errorContainer)
-               : (hovered ? Theme.primaryContainerHover : Theme.primaryContainer)
+               ? (hovered ? Qt.darker(_visualPalette.errorContainer, 1.05) : _visualPalette.errorContainer)
+               : (hovered ? _visualPalette.primaryContainerHover : _visualPalette.primaryContainer)
         border.width: 0
-        foregroundColor: dangerStyle ? Theme.errorColor : Theme.primaryText
+        foregroundColor: dangerStyle ? _visualPalette.errorColor : _visualPalette.primaryText
         labelFontSize: Theme.fontLabel
         glyphSize: 18
         contentSpacing: Theme.space8
@@ -127,7 +130,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 68
         radius: Theme.radiusLarge
-        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
         GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
         border.width: 0
@@ -140,7 +143,7 @@ ColumnLayout {
             Text {
                 Layout.alignment: Qt.AlignVCenter
                 text: root.narrow ? "当前方案" : "当前推送方案"
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: Theme.fontComponentTitle
                 font.weight: Font.DemiBold
             }
@@ -156,9 +159,9 @@ ColumnLayout {
                 Layout.maximumWidth: 112
                 Layout.preferredHeight: 34
                 radius: Theme.radiusSmall
-                color: successState ? Theme.successContainer
-                                    : errorState ? Theme.errorContainer
-                                    : Theme.surfaceContainerHigh
+                color: successState ? _visualPalette.successContainer
+                                    : errorState ? _visualPalette.errorContainer
+                                    : _visualPalette.surfaceContainerHigh
 
                 RowLayout {
                     anchors.fill: parent
@@ -169,17 +172,17 @@ ColumnLayout {
                         Layout.preferredWidth: 8
                         Layout.preferredHeight: 8
                         radius: Theme.radiusTiny
-                        color: parent.parent.successState ? Theme.success
-                                                       : parent.parent.errorState ? Theme.errorColor
-                                                                                 : Theme.outline
+                        color: parent.parent.successState ? _visualPalette.success
+                                                       : parent.parent.errorState ? _visualPalette.errorColor
+                                                                                 : _visualPalette.outline
                     }
                     Text {
                         id: statusText
                         Layout.fillWidth: true
                         text: controller.status
-                        color: parent.parent.successState ? Theme.success
-                                                        : parent.parent.errorState ? Theme.errorColor
-                                                                                  : Theme.textSecondary
+                        color: parent.parent.successState ? _visualPalette.success
+                                                        : parent.parent.errorState ? _visualPalette.errorColor
+                                                                                  : _visualPalette.textSecondary
                         font.pixelSize: Theme.fontSupporting
                         elide: Text.ElideRight
                     }
@@ -228,7 +231,7 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: 42
             radius: Theme.radiusMedium
-            color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
             GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
             border.width: 0
@@ -250,12 +253,12 @@ ColumnLayout {
                     Layout.preferredWidth: 9
                     Layout.preferredHeight: 9
                     radius: Theme.radiusTiny
-                    color: controller.scheduleRunning ? Theme.success : Theme.outline
+                    color: controller.scheduleRunning ? _visualPalette.success : _visualPalette.outline
                 }
                 Text {
                     visible: !root.narrow
                     text: controller.scheduleRunning ? "定时运行中" : "定时未启动"
-                    color: controller.scheduleRunning ? Theme.success : Theme.textSecondary
+                    color: controller.scheduleRunning ? _visualPalette.success : _visualPalette.textSecondary
                     font.pixelSize: Theme.fontSupporting
                 }
             }
@@ -270,8 +273,8 @@ ColumnLayout {
             Layout.maximumHeight: 42
             Layout.alignment: Qt.AlignVCenter
             radius: Theme.radiusMedium
-            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
 
             RowLayout {
                 anchors.fill: parent
@@ -286,12 +289,12 @@ ColumnLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         radius: Theme.radiusSmall
-                        color: tabs.currentIndex === index ? Theme.primaryContainer : "transparent"
+                        color: tabs.currentIndex === index ? _visualPalette.primaryContainer : "transparent"
 
                         Text {
                             anchors.centerIn: parent
                             text: modelData
-                            color: tabs.currentIndex === index ? Theme.primaryText : Theme.textSecondary
+                            color: tabs.currentIndex === index ? _visualPalette.primaryText : _visualPalette.textSecondary
                             font.pixelSize: Theme.fontBody
                             font.weight: tabs.currentIndex === index ? Font.DemiBold : Font.Normal
                         }
@@ -313,7 +316,7 @@ ColumnLayout {
                 Layout.fillHeight: true
                 Layout.minimumHeight: 0
                 radius: Theme.radiusLarge
-                color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
                 GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
                 border.width: 0
@@ -333,8 +336,8 @@ ColumnLayout {
                     id: jiraForm
                     width: parent.width
                     spacing: Theme.space12
-                    Text { text: "Jira 数据源"; color: Theme.textPrimary; font.pixelSize: Theme.fontSectionTitle; font.weight: Font.DemiBold }
-                    Text { text: "使用 JQL 获取议题与变更记录，Token 仅保存在本机。"; color: Theme.textSecondary; font.pixelSize: Theme.fontSupporting }
+                    Text { text: "Jira 数据源"; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontSectionTitle; font.weight: Font.DemiBold }
+                    Text { text: "使用 JQL 获取议题与变更记录，Token 仅保存在本机。"; color: _visualPalette.textSecondary; font.pixelSize: Theme.fontSupporting }
                     GridLayout {
                         Layout.fillWidth: true
                         columns: root.narrow ? 1 : 3
@@ -373,27 +376,27 @@ ColumnLayout {
                                 background: Rectangle {
                                     radius: Theme.radiusSmall
                                     color: jiraMax.enabled
-                                        ? Theme.inputDefault
-                                        : Theme.inputDisabled
+                                        ? _visualPalette.inputDefault
+                                        : _visualPalette.inputDisabled
                                     border.width: Theme.borderWidthThin
                                     border.color: jiraMax.activeFocus
-                                        ? Theme.borderColorFocused
-                                        : Theme.borderColorDefault
+                                        ? _visualPalette.borderColorFocused
+                                        : _visualPalette.borderColorDefault
                                 }
 
                                 contentItem: TextInput {
                                     text: jiraMax.textFromValue(jiraMax.value, jiraMax.locale)
                                     color: jiraMax.enabled
-                                        ? Theme.textPrimary
-                                        : Theme.textSecondary
+                                        ? _visualPalette.textPrimary
+                                        : _visualPalette.textSecondary
                                     font: jiraMax.font
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                     readOnly: !jiraMax.editable
                                     validator: jiraMax.validator
                                     selectByMouse: true
-                                    selectionColor: Theme.primary
-                                    selectedTextColor: Theme.primaryForeground
+                                    selectionColor: _visualPalette.primary
+                                    selectedTextColor: _visualPalette.primaryForeground
                                     inputMethodHints: Qt.ImhFormattedNumbersOnly
                                 }
 
@@ -408,15 +411,15 @@ ColumnLayout {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: Theme.borderWidthThin
                                         height: parent.height - 16
-                                        color: Theme.outlineVariant
+                                        color: _visualPalette.outlineVariant
                                     }
 
                                     Text {
                                         anchors.centerIn: parent
                                         text: "\u2212"
                                         color: jiraMax.down.pressed
-                                            ? Theme.primary
-                                            : Theme.textPrimary
+                                            ? _visualPalette.primary
+                                            : _visualPalette.textPrimary
                                         font.pixelSize: 24
                                     }
                                 }
@@ -432,15 +435,15 @@ ColumnLayout {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: Theme.borderWidthThin
                                         height: parent.height - 16
-                                        color: Theme.outlineVariant
+                                        color: _visualPalette.outlineVariant
                                     }
 
                                     Text {
                                         anchors.centerIn: parent
                                         text: "+"
                                         color: jiraMax.up.pressed
-                                            ? Theme.primary
-                                            : Theme.textPrimary
+                                            ? _visualPalette.primary
+                                            : _visualPalette.textPrimary
                                         font.pixelSize: 24
                                     }
                                 }
@@ -461,9 +464,9 @@ ColumnLayout {
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         background: Rectangle {
                             radius: Theme.radiusMedium
-                            color: Theme.glassMode ? "transparent" : Theme.surface
-                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
-                            border.color: jiraJql.activeFocus ? Theme.primary : Theme.outline
+                            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surface
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surface; z: -0.5 }
+                            border.color: jiraJql.activeFocus ? _visualPalette.primary : _visualPalette.outline
                             border.width: jiraJql.activeFocus ? 2 : 1
                         }
 
@@ -475,7 +478,7 @@ ColumnLayout {
                             rightPadding: Theme.space16
                             topPadding: Theme.space12
                             bottomPadding: Theme.space12
-                            color: Theme.textPrimary
+                            color: _visualPalette.textPrimary
                             font.family: "Cascadia Mono"
                             font.pixelSize: Theme.fontCode
                             wrapMode: TextEdit.Wrap
@@ -500,8 +503,8 @@ ColumnLayout {
                     id: feishuForm
                     width: parent.width
                     spacing: Theme.space12
-                    Text { text: "飞书机器人"; color: Theme.textPrimary; font.pixelSize: Theme.fontSectionTitle; font.weight: Font.DemiBold }
-                    Text { text: "配置群机器人安全校验；自建应用凭据仅用于将邮箱解析为 open_id。"; color: Theme.textSecondary; font.pixelSize: Theme.fontSupporting; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                    Text { text: "飞书机器人"; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontSectionTitle; font.weight: Font.DemiBold }
+                    Text { text: "配置群机器人安全校验；自建应用凭据仅用于将邮箱解析为 open_id。"; color: _visualPalette.textSecondary; font.pixelSize: Theme.fontSupporting; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                     GridLayout {
                         Layout.fillWidth: true
                         columns: root.narrow ? 1 : 2
@@ -547,14 +550,14 @@ ColumnLayout {
                         id: atAssignee
                         text: "在消息中 @ 负责人（需要有效 open_id）"
                         checked: true
-                        palette.text: Theme.textPrimary
+                        palette.text: _visualPalette.textPrimary
                         onToggled: controller.updateField("message", "at_assignee", checked)
                     }
                     Rectangle {
-                        Layout.fillWidth: true; Layout.preferredHeight: 54; radius: Theme.radiusMedium; color: Theme.tealContainer
+                        Layout.fillWidth: true; Layout.preferredHeight: 54; radius: Theme.radiusMedium; color: _visualPalette.tealContainer
                         RowLayout { anchors.fill: parent; anchors.margins: Theme.space12; spacing: Theme.space12
-                            MaterialIcon { icon: "info"; iconSize: 20; color: Theme.teal }
-                            Text { Layout.fillWidth: true; text: "未解析到 open_id 时只显示负责人姓名，不会发送无效 @。"; color: Theme.teal; font.pixelSize: Theme.fontSupporting; wrapMode: Text.WordWrap }
+                            MaterialIcon { icon: "info"; iconSize: 20; color: _visualPalette.teal }
+                            Text { Layout.fillWidth: true; text: "未解析到 open_id 时只显示负责人姓名，不会发送无效 @。"; color: _visualPalette.teal; font.pixelSize: Theme.fontSupporting; wrapMode: Text.WordWrap }
                         }
                     }
                     Item { Layout.preferredHeight: 2 }
@@ -574,8 +577,8 @@ ColumnLayout {
                     RowLayout {
                         Layout.fillWidth: true
                         ColumnLayout { Layout.fillWidth: true; spacing: Theme.space4
-                            Text { text: "定时推送"; color: Theme.textPrimary; font.pixelSize: Theme.fontSectionTitle; font.weight: Font.DemiBold }
-                            Text { text: "应用运行期间，每 30 秒检查一次到点方案。"; color: Theme.textSecondary; font.pixelSize: Theme.fontSupporting }
+                            Text { text: "定时推送"; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontSectionTitle; font.weight: Font.DemiBold }
+                            Text { text: "应用运行期间，每 30 秒检查一次到点方案。"; color: _visualPalette.textSecondary; font.pixelSize: Theme.fontSupporting }
                         }
                         ToggleControl {
                             id: scheduleEnabled
@@ -618,12 +621,12 @@ ColumnLayout {
                                 background: Rectangle {
                                     radius: Theme.radiusSmall
                                     color: intervalMinutes.enabled
-                                        ? Theme.inputDefault
-                                        : Theme.inputDisabled
+                                        ? _visualPalette.inputDefault
+                                        : _visualPalette.inputDisabled
                                     border.width: Theme.borderWidthThin
                                     border.color: intervalMinutes.activeFocus
-                                        ? Theme.borderColorFocused
-                                        : Theme.borderColorDefault
+                                        ? _visualPalette.borderColorFocused
+                                        : _visualPalette.borderColorDefault
                                 }
 
                                 contentItem: TextInput {
@@ -632,16 +635,16 @@ ColumnLayout {
                                         intervalMinutes.locale
                                     )
                                     color: intervalMinutes.enabled
-                                        ? Theme.textPrimary
-                                        : Theme.textSecondary
+                                        ? _visualPalette.textPrimary
+                                        : _visualPalette.textSecondary
                                     font: intervalMinutes.font
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                     readOnly: !intervalMinutes.editable
                                     validator: intervalMinutes.validator
                                     selectByMouse: true
-                                    selectionColor: Theme.primary
-                                    selectedTextColor: Theme.primaryForeground
+                                    selectionColor: _visualPalette.primary
+                                    selectedTextColor: _visualPalette.primaryForeground
                                     inputMethodHints: Qt.ImhFormattedNumbersOnly
                                 }
 
@@ -656,7 +659,7 @@ ColumnLayout {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: Theme.borderWidthThin
                                         height: parent.height - 16
-                                        color: Theme.outlineVariant
+                                        color: _visualPalette.outlineVariant
                                     }
 
                                     Text {
@@ -664,9 +667,9 @@ ColumnLayout {
                                         text: "\u2212"
                                         color: intervalMinutes.enabled
                                             ? (intervalMinutes.down.pressed
-                                                ? Theme.primary
-                                                : Theme.textPrimary)
-                                            : Theme.textSecondary
+                                                ? _visualPalette.primary
+                                                : _visualPalette.textPrimary)
+                                            : _visualPalette.textSecondary
                                         font.pixelSize: 24
                                     }
                                 }
@@ -682,7 +685,7 @@ ColumnLayout {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: Theme.borderWidthThin
                                         height: parent.height - 16
-                                        color: Theme.outlineVariant
+                                        color: _visualPalette.outlineVariant
                                     }
 
                                     Text {
@@ -690,9 +693,9 @@ ColumnLayout {
                                         text: "+"
                                         color: intervalMinutes.enabled
                                             ? (intervalMinutes.up.pressed
-                                                ? Theme.primary
-                                                : Theme.textPrimary)
-                                            : Theme.textSecondary
+                                                ? _visualPalette.primary
+                                                : _visualPalette.textPrimary)
+                                            : _visualPalette.textSecondary
                                         font.pixelSize: 24
                                     }
                                 }
@@ -709,16 +712,16 @@ ColumnLayout {
                         onTextEdited: controller.markCurrentProfileDirty()
                         onEditingFinished: controller.updateDailyTimes(text)
                     }
-                    Text { text: "多个时刻使用逗号分隔；每个时刻当天只触发一次。"; color: Theme.textSecondary; font.pixelSize: Theme.fontSupporting }
+                    Text { text: "多个时刻使用逗号分隔；每个时刻当天只触发一次。"; color: _visualPalette.textSecondary; font.pixelSize: Theme.fontSupporting }
                     Rectangle {
-                        Layout.fillWidth: true; Layout.preferredHeight: 76; radius: Theme.radiusMedium; color: Theme.glassMode ? "transparent" : Theme.surface
-                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
+                        Layout.fillWidth: true; Layout.preferredHeight: 76; radius: Theme.radiusMedium; color: _visualPalette.glassMode ? "transparent" : _visualPalette.surface
+                        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surface; z: -0.5 }
                         border.width: 0
                         RowLayout { anchors.fill: parent; anchors.margins: Theme.space16; spacing: Theme.space12
-                            MaterialIcon { icon: controller.scheduleRunning ? "schedule" : "schedule_send"; iconSize: 26; color: controller.scheduleRunning ? Theme.success : Theme.textSecondary }
+                            MaterialIcon { icon: controller.scheduleRunning ? "schedule" : "schedule_send"; iconSize: 26; color: controller.scheduleRunning ? _visualPalette.success : _visualPalette.textSecondary }
                             ColumnLayout { Layout.fillWidth: true; spacing: Theme.space4
-                                Text { text: controller.scheduleRunning ? "调度器正在运行" : "调度器尚未启动"; color: Theme.textPrimary; font.pixelSize: Theme.fontComponentTitle; font.weight: Font.DemiBold }
-                                Text { text: "启动后会同时管理所有已启用的推送方案"; color: Theme.textSecondary; font.pixelSize: Theme.fontSupporting }
+                                Text { text: controller.scheduleRunning ? "调度器正在运行" : "调度器尚未启动"; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontComponentTitle; font.weight: Font.DemiBold }
+                                Text { text: "启动后会同时管理所有已启用的推送方案"; color: _visualPalette.textSecondary; font.pixelSize: Theme.fontSupporting }
                             }
                             MiniButton { text: "启动"; iconName: "play_arrow"; visible: !controller.scheduleRunning; onClicked: { root.commitForm(); controller.startSchedule() } }
                             MiniButton { text: "全部停止"; iconName: "stop"; dangerStyle: true; visible: controller.scheduleRunning; onClicked: controller.stopSchedule() }
@@ -747,8 +750,8 @@ ColumnLayout {
             anchors.bottom: parent.bottom
             height: root.outputPanelCollapsedHeight
                     + root.outputLogMaxHeight * root.outputReveal
-            color: Theme.glassMode ? "transparent" : Theme.surface
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surface
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surface; z: -0.5 }
 
         Item {
             id: outputToggle
@@ -767,7 +770,7 @@ ColumnLayout {
                 iconName: root.outputExpanded ? "expand_more" : "expand_less"
                 glyphSize: 18
                 tonal: true
-                foregroundColor: hovered ? Theme.primary : Theme.outline
+                foregroundColor: hovered ? _visualPalette.primary : _visualPalette.outline
                 color: "transparent"
                 border.width: 0
                 onClicked: root.outputExpanded = !root.outputExpanded
@@ -833,8 +836,8 @@ ColumnLayout {
             anchors.topMargin: Theme.space8
             anchors.bottom: parent.bottom
             radius: Theme.radiusLarge
-            color: Theme.glassMode ? "transparent" : Theme.consoleBackground
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.consoleBackground; z: -0.5 }
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.consoleBackground
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.consoleBackground; z: -0.5 }
             border.width: 0
             clip: true
             visible: height > 0
@@ -844,7 +847,7 @@ ColumnLayout {
                 spacing: Theme.space0
                 RowLayout {
                     Layout.fillWidth: true; Layout.preferredHeight: 32; Layout.leftMargin: Theme.space12; Layout.rightMargin: Theme.space8
-                    Text { text: "运行记录"; color: Theme.consoleText; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold; Layout.fillWidth: true }
+                    Text { text: "运行记录"; color: _visualPalette.consoleText; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold; Layout.fillWidth: true }
                     MiniButton { text: "清空"; iconName: "delete_sweep"; implicitWidth: 78; implicitHeight: 30; onClicked: controller.clearLog() }
                 }
                 DesktopScrollView {
@@ -853,7 +856,7 @@ ColumnLayout {
                         text: controller.logText
                         readOnly: true
                         selectByMouse: true
-                        color: Theme.consoleText
+                        color: _visualPalette.consoleText
                         font.family: "Cascadia Mono"
                         font.pixelSize: Theme.fontCaption
                         wrapMode: TextEdit.Wrap

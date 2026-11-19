@@ -1,9 +1,12 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 Column {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var parameters
     required property var controller
@@ -27,7 +30,7 @@ Column {
                 visible: !root.inlineLabels
                 width: parent.width
                 text: parameterItem.modelData.label + (parameterItem.modelData.required ? " *" : "")
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: Theme.fontLabel
             }
             Rectangle {
@@ -39,11 +42,11 @@ Column {
                     ? Math.max(root.inlineLabels ? Theme.inputHeight : 54, parameterInput.item.implicitHeight + 2)
                     : (root.inlineLabels ? Theme.inputHeight : 54)
                 radius: Theme.radiusSmall
-                color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
                 GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
                 readonly property bool inputFocused: parameterInput.item
                     ? parameterInput.item.activeFocus : false
-                border.color: inputFocused ? Theme.primary : Theme.inputBorder
+                border.color: inputFocused ? _visualPalette.primary : _visualPalette.inputBorder
                 border.width: inputFocused ? 2 : 1
 
                 Item {
@@ -69,9 +72,9 @@ Column {
                         anchors.rightMargin: requiredLabel.visible ? Theme.space4 : 0
                         anchors.verticalCenter: parent.verticalCenter
                         text: parameterItem.modelData.label
-                        color: Theme.textPrimary
-                        font.pixelSize: root.cardTypography ? Theme.decadeCardTextSize : Theme.fontCaption
-                        font.weight: Theme.glassMode && root.cardTypography ? Font.Bold : Font.DemiBold
+                        color: _visualPalette.textPrimary
+                        font.pixelSize: root.cardTypography ? LauncherStyle.decadeCardTextSize : Theme.fontCaption
+                        font.weight: _visualPalette.glassMode && root.cardTypography ? Font.Bold : Font.DemiBold
                         elide: Text.ElideRight
                         HoverHandler { id: labelHover }
                         HoverTips {
@@ -86,8 +89,8 @@ Column {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: !!parameterItem.modelData.required && !root.decadeCardLayout
                         text: visible ? "必填" : ""
-                        color: Theme.textSecondary
-                        font.pixelSize: root.cardTypography ? Theme.decadeCardTextSize : Theme.fontCaption
+                        color: _visualPalette.textSecondary
+                        font.pixelSize: root.cardTypography ? LauncherStyle.decadeCardTextSize : Theme.fontCaption
                     }
                 }
 
@@ -98,7 +101,7 @@ Column {
                     anchors.bottom: parent.bottom
                     anchors.margins: Theme.space8
                     width: 1
-                    color: Theme.outlineVariant
+                    color: _visualPalette.outlineVariant
                 }
 
                 ParameterField {
@@ -128,7 +131,7 @@ Column {
                     : parameterItem.modelData.label.indexOf("VIN") >= 0
                     ? "17 位车辆识别码，写入后将自动读取并验证。"
                     : ""
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontSmall
                 elide: Text.ElideRight
             }

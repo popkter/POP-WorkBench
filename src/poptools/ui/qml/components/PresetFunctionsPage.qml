@@ -1,11 +1,14 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 Rectangle {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
 
     required property var controller
@@ -49,7 +52,7 @@ Rectangle {
                 Layout.maximumWidth: Math.max(250, root.width * 0.46)
                 Layout.fillHeight: true
                 radius: Theme.radiusMedium
-                color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
+                color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
                 GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; z: -0.5 }
 
                 border.width: 0
@@ -70,14 +73,14 @@ Rectangle {
                         clearButtonEnabled: true
                         placeholderText: "搜索预设名称或描述..."
                         text: root.searchQuery
-                        color: Theme.textPrimary
+                        color: _visualPalette.textPrimary
                         font.pixelSize: Theme.fontSupporting
                         onTextChanged: if (root.searchQuery !== text) root.searchEdited(text)
                         background: Rectangle {
                             radius: Theme.radiusSmall
-                            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-                            border.color: presetSearch.activeFocus ? Theme.primary : "transparent"
+                            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+                            border.color: presetSearch.activeFocus ? _visualPalette.primary : "transparent"
                             border.width: presetSearch.activeFocus ? 1 : 0
                             MaterialIcon {
                                 anchors.left: parent.left
@@ -85,7 +88,7 @@ Rectangle {
                                 anchors.verticalCenter: parent.verticalCenter
                                 icon: "search"
                                 iconSize: 19
-                                color: Theme.textSecondary
+                                color: _visualPalette.textSecondary
                             }
                         }
                     }
@@ -94,7 +97,7 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.leftMargin: Theme.space8
                         text: "其他预设"
-                        color: Theme.textPrimary
+                        color: _visualPalette.textPrimary
                         font.pixelSize: Theme.fontBody
                         font.weight: Font.DemiBold
                     }
@@ -119,8 +122,8 @@ Rectangle {
                             width: toolList.width - 8
                             height: 56
                             radius: Theme.radiusSmall
-                            color: Theme.glassMode ? "transparent" : selected ? Theme.primaryContainer
-                                : (toolMouse.containsMouse ? Theme.surfaceContainer : "transparent")
+                            color: _visualPalette.glassMode ? "transparent" : selected ? _visualPalette.primaryContainer
+                                : (toolMouse.containsMouse ? _visualPalette.surfaceContainer : "transparent")
                             GlassListHighlight {
                                 anchors.fill: parent
                                 cornerRadius: parent.radius
@@ -137,17 +140,17 @@ Rectangle {
                                     Layout.preferredWidth: 30
                                     Layout.preferredHeight: 30
                                     radius: Theme.radiusSmall
-                                    color: Theme.glassMode ? "transparent" : Theme.surface
-                                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
-                                    MaterialIcon { anchors.centerIn: parent; icon: toolRow.iconName || "terminal"; iconSize: 19; color: toolRow.selected ? Theme.primary : Theme.secondary }
+                                    color: _visualPalette.glassMode ? "transparent" : _visualPalette.surface
+                                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surface; z: -0.5 }
+                                    MaterialIcon { anchors.centerIn: parent; icon: toolRow.iconName || "terminal"; iconSize: 19; color: toolRow.selected ? _visualPalette.primary : _visualPalette.secondary }
                                 }
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 1
-                                    Text { Layout.fillWidth: true; text: toolRow.title; color: toolRow.selected ? Theme.primary : Theme.textPrimary; font.pixelSize: Theme.fontBody; font.weight: toolRow.selected ? Font.Bold : Font.Normal; elide: Text.ElideRight }
-                                    Text { Layout.fillWidth: true; text: toolRow.description; color: Theme.textSecondary; font.pixelSize: Theme.fontMicro; elide: Text.ElideRight }
+                                    Text { Layout.fillWidth: true; text: toolRow.title; color: toolRow.selected ? _visualPalette.primary : _visualPalette.textPrimary; font.pixelSize: Theme.fontBody; font.weight: toolRow.selected ? Font.Bold : Font.Normal; elide: Text.ElideRight }
+                                    Text { Layout.fillWidth: true; text: toolRow.description; color: _visualPalette.textSecondary; font.pixelSize: Theme.fontMicro; elide: Text.ElideRight }
                                 }
-                                MaterialIcon { icon: "chevron_right"; iconSize: 18; color: toolRow.selected ? Theme.primary : Theme.textSecondary }
+                                MaterialIcon { icon: "chevron_right"; iconSize: 18; color: toolRow.selected ? _visualPalette.primary : _visualPalette.textSecondary }
                             }
 
                             MouseArea {

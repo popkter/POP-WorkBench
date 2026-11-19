@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
 
     required property string title
@@ -24,7 +27,7 @@ Item {
             Text {
                 width: parent.width
                 text: root.title
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: root.titlePixelSize
                 font.weight: Font.Bold
                 elide: Text.ElideRight
@@ -34,7 +37,7 @@ Item {
                 width: parent.width
                 visible: !root.compact && root.description.length > 0
                 text: root.description
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontPageDescription
                 elide: Text.ElideRight
                 maximumLineCount: 1

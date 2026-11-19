@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     clip: true
     required property string label
@@ -22,8 +25,8 @@ Item {
         anchors.fill: parent
         anchors.margins: root.compact ? Theme.navigationItemInset : 0
         radius: root.compact ? Theme.radiusSmall : Theme.radiusMedium
-        color: root.selected ? Theme.navigationSelected
-                             : (mouseArea.containsMouse ? Theme.navigationHover : "transparent")
+        color: root.selected ? _visualPalette.navigationSelected
+                             : (mouseArea.containsMouse ? _visualPalette.navigationHover : "transparent")
     }
 
     RowLayout {
@@ -38,17 +41,17 @@ Item {
         Item { visible: root.compact; Layout.fillWidth: true }
         MaterialIcon {
             icon: root.iconName
-            iconSize: root.compact ? Theme.navigationIconSize : 21
-            color: root.selected ? (Theme.navigationActiveIcon)
-                                 : (Theme.navigationIcon)
-            Layout.preferredWidth: root.compact ? Theme.navigationIconSize : 24
-            Layout.preferredHeight: root.compact ? Theme.navigationIconSize : 32
+            iconSize: root.compact ? _visualPalette.navigationIconSize : 21
+            color: root.selected ? (_visualPalette.navigationActiveIcon)
+                                 : (_visualPalette.navigationIcon)
+            Layout.preferredWidth: root.compact ? _visualPalette.navigationIconSize : 24
+            Layout.preferredHeight: root.compact ? _visualPalette.navigationIconSize : 32
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
         }
         Text {
             visible: !root.compact
             text: root.label
-            color: root.selected ? Theme.primary : Theme.textPrimary
+            color: root.selected ? _visualPalette.primary : _visualPalette.textPrimary
             font.pixelSize: Theme.fontComponentTitle
             font.weight: root.selected ? Font.Bold : Font.Medium
             Layout.fillWidth: true
@@ -69,21 +72,21 @@ Item {
         height: root.compact ? 28 : 34
         radius: height / 2
         color: actionMouse.containsMouse
-               ? Theme.primaryContainerHover : Theme.primaryContainer
+               ? _visualPalette.primaryContainerHover : _visualPalette.primaryContainer
 
         MaterialIcon {
             visible: root.compact
             anchors.centerIn: parent
             icon: root.actionIconName
             iconSize: 17
-            color: Theme.primaryText
+            color: _visualPalette.primaryText
         }
         Text {
             id: actionLabel
             visible: !root.compact
             anchors.centerIn: parent
             text: root.actionText
-            color: Theme.primaryText
+            color: _visualPalette.primaryText
             font.pixelSize: Theme.fontCaption
             font.weight: Font.DemiBold
         }

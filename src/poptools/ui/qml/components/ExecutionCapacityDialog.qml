@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 AppDialog {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
 
     required property var controller
@@ -43,7 +46,7 @@ AppDialog {
             text: "是否停止最先运行的“" + root.victimTitle
                   + "”，并开始“" + root.requestedTitle + "”？"
         }
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: _visualPalette.outlineVariant }
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.space8

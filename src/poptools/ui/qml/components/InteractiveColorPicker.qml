@@ -5,13 +5,15 @@ import QtQuick.Window
 import "../theme"
 
 DesktopScrollView {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: picker
     clip: true
     padding: Theme.detailPanelPadding
     background: Rectangle {
         radius: Theme.radiusMedium
-        color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
-        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainerLow; z: -0.5 }
+        color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
+        GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainerLow; z: -0.5 }
     }
 
     required property var utilities
@@ -86,7 +88,7 @@ DesktopScrollView {
 
         Text {
             text: "颜色值"
-            color: Theme.textPrimary
+            color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontComponentTitle
             font.weight: Font.DemiBold
         }
@@ -99,9 +101,9 @@ DesktopScrollView {
                 Layout.preferredWidth: 48
                 Layout.preferredHeight: 48
                 radius: Theme.radiusSmall
-                color: Theme.glassMode ? "transparent" : Theme.surface
-                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
-                border.color: Theme.outline
+                color: _visualPalette.glassMode ? "transparent" : _visualPalette.surface
+                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surface; z: -0.5 }
+                border.color: _visualPalette.outline
 
                 Canvas {
                     id: colorPreviewCanvas
@@ -166,9 +168,9 @@ DesktopScrollView {
                 }
                 background: Rectangle {
                     radius: Theme.radiusMedium
-                    color: Theme.glassMode ? "transparent" : Theme.surface
-                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surface; z: -0.5 }
-                    border.color: Theme.outline
+                    color: _visualPalette.glassMode ? "transparent" : _visualPalette.surface
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surface; z: -0.5 }
+                    border.color: _visualPalette.outline
                 }
             }
 
@@ -337,7 +339,7 @@ DesktopScrollView {
 
             Text {
                 text: "透明度"
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: Theme.fontBody
             }
 
@@ -358,7 +360,7 @@ DesktopScrollView {
                 Layout.preferredWidth: 34
                 horizontalAlignment: Text.AlignRight
                 text: picker.selectedAlpha
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontBody
             }
         }
@@ -369,7 +371,7 @@ DesktopScrollView {
                     + ", " + Math.round(picker.opaqueColor().g * 255)
                     + ", " + Math.round(picker.opaqueColor().b * 255)
                   : "请输入 #RRGGBB 或 #AARRGGBB"
-            color: Theme.textSecondary
+            color: _visualPalette.textSecondary
             font.pixelSize: Theme.fontBody
         }
 

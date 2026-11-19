@@ -1,10 +1,13 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 PrimaryButton {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "scriptIconPicker"
 
@@ -41,11 +44,11 @@ PrimaryButton {
     iconName: root.selectedIcon
     glyphSize: 24
     tonal: true
-    foregroundColor: Theme.primary
+    foregroundColor: _visualPalette.primary
     border.width: 0
     radius: Theme.radiusSmall
     color: root.hovered || iconPopup.opened
-        ? Theme.primaryContainer : Theme.surfaceContainerLow
+        ? _visualPalette.primaryContainer : _visualPalette.surfaceContainerLow
     onClicked: iconPopup.open()
 
     Popup {
@@ -76,16 +79,16 @@ PrimaryButton {
                 height: 40
                 radius: Theme.radiusSmall
                 color: root.selectedIcon === modelData
-                    ? Theme.primaryContainer
+                    ? _visualPalette.primaryContainer
                     : (choiceMouse.containsMouse
-                        ? Theme.surfaceContainerHigh : "transparent")
+                        ? _visualPalette.surfaceContainerHigh : "transparent")
 
                 MaterialIcon {
                     anchors.centerIn: parent
                     icon: iconChoice.modelData
                     iconSize: 25
                     color: root.selectedIcon === iconChoice.modelData
-                        ? Theme.primary : Theme.textSecondary
+                        ? _visualPalette.primary : _visualPalette.textSecondary
                 }
 
                 HoverTips {

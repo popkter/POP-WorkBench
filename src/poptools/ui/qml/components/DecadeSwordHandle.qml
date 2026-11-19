@@ -1,13 +1,16 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Shapes
 import "../theme"
 
 // Ride Booker silhouette: silver blade, magenta spine and angular crossguard.
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     objectName: "decadeSwordScrollHandle"
     property bool highlighted: false
-    readonly property color accent: highlighted ? Theme.primaryHover : Theme.primary
+    readonly property color accent: highlighted ? _visualPalette.primaryHover : _visualPalette.primary
     readonly property real bladeBottom: Math.max(12, height - 24)
     implicitWidth: 14
     implicitHeight: 72

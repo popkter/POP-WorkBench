@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 AppDialog {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     property bool editMode: false
@@ -269,10 +272,10 @@ AppDialog {
                     iconName: "close"
                     glyphSize: 23
                     tonal: true
-                    foregroundColor: Theme.textSecondary
+                    foregroundColor: _visualPalette.textSecondary
                     border.width: 0
                     radius: height / 2
-                    color: hovered ? Theme.surfaceContainerHigh : "transparent"
+                    color: hovered ? _visualPalette.surfaceContainerHigh : "transparent"
                     onClicked: root.close()
                 }
             }
@@ -305,7 +308,7 @@ AppDialog {
                         Layout.fillWidth: true
                         Layout.preferredWidth: 440
                         spacing: 6
-                        Text { text: "命令名称"; color: Theme.textPrimary; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold }
+                        Text { text: "命令名称"; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold }
                         AppTextField {
                             id: titleField
                             objectName: "commandEditorTitleField"
@@ -316,13 +319,13 @@ AppDialog {
                             leftPadding: iconButton.x + iconButton.width + Theme.space12
                             rightPadding: 15
                             placeholderText: "例如：打开系统设置"
-                            color: Theme.textPrimary
+                            color: _visualPalette.textPrimary
                             background: Rectangle {
                                 radius: Theme.radiusControl
-                                color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
+                                color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
                                 border.color: titleField.activeFocus || iconPopup.opened
-                                              ? Theme.primary : Theme.outlineVariant
+                                              ? _visualPalette.primary : _visualPalette.outlineVariant
                                 border.width: titleField.activeFocus || iconPopup.opened ? 2 : 1
                             }
 
@@ -340,12 +343,12 @@ AppDialog {
                                 iconName: root.selectedIcon
                                 glyphSize: 22
                                 tonal: true
-                                foregroundColor: Theme.primary
+                                foregroundColor: _visualPalette.primary
                                 border.width: 0
                                 radius: Theme.radiusSmall
                                 z: 201
                                 color: hovered || iconPopup.opened
-                                       ? Theme.primaryContainer : Theme.surfaceContainerLow
+                                       ? _visualPalette.primaryContainer : _visualPalette.surfaceContainerLow
                                 onClicked: iconPopup.open()
 
                                 Popup {
@@ -373,15 +376,15 @@ AppDialog {
                                             height: 40
                                             radius: Theme.radiusSmall
                                             color: root.selectedIcon === modelData.value
-                                                   ? Theme.primaryContainer
+                                                   ? _visualPalette.primaryContainer
                                                    : (iconMouse.containsMouse
-                                                      ? Theme.surfaceContainerHigh : "transparent")
+                                                      ? _visualPalette.surfaceContainerHigh : "transparent")
                                             MaterialIcon {
                                                 anchors.centerIn: parent
                                                 icon: iconChoice.modelData.value
                                                 iconSize: 25
                                                 color: root.selectedIcon === iconChoice.modelData.value
-                                                       ? Theme.primary : Theme.textSecondary
+                                                       ? _visualPalette.primary : _visualPalette.textSecondary
                                             }
                                             HoverTips {
                                                 visible: iconMouse.containsMouse
@@ -408,7 +411,7 @@ AppDialog {
                         Layout.fillWidth: true
                         Layout.preferredWidth: 220
                         spacing: 6
-                        Text { text: "运行方式"; color: Theme.textPrimary; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold }
+                        Text { text: "运行方式"; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold }
                         AppComboBox {
                             id: kindBox
                             Layout.fillWidth: true
@@ -419,9 +422,9 @@ AppDialog {
                             leftPadding: 14
                             background: Rectangle {
                                 radius: Theme.radiusControl
-                                color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-                                border.color: kindBox.activeFocus ? Theme.primary : Theme.outlineVariant
+                                color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                                GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+                                border.color: kindBox.activeFocus ? _visualPalette.primary : _visualPalette.outlineVariant
                                 border.width: kindBox.activeFocus ? 2 : 1
                             }
                         }
@@ -434,7 +437,7 @@ AppDialog {
                     Layout.leftMargin: Theme.space24
                     Layout.rightMargin: Theme.space24
                     spacing: 6
-                    Text { text: "功能说明"; color: Theme.textPrimary; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold }
+                    Text { text: "功能说明"; color: _visualPalette.textPrimary; font.pixelSize: Theme.fontLabel; font.weight: Font.DemiBold }
                     AppTextField {
                         id: descriptionField
                         FilePathDropArea { target: descriptionField }
@@ -447,12 +450,12 @@ AppDialog {
                         bottomPadding: 12
                         placeholderText: "简要说明命令用途"
                         wrapMode: TextEdit.Wrap
-                        color: Theme.textPrimary
+                        color: _visualPalette.textPrimary
                         background: Rectangle {
                             radius: Theme.radiusControl
-                            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-                            border.color: descriptionField.activeFocus ? Theme.primary : Theme.outlineVariant
+                            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+                            border.color: descriptionField.activeFocus ? _visualPalette.primary : _visualPalette.outlineVariant
                             border.width: descriptionField.activeFocus ? 2 : 1
                         }
                     }
@@ -465,7 +468,7 @@ AppDialog {
                     spacing: 10
                     Text {
                         text: "Android 设备"
-                        color: Theme.textPrimary
+                        color: _visualPalette.textPrimary
                         font.pixelSize: Theme.fontLabel
                     }
                     AppComboBox {
@@ -480,16 +483,16 @@ AppDialog {
                         valueRole: "value"
                         background: Rectangle {
                             radius: Theme.radiusControl
-                            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-                            border.color: androidModeBox.activeFocus ? Theme.primary : Theme.outlineVariant
+                            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+                            border.color: androidModeBox.activeFocus ? _visualPalette.primary : _visualPalette.outlineVariant
                             border.width: androidModeBox.activeFocus ? 2 : 1
                         }
                     }
                     Text {
                         Layout.fillWidth: true
                         text: root.androidDetectionText
-                        color: Theme.textSecondary
+                        color: _visualPalette.textSecondary
                         font.pixelSize: Theme.fontSupporting
                         wrapMode: Text.WordWrap
                     }
@@ -502,9 +505,9 @@ AppDialog {
                     Layout.leftMargin: Theme.space24
                     Layout.rightMargin: Theme.space24
                     radius: Theme.radiusMedium
-                    color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
-                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainerLow; z: -0.5 }
-                    border.color: Theme.outlineVariant
+                    color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainerLow; z: -0.5 }
+                    border.color: _visualPalette.outlineVariant
                     border.width: 1
                     clip: true
 
@@ -521,7 +524,7 @@ AppDialog {
 
                             Text {
                                 text: "脚本内容"
-                                color: Theme.primary
+                                color: _visualPalette.primary
                                 font.pixelSize: Theme.fontSupporting
                                 font.weight: Font.DemiBold
                             }
@@ -531,7 +534,7 @@ AppDialog {
                                 horizontalAlignment: Text.AlignRight
                                 elide: Text.ElideRight
                                 text: "参数格式：${名称@类型:默认值}；支持文本、多行、数字、复选框、下拉、单选、路径和密码"
-                                color: Theme.textSecondary
+                                color: _visualPalette.textSecondary
                                 font.pixelSize: Theme.fontMicro
                             }
                         }
@@ -539,7 +542,7 @@ AppDialog {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 1
-                            color: Theme.outlineVariant
+                            color: _visualPalette.outlineVariant
                         }
 
                         DesktopScrollView {
@@ -565,8 +568,8 @@ AppDialog {
                                 topPadding: 10
                                 bottomPadding: 10
                                 placeholderText: "例如：Var vin = ${请输入 VIN:VIN123}\nadb shell setprop persist.sys.vin ${vin}"
-                                color: Theme.textPrimary
-                                selectionColor: Theme.primary
+                                color: _visualPalette.textPrimary
+                                selectionColor: _visualPalette.primary
                                 selectedTextColor: "white"
                                 font.family: "Cascadia Mono"
                                 font.pixelSize: Theme.fontSupporting
@@ -583,19 +586,19 @@ AppDialog {
                     Layout.rightMargin: Theme.space24
                     Layout.preferredHeight: helperText.implicitHeight + 22
                     radius: Theme.radiusMedium
-                    color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
+                    color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 13
                         anchors.rightMargin: 13
                         spacing: 9
-                        MaterialIcon { icon: "info"; iconSize: 20; color: Theme.textSecondary }
+                        MaterialIcon { icon: "info"; iconSize: 20; color: _visualPalette.textSecondary }
                         Text {
                             id: helperText
                             Layout.fillWidth: true
                             text: "例如 ${次数@integer:3}、${启用@boolean:true}、${模式@choice:开启=1|关闭=0}、${环境@radio:开发=dev|生产=prod}。省略类型默认文本；旧版写法继续兼容。重复参数可用 Var 声明；@secret 隐藏输入，也支持声明和保存默认值。"
-                            color: Theme.textSecondary
+                            color: _visualPalette.textSecondary
                             font.pixelSize: Theme.fontCaption
                             wrapMode: Text.WordWrap
                         }
@@ -613,12 +616,12 @@ AppDialog {
             Layout.rightMargin: Theme.space20
             visible: root.saveError.length > 0
             text: root.saveError
-            color: Theme.errorColor
+            color: _visualPalette.errorColor
             font.pixelSize: Theme.fontBody
             wrapMode: Text.Wrap
         }
 
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: _visualPalette.outlineVariant }
         Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 80

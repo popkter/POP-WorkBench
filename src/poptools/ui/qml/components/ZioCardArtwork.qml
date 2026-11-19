@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Shapes
 import "../theme"
 
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property bool backFace: false
     property string iconName: "terminal"
@@ -19,7 +22,7 @@ Item {
             radius: (12 - index * 2) * root.unit
             color: "transparent"
             border.width: (index === 1 ? 3 : 1) * root.unit
-            border.color: index === 1 ? Theme.primary : Theme.outline
+            border.color: index === 1 ? _visualPalette.primary : _visualPalette.outline
         }
     }
     Item {
@@ -30,9 +33,9 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: width / 2
-            color: Theme.decadeCardBackFill
+            color: LauncherStyle.decadeCardBackFill
             border.width: 4 * root.unit
-            border.color: Theme.primary
+            border.color: _visualPalette.primary
         }
         Rectangle {
             anchors.fill: parent
@@ -40,7 +43,7 @@ Item {
             radius: width / 2
             color: "transparent"
             border.width: root.unit
-            border.color: Theme.primaryText
+            border.color: _visualPalette.primaryText
         }
         Repeater {
             model: 60
@@ -53,7 +56,7 @@ Item {
                     y: 7 * root.unit
                     width: (parent.index % 5 === 0 ? 4 : 1.5) * root.unit
                     height: (parent.index % 5 === 0 ? 18 : 8) * root.unit
-                    color: Theme.primaryText
+                    color: _visualPalette.primaryText
                 }
             }
         }
@@ -61,14 +64,14 @@ Item {
             anchors.centerIn: parent
             icon: root.iconName || "terminal"
             iconSize: clock.width * 0.35
-            color: Theme.primaryText
+            color: _visualPalette.primaryText
         }
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             y: parent.height * 0.2
             width: 3 * root.unit
             height: parent.height * 0.23
-            color: Theme.primary
+            color: _visualPalette.primary
             rotation: -30
             transformOrigin: Item.Bottom
         }
@@ -84,9 +87,9 @@ Item {
             anchors.fill: parent
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
-                strokeColor: Theme.primaryText
+                strokeColor: _visualPalette.primaryText
                 strokeWidth: 2
-                fillColor: Theme.primary
+                fillColor: _visualPalette.primary
                 startX: 8; startY: 48
                 PathLine { x: 0; y: 14 }
                 PathLine { x: 26; y: 30 }
@@ -97,7 +100,7 @@ Item {
                 PathLine { x: 8; y: 48 }
             }
         }
-        Rectangle { x: 10; y: 53; width: 80; height: 5; color: Theme.primaryText }
+        Rectangle { x: 10; y: 53; width: 80; height: 5; color: _visualPalette.primaryText }
     }
     Repeater {
         model: 10
@@ -108,8 +111,8 @@ Item {
             width: root.width * 0.10
             height: root.height * 0.075
             radius: 3 * root.unit
-            color: Theme.primaryContainer
-            border.color: Theme.primary
+            color: _visualPalette.primaryContainer
+            border.color: _visualPalette.primary
             border.width: root.unit
             Rectangle {
                 anchors.centerIn: parent
@@ -117,7 +120,7 @@ Item {
                 height: width
                 rotation: 45
                 color: "transparent"
-                border.color: Theme.primaryText
+                border.color: _visualPalette.primaryText
                 border.width: root.unit
             }
         }
@@ -126,7 +129,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         y: parent.height * 0.78
         text: "GRAND ZI-O"
-        color: Theme.primaryText
+        color: _visualPalette.primaryText
         font.pixelSize: 19 * root.unit
         font.letterSpacing: 5 * root.unit
         font.weight: Font.DemiBold

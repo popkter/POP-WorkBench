@@ -1,3 +1,5 @@
 singleton Theme 1.0 Theme.qml
 singleton ThemeConfig 1.0 ThemeConfig.qml
 
+singleton LauncherStyle 1.0 LauncherStyle.qml
+singleton LauncherPalette 1.0 LauncherPalette.qml

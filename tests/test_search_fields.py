@@ -3,7 +3,7 @@ from PySide6.QtCore import QMetaObject, QObject, Qt
 from PySide6.QtTest import QTest
 
 from poptools.domain.models import ToolSection
-from test_floating_launcher import create_tool, ids
+from test_floating_launcher import create_tool, ids, select_presentation
 from test_floating_launcher import launcher as launcher
 from test_zio_theme import zio_app as zio_app
 
@@ -42,7 +42,7 @@ def test_search_filters_are_owned_by_each_page_and_floating_launcher(launcher):
 @pytest.mark.parametrize("theme", ["light", "dark", "decade", "zio"])
 def test_search_boxes_clear_independently_and_keep_their_own_text(zio_app, qtbot, theme):
     window, floating, backend, settings, _, warnings = zio_app
-    settings.saveThemeMode(theme)
+    select_presentation(settings, theme)
     alpha = create_tool(backend, "甲乙丙丁")
     beta = create_tool(backend, "悬浮窗独立搜索")
 

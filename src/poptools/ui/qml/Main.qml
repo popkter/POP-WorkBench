@@ -52,11 +52,6 @@ ApplicationWindow {
         property: "darkMode"
         value: settingsController.darkTheme
     }
-    Binding {
-        target: Theme
-        property: "decadeMode"
-        value: settingsController.themeMode === "decade"
-    }
 
     readonly property var glassConfig: {
         const revision = settingsController.themeStyles
@@ -64,25 +59,13 @@ ApplicationWindow {
         return raw ? JSON.parse(raw) : ({})
     }
     Binding { target: Theme; property: "glassMode"
-        value: settingsController.themeStyle === "glass" && !Theme.mechanicalMode }
+        value: settingsController.themeStyle === "glass" }
     Binding { target: Theme; property: "glassPalette"
         value: (Theme.darkMode ? window.glassConfig.darkColors : window.glassConfig.colors) || ({}) }
     Binding { target: Theme; property: "glassMaterial"; value: window.glassConfig.material || ({}) }
 
-    Binding {
-        target: Theme
-        property: "zioMode"
-        value: settingsController.themeMode === "zio"
-    }
-    Binding {
-        target: Theme
-        property: "zioPalette"
-        value: {
-            const revision = settingsController.themeStyles
-            const config = settingsController.themeConfigJson("zio")
-            return config ? JSON.parse(config).darkColors : ({})
-        }
-    }
+
+    Binding { target: LauncherStyle; property: "style"; value: settingsController.floatingLauncherStyle }
 
     property var parameterValues: ({})
     readonly property real primaryNavWidth: titleBarHeight
@@ -873,7 +856,7 @@ ApplicationWindow {
     ZioCardCoordinator {
         id: zioCards
         objectName: "zioCardCoordinator"
-        active: Theme.zioMode
+        active: LauncherStyle.zio
         windows: window.recentToolWindows
         launchOrigin: function(id) {
             return floatingLauncherLoader.item ? floatingLauncherLoader.item.cardOrigin(id) : Qt.rect(0, 0, 0, 0)
@@ -887,12 +870,16 @@ ApplicationWindow {
         target: settingsController
         function onThemeChanged() {
             window.cancelToolIncubations()
-            if (Theme.zioMode) Qt.callLater(zioCards.normalize)
+            if (LauncherStyle.zio) Qt.callLater(zioCards.normalize)
+        }
+        function onFloatingLauncherStyleChanged() {
+            window.cancelToolIncubations()
+            if (LauncherStyle.zio) Qt.callLater(zioCards.normalize)
         }
     }
     Connections {
         target: typeof floatingController !== "undefined" ? floatingController : null
-        function onDockScreenChanged() { if (Theme.zioMode) Qt.callLater(zioCards.settleScreen) }
+        function onDockScreenChanged() { if (LauncherStyle.zio) Qt.callLater(zioCards.settleScreen) }
     }
 
     function closeRecentToolWindows() {
@@ -923,7 +910,7 @@ ApplicationWindow {
         active: typeof floatingController !== "undefined"
         sourceComponent: FloatingLauncher {
             controller: floatingController
-            continuousRecall: Theme.decadeMode && cardRecallQueue.running
+            continuousRecall: LauncherStyle.decade && cardRecallQueue.running
         }
     }
 
@@ -958,7 +945,7 @@ ApplicationWindow {
             openToolWindow(toolId)
         }
         function onCustomToolsChanged() {
-            if (!Theme.zioMode) return
+            if (!LauncherStyle.zio) return
             for (const card of Object.values(window.recentToolWindows)) {
                 if (card.zioManaged && !appController.isCustomScript(card.toolId)) {
                     delete zioCards.parameterSnapshots[card.toolId]
@@ -978,7 +965,7 @@ ApplicationWindow {
                 : typeof floatingController !== "undefined" ? floatingController.cardLaunchToken(toolId) : -1
             if (typeof floatingController !== "undefined" && !floatingController.canActivateCard(token))
                 return
-            var origin = queuedRequest ? queuedRequest.origin : Theme.zioMode && floatingLauncherLoader.item
+            var origin = queuedRequest ? queuedRequest.origin : LauncherStyle.zio && floatingLauncherLoader.item
                 ? floatingLauncherLoader.item.cardOrigin(toolId)
                 : typeof floatingController !== "undefined"
                     ? floatingController.cardLaunchOrigin(toolId) : Qt.rect(0, 0, 0, 0)
@@ -999,7 +986,7 @@ ApplicationWindow {
             }
             if (window.pendingToolWindows[toolId])
                 return
-            if (!Theme.mechanicalMode) {
+            if (!LauncherStyle.mechanical) {
                 const win = recentToolWindowComponent.createObject(null, {
                     launchOrigin: origin, floatingActivationToken: token})
                 if (win) finishToolWindow(toolId, win)
@@ -1010,7 +997,7 @@ ApplicationWindow {
             // blocks rotation/scans in every window sharing the GUI thread.
             const incubator = recentToolWindowComponent.incubateObject(
                 null, {launchOrigin: origin, floatingActivationToken: token,
-                       zioManaged: Theme.zioMode && appController.isCustomScript(toolId)}, Qt.Asynchronous)
+                       zioManaged: LauncherStyle.zio && appController.isCustomScript(toolId)}, Qt.Asynchronous)
             window.pendingToolWindows[toolId] = incubator
             function completed() {
                 if (incubator.status === Component.Loading)
@@ -1039,7 +1026,7 @@ ApplicationWindow {
                 win.destroy()
                 return
             }
-            win.zioManaged = Theme.zioMode && appController.isCustomScript(toolId)
+            win.zioManaged = LauncherStyle.zio && appController.isCustomScript(toolId)
             win.handoffBlocked = false
             if (win.zioManaged && floatingLauncherLoader.item)
                 win.launchDockBounds = floatingLauncherLoader.item.dockBounds()
@@ -1066,7 +1053,7 @@ ApplicationWindow {
             opened[toolId] = win
             window.recentToolWindows = opened
             win.dismissed.connect(function(closedToolId) {
-                if (Theme.zioMode) zioCards.remember(win)
+                if (LauncherStyle.zio) zioCards.remember(win)
                 if (win.cardFace && floatingLauncherLoader.item) {
                     // Native close/theme changes also give the borrowed item back.
                     const face = win.cardFace
@@ -1087,7 +1074,7 @@ ApplicationWindow {
                     Qt.callLater(function() { toolWindowRequests.openToolWindow(closedToolId, queued) })
                 }
             })
-            win.initialParameterValues = Theme.zioMode ? zioCards.parameterSnapshots[toolId] || null : null
+            win.initialParameterValues = LauncherStyle.zio ? zioCards.parameterSnapshots[toolId] || null : null
             win.showWithTool(toolId)
             if (!win.visible) win.dismissCard()
         }

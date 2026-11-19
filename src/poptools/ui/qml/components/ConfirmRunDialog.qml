@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 AppDialog {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var parentWindow
@@ -22,7 +25,7 @@ AppDialog {
             description: "运行前请确认目标设备与输入参数。"
             iconName: "play_arrow"
         }
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: _visualPalette.outlineVariant }
         RowLayout {
             Layout.fillWidth: true; spacing: Theme.space8
             Item { Layout.fillWidth: true }

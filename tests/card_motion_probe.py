@@ -203,7 +203,7 @@ import "theme"
 RecentToolDialog {
     Component.onCompleted: {
         Theme.darkMode = probeTheme !== "light"
-        Theme.decadeMode = probeTheme === "decade"
+        LauncherStyle.style = probeTheme === "decade" ? "decade" : "default"
     }
 }
 ''', QUrl.fromLocalFile(str(package_root() / "ui/qml/CardStressHarness.qml")))

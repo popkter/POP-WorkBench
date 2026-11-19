@@ -1,7 +1,10 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 Column {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     required property var controller
     required property var cardList
     id: root
@@ -9,13 +12,13 @@ Column {
     spacing: 6
     PrimaryButton {
         id: pinKey
-        objectName: Theme.decadeMode ? "floatingPinButton" : "decadeHiddenPin"
+        objectName: LauncherStyle.decade ? "floatingPinButton" : "decadeHiddenPin"
         width: 30; height: 30
         compact: true; iconName: "push_pin"
         showHoverTips: false
         text: root.controller.pinned ? "取消置顶" : "置顶卡包"
         color: "transparent"; border.width: 0; radius: 1
-        foregroundColor: root.controller.pinned || hovered ? Theme.primaryText : "#A9B0BA"
+        foregroundColor: root.controller.pinned || hovered ? _visualPalette.primaryText : "#A9B0BA"
         glyphSize: 16
         DecadePackControlFace {
             anchors.fill: parent; z: -1
@@ -30,13 +33,13 @@ Column {
     }
     PrimaryButton {
         id: recallKey
-        objectName: Theme.decadeMode ? "floatingRecallAllButton" : "decadeHiddenRecall"
+        objectName: LauncherStyle.decade ? "floatingRecallAllButton" : "decadeHiddenRecall"
         width: 30; height: 30
         compact: true; iconName: "layers_clear"; text: "收回卡牌"
         showHoverTips: false
         enabled: root.controller.openCardCount > 0 || root.cardList.pendingLaunchCount > 0
         color: "transparent"; border.width: 0; radius: 1
-        foregroundColor: hovered ? Theme.primaryText : "#A9B0BA"
+        foregroundColor: hovered ? _visualPalette.primaryText : "#A9B0BA"
         glyphSize: 16; disabledOpacity: 0.4
         DecadePackControlFace {
             anchors.fill: parent; z: -1
@@ -53,12 +56,12 @@ Column {
     }
     PrimaryButton {
         id: collapseKey
-        objectName: Theme.decadeMode ? "floatingCollapseButton" : "decadeHiddenCollapse"
+        objectName: LauncherStyle.decade ? "floatingCollapseButton" : "decadeHiddenCollapse"
         width: 30; height: 30
         compact: true; iconName: "remove"; text: "收起卡册"
         showHoverTips: false
         color: "transparent"; border.width: 0; radius: 1
-        foregroundColor: hovered ? Theme.primaryText : "#A9B0BA"
+        foregroundColor: hovered ? _visualPalette.primaryText : "#A9B0BA"
         glyphSize: 16
         DecadePackControlFace {
             anchors.fill: parent; z: -1

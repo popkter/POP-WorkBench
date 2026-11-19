@@ -7,17 +7,19 @@ import "../theme"
 
 // Incubated separately: creating a new form must not block cards already in flight.
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: content
     required property var dialog
     property alias workspace: workspaceLoader
-    readonly property bool decadeCard: dialog.customScriptMode && Theme.mechanicalMode
+    readonly property bool decadeCard: dialog.customScriptMode && LauncherStyle.mechanical
     readonly property bool standardCard: dialog.customScriptMode && !content.decadeCard
     readonly property real cardScale: Math.max(0.1, dialog.cardUiScale)
     readonly property real cardActionSize: 36 / cardScale
     component CardRunButton: PrimaryButton {
         objectName: content.decadeCard ? "recentToolHeaderRunButton" : "recentToolRunButton"
-        width: content.standardCard ? content.cardActionSize : content.decadeCard ? Theme.decadeCardActionSize : 48
-        height: content.standardCard ? content.cardActionSize : content.decadeCard ? Theme.decadeCardActionSize : 32
+        width: content.standardCard ? content.cardActionSize : content.decadeCard ? LauncherStyle.decadeCardActionSize : 48
+        height: content.standardCard ? content.cardActionSize : content.decadeCard ? LauncherStyle.decadeCardActionSize : 32
         anchors.verticalCenter: parent.verticalCenter
         compact: true
         showHoverTips: !content.decadeCard && compact
@@ -26,20 +28,20 @@ Item {
         iconName: dialog.operationRunning ? "stop" : "play_arrow"
         glyphSize: content.standardCard ? 20 / content.cardScale : dialog.customScriptMode ? 20 : 24
         tonal: true
-        foregroundColor: content.standardCard ? (dialog.operationRunning ? Theme.errorColor : Theme.primaryText)
-            : content.decadeCard ? Theme.primaryText : dialog.customScriptMode
-            ? (dialog.operationRunning ? Theme.errorColor : Theme.success) : "white"
+        foregroundColor: content.standardCard ? (dialog.operationRunning ? _visualPalette.errorColor : _visualPalette.primaryText)
+            : content.decadeCard ? _visualPalette.primaryText : dialog.customScriptMode
+            ? (dialog.operationRunning ? _visualPalette.errorColor : _visualPalette.success) : "white"
         border.width: content.decadeCard ? Theme.borderWidthThin : 0
-        border.color: Theme.decadeCardActionBorder
+        border.color: LauncherStyle.decadeCardActionBorder
         radius: content.standardCard ? Theme.radiusControl / content.cardScale : content.decadeCard ? Theme.radiusSmall : Theme.radiusMedium
-        color: content.standardCard ? (hovered ? Theme.primaryContainerHover : Theme.primaryContainer)
-            : content.decadeCard ? (hovered ? Theme.primaryContainer : Theme.decadeCardActionFill) : dialog.customScriptMode
-            ? (hovered ? Theme.navigationHover : "transparent")
+        color: content.standardCard ? (hovered ? _visualPalette.primaryContainerHover : _visualPalette.primaryContainer)
+            : content.decadeCard ? (hovered ? _visualPalette.primaryContainer : LauncherStyle.decadeCardActionFill) : dialog.customScriptMode
+            ? (hovered ? _visualPalette.navigationHover : "transparent")
             : dialog.operationRunning
-            ? (hovered ? Qt.darker(Theme.errorColor, 1.1) : Theme.errorColor)
-            : (hovered ? Theme.primaryHover : Theme.primary)
+            ? (hovered ? Qt.darker(_visualPalette.errorColor, 1.1) : _visualPalette.errorColor)
+            : (hovered ? _visualPalette.primaryHover : _visualPalette.primary)
         labelFontSize: content.standardCard ? 13 / content.cardScale
-            : dialog.customScriptMode ? Theme.decadeCardTextSize : Theme.fontSupporting
+            : dialog.customScriptMode ? LauncherStyle.decadeCardTextSize : Theme.fontSupporting
         labelFontWeight: Font.Normal
         Accessible.role: Accessible.Button
         Accessible.name: text
@@ -62,7 +64,7 @@ Item {
         shadowEnabled: !dialog.customScriptMode
         shadowBlur: 0.7
         blurMax: 24
-        shadowOpacity: Theme.darkMode ? 0.72 : 0.42
+        shadowOpacity: _visualPalette.darkMode ? 0.72 : 0.42
         shadowColor: "#000000"
         shadowHorizontalOffset: 0
         shadowVerticalOffset: 6
@@ -73,16 +75,16 @@ Item {
         objectName: "recentToolCardSurface"
         anchors.fill: parent
         anchors.margins: dialog.customScriptMode ? 0 : Theme.space8
-        radius: content.decadeCard ? Theme.decadeCardRadius : dialog.customScriptMode ? Theme.radiusMedium : Theme.radiusLarge
-        color: Theme.glassMode ? "transparent" : content.decadeCard ? Theme.decadeCardSurface : dialog.customScriptMode ? Theme.surfaceContainerLow
-            : Theme.darkMode ? Theme.surfaceContainer : Theme.surface
+        radius: content.decadeCard ? LauncherStyle.decadeCardRadius : dialog.customScriptMode ? Theme.radiusMedium : Theme.radiusLarge
+        color: _visualPalette.glassMode ? "transparent" : content.decadeCard ? LauncherStyle.decadeCardSurface : dialog.customScriptMode ? _visualPalette.surfaceContainerLow
+            : _visualPalette.darkMode ? _visualPalette.surfaceContainer : _visualPalette.surface
         border.width: 0
-        border.color: content.decadeCard ? Theme.primary : Theme.outlineVariant
+        border.color: content.decadeCard ? _visualPalette.primary : _visualPalette.outlineVariant
         clip: true
 
         GlassSurface {
             anchors.fill: parent; cornerRadius: parent.radius
-            tintColor: content.decadeCard ? Theme.decadeCardSurface : Theme.surfaceContainerLow
+            tintColor: content.decadeCard ? LauncherStyle.decadeCardSurface : _visualPalette.surfaceContainerLow
             z: -0.5
         }
 
@@ -102,7 +104,7 @@ Item {
                 id: dialogTitleBar
                 Layout.fillWidth: true
                 Layout.preferredHeight: content.standardCard ? content.cardActionSize + 8 / content.cardScale
-                    : content.decadeCard ? Theme.decadeCardHeaderHeight : 56
+                    : content.decadeCard ? LauncherStyle.decadeCardHeaderHeight : 56
                 color: "transparent"
 
                 // Drag-to-move area (covers title bar, behind interactive elements)
@@ -126,7 +128,7 @@ Item {
                             dialog.startSystemMove()
                         }
                     }
-                    onDoubleClicked: if (dialog.customScriptMode && Theme.mechanicalMode)
+                    onDoubleClicked: if (dialog.customScriptMode && LauncherStyle.mechanical)
                         dialog.queueTitleActivation()
                 }
 
@@ -148,15 +150,15 @@ Item {
                     visible: true
                     anchors.left: parent.left
                     anchors.leftMargin: content.standardCard ? 40 / content.cardScale
-                        : content.decadeCard ? Theme.decadeCardPadding : Theme.space20
+                        : content.decadeCard ? LauncherStyle.decadeCardPadding : Theme.space20
                     anchors.right: titleButtons.left
                     anchors.rightMargin: Theme.space12
                     anchors.verticalCenter: parent.verticalCenter
                     text: content.decadeCard || content.standardCard ? dialog.selectedTool.title || "运行脚本"
                         : dialog.selectedTool.title || "运行工具"
-                    color: dialog.customScriptMode ? Theme.chromeForeground : Theme.textPrimary
+                    color: dialog.customScriptMode ? _visualPalette.chromeForeground : _visualPalette.textPrimary
                     font.pixelSize: content.standardCard ? Theme.fontBody / content.cardScale
-                        : content.decadeCard ? Theme.decadeCardTitleSize : Theme.fontSectionTitle
+                        : content.decadeCard ? LauncherStyle.decadeCardTitleSize : Theme.fontSectionTitle
                     font.weight: content.standardCard ? Font.Bold : content.decadeCard ? Font.DemiBold : dialog.customScriptMode ? Font.Medium : Font.Bold
                     elide: Text.ElideRight
                 }
@@ -165,7 +167,7 @@ Item {
                 Row {
                     id: titleButtons
                     anchors.right: parent.right
-                    anchors.rightMargin: content.decadeCard ? Theme.decadeCardPadding : 0
+                    anchors.rightMargin: content.decadeCard ? LauncherStyle.decadeCardPadding : 0
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     spacing: content.decadeCard ? Theme.space8 : Theme.space4
@@ -183,10 +185,10 @@ Item {
                         objectName: "recentToolDeviceSelector"
                         visible: dialog.customScriptMode && !!dialog.deviceController
                         width: content.standardCard ? Math.max(0, standardActions.width - headerRunButton.width - standardActions.spacing)
-                            : content.decadeCard ? Theme.decadeCardActionSize : 160
+                            : content.decadeCard ? LauncherStyle.decadeCardActionSize : 160
                         uiScale: content.standardCard ? 1 / content.cardScale : 1
                         controlHeight: content.standardCard ? content.cardActionSize
-                            : iconOnly ? Theme.decadeCardActionSize : compact ? Theme.captionActionHeight : 41
+                            : iconOnly ? LauncherStyle.decadeCardActionSize : compact ? Theme.captionActionHeight : 41
                         outlined: content.standardCard
                         labelFontSize: content.standardCard ? 12 : Theme.fontSupporting
                         anchors.verticalCenter: parent.verticalCenter
@@ -219,7 +221,7 @@ Item {
                     ToolButton {
                         id: pinButton
                         objectName: "recentToolPinButton"
-                        width: content.standardCard ? content.cardActionSize : content.decadeCard ? Theme.decadeCardActionSize : 32
+                        width: content.standardCard ? content.cardActionSize : content.decadeCard ? LauncherStyle.decadeCardActionSize : 32
                         height: width
                         anchors.verticalCenter: parent.verticalCenter
                         checkable: true
@@ -230,14 +232,14 @@ Item {
                         contentItem: MaterialIcon {
                             icon: "push_pin"
                             iconSize: content.standardCard ? 20 / content.cardScale : 19
-                            color: pinButton.checked ? Theme.primaryText : Theme.textPrimary
+                            color: pinButton.checked ? _visualPalette.primaryText : _visualPalette.textPrimary
                         }
                         background: Rectangle {
                             radius: content.decadeCard ? Theme.radiusSmall : Theme.radiusTiny
-                            color: pinButton.checked || pinButton.hovered ? Theme.primaryContainer
-                                : content.decadeCard ? Theme.decadeCardActionFill : "transparent"
+                            color: pinButton.checked || pinButton.hovered ? _visualPalette.primaryContainer
+                                : content.decadeCard ? LauncherStyle.decadeCardActionFill : "transparent"
                             border.width: content.decadeCard || pinButton.checked ? Theme.borderWidthThin : 0
-                            border.color: pinButton.checked ? Theme.primary : Theme.decadeCardActionBorder
+                            border.color: pinButton.checked ? _visualPalette.primary : LauncherStyle.decadeCardActionBorder
                         }
                         HoverTips {
                             visible: pinButton.hovered
@@ -250,9 +252,9 @@ Item {
                         objectName: "recentToolMinimizeButton"
                         visible: !dialog.customScriptMode
                         width: 42; height: parent.height
-                        color: minimizeArea.containsMouse ? Theme.surfaceContainerHigh : "transparent"
+                        color: minimizeArea.containsMouse ? _visualPalette.surfaceContainerHigh : "transparent"
                         MaterialIcon {
-                            anchors.centerIn: parent; icon: "remove"; iconSize: 19; color: Theme.textPrimary
+                            anchors.centerIn: parent; icon: "remove"; iconSize: 19; color: _visualPalette.textPrimary
                         }
                         MouseArea {
                             id: minimizeArea; anchors.fill: parent; hoverEnabled: true; onClicked: dialog.showMinimized()
@@ -262,21 +264,21 @@ Item {
                     // Close
                     Rectangle {
                         objectName: "recentToolCloseButton"
-                        width: content.standardCard ? content.cardActionSize : content.decadeCard ? Theme.decadeCardActionSize : 42
+                        width: content.standardCard ? content.cardActionSize : content.decadeCard ? LauncherStyle.decadeCardActionSize : 42
                         height: content.standardCard ? content.cardActionSize
-                            : content.decadeCard ? Theme.decadeCardActionSize : parent.height
+                            : content.decadeCard ? LauncherStyle.decadeCardActionSize : parent.height
                         anchors.verticalCenter: parent.verticalCenter
                         radius: content.decadeCard ? Theme.radiusSmall : 0
                         topRightRadius: content.decadeCard ? Theme.radiusSmall : contentRect.radius
                         border.width: content.decadeCard ? Theme.borderWidthThin : 0
-                        border.color: Theme.decadeCardActionBorder
-                        color: content.decadeCard ? (closeArea.containsMouse ? Theme.primaryContainer : Theme.decadeCardActionFill)
+                        border.color: LauncherStyle.decadeCardActionBorder
+                        color: content.decadeCard ? (closeArea.containsMouse ? _visualPalette.primaryContainer : LauncherStyle.decadeCardActionFill)
                             : closeArea.containsMouse ? "#C42B1C" : "transparent"
                         MaterialIcon {
                             anchors.centerIn: parent
                             icon: "close"
                             iconSize: content.standardCard ? 20 / content.cardScale : 19
-                            color: closeArea.containsMouse ? "white" : Theme.textPrimary
+                            color: closeArea.containsMouse ? "white" : _visualPalette.textPrimary
                         }
                         MouseArea {
                             id: closeArea; anchors.fill: parent; hoverEnabled: true
@@ -328,12 +330,12 @@ Item {
                 }
                 Rectangle {
                     id: inlineDevicePanel
-                    x: Theme.decadeCardPadding
+                    x: LauncherStyle.decadeCardPadding
                     width: parent.width - x * 2
                     height: inlineDeviceChoices.implicitHeight + Theme.space16
-                    color: Theme.glassMode ? "transparent" : Theme.surfaceContainerLow
-                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainerLow; z: -0.5 }
-                    border.color: Theme.outlineVariant
+                    color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainerLow
+                    GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainerLow; z: -0.5 }
+                    border.color: _visualPalette.outlineVariant
                     radius: Theme.radiusSmall
                     AndroidDevicePicker {
                         id: inlineDeviceChoices
@@ -353,11 +355,11 @@ Item {
             Item {
                 visible: content.decadeCard
                 Layout.fillWidth: true
-                Layout.preferredHeight: visible ? Theme.decadeCounterHeight + Theme.space12 : 0
+                Layout.preferredHeight: visible ? LauncherStyle.decadeCounterHeight + Theme.space12 : 0
                 DecadeUsageCounter {
-                    x: Theme.decadeCardPadding
-                    width: parent.width - Theme.decadeCardPadding * 2
-                    height: Theme.decadeCounterHeight
+                    x: LauncherStyle.decadeCardPadding
+                    width: parent.width - LauncherStyle.decadeCardPadding * 2
+                    height: LauncherStyle.decadeCounterHeight
                     count: dialog.toolController && dialog.toolController.usageCount !== undefined
                         ? dialog.toolController.usageCount : 0
                 }
@@ -409,7 +411,7 @@ Item {
                         Layout.fillWidth: true
                         visible: text.length > 0
                         text: dialog.selectedTool.description || ""
-                        color: Theme.textSecondary
+                        color: _visualPalette.textSecondary
                         Layout.leftMargin: 20
                         Layout.rightMargin: 20
                         font.pixelSize: Theme.fontBody
@@ -470,15 +472,15 @@ Item {
                 visible: content.decadeCard
                 Layout.fillWidth: true
                 Layout.preferredHeight: visible
-                    ? footerRunButton.height + Theme.space8 + Theme.decadeCardPadding : 0
+                    ? footerRunButton.height + Theme.space8 + LauncherStyle.decadeCardPadding : 0
                 MechanicalRunButton {
                     id: footerRunButton
                     objectName: content.decadeCard ? "recentToolRunButton" : "mechanicalFooterRunButton"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.leftMargin: Theme.decadeCardPadding
-                    anchors.rightMargin: Theme.decadeCardPadding
+                    anchors.leftMargin: LauncherStyle.decadeCardPadding
+                    anchors.rightMargin: LauncherStyle.decadeCardPadding
                     anchors.topMargin: Theme.space8
                     uiScale: dialog.cardUiScale
                     running: dialog.operationRunning
@@ -496,8 +498,8 @@ Item {
             z: 10
             color: "transparent"
             radius: contentRect.radius
-            border.width: Theme.decadeCardBorderWidth
-            border.color: Theme.primary
+            border.width: LauncherStyle.decadeCardBorderWidth
+            border.color: _visualPalette.primary
         }
     }
 

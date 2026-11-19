@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import "../theme"
 
 Dialog {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: control
     popupType: Popup.Item
 
@@ -14,13 +17,13 @@ Dialog {
     anchors.centerIn: Overlay.overlay
 
     Overlay.modal: Rectangle {
-        color: Theme.scrim
+        color: _visualPalette.scrim
     }
 
     background: AppPopupSurface {
         cornerRadius: Theme.radiusCard
-        fillColor: Theme.surfaceContainerLow
-        outlineColor: Theme.outlineVariant
+        fillColor: _visualPalette.surfaceContainerLow
+        outlineColor: _visualPalette.outlineVariant
         dialogSurface: true
     }
 }

@@ -1,8 +1,11 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 // Recessed hardware key: a dark socket, beveled cap, and a small active indicator.
 Item {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     property bool selected: false
     property bool hovered: false
@@ -32,6 +35,6 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 4
         width: 7; height: 1
-        color: root.selected ? Theme.primary : "#080A0D"
+        color: root.selected ? _visualPalette.primary : "#080A0D"
     }
 }

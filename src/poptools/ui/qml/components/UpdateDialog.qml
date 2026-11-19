@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 
 AppDialog {
+    readonly property var _visualPalette: Theme.paletteFor(this)
+
     id: root
     required property var controller
     required property var parentWindow
@@ -52,9 +55,9 @@ AppDialog {
             implicitHeight: Math.min(root.maximumReleaseCardHeight,
                                      releaseContent.implicitHeight + 32)
             radius: Theme.radiusMedium
-            color: Theme.glassMode ? "transparent" : Theme.surfaceContainer
-            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: Theme.surfaceContainer; z: -0.5 }
-            border.color: Theme.outlineVariant
+            color: _visualPalette.glassMode ? "transparent" : _visualPalette.surfaceContainer
+            GlassSurface { anchors.fill: parent; cornerRadius: parent.radius; tintColor: _visualPalette.surfaceContainer; z: -0.5 }
+            border.color: _visualPalette.outlineVariant
             ColumnLayout {
                 id: releaseContent
                 anchors.fill: parent
@@ -63,7 +66,7 @@ AppDialog {
                 Text {
                     Layout.fillWidth: true
                     text: root.controller.releaseName
-                    color: Theme.textPrimary
+                    color: _visualPalette.textPrimary
                     font.pixelSize: Theme.fontComponentTitle
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
@@ -84,8 +87,8 @@ AppDialog {
                         text: root.controller.releaseNotes
                         textFormat: Text.MarkdownText
                         wrapMode: Text.Wrap
-                        color: Theme.textPrimary
-                        linkColor: Theme.primary
+                        color: _visualPalette.textPrimary
+                        linkColor: _visualPalette.primary
                         font.pixelSize: Theme.fontBody
                         onLinkActivated: function(link) {
                             Qt.openUrlExternally(link)
@@ -96,7 +99,7 @@ AppDialog {
                 Text {
                     visible: root.controller.releasePageUrl.length > 0
                     text: "在 GitHub 查看此版本"
-                    color: Theme.primary
+                    color: _visualPalette.primary
                     font.pixelSize: Theme.fontSupporting
                     MouseArea {
                         anchors.fill: parent
@@ -124,13 +127,13 @@ AppDialog {
                     anchors.centerIn: parent
                     icon: root.controller.state === "downloaded" ? "check_circle" : "download"
                     iconSize: 44
-                    color: root.controller.state === "downloaded" ? Theme.success : Theme.primary
+                    color: root.controller.state === "downloaded" ? _visualPalette.success : _visualPalette.primary
                 }
             }
             Text {
                 Layout.fillWidth: true
                 text: root.controller.status
-                color: Theme.textPrimary
+                color: _visualPalette.textPrimary
                 font.pixelSize: Theme.fontComponentTitle
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
@@ -150,7 +153,7 @@ AppDialog {
                 text: root.controller.totalSize.length > 0
                       ? root.controller.downloadedSize + " / " + root.controller.totalSize
                       : root.controller.downloadedSize
-                color: Theme.textSecondary
+                color: _visualPalette.textSecondary
                 font.pixelSize: Theme.fontSupporting
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -162,22 +165,22 @@ AppDialog {
             Layout.fillWidth: true
             Layout.fillHeight: true
             radius: Theme.radiusMedium
-            color: Theme.errorContainer
+            color: _visualPalette.errorContainer
             RowLayout {
                 anchors.fill: parent
                 anchors.margins: 18
                 spacing: Theme.space12
-                MaterialIcon { icon: "error"; iconSize: 28; color: Theme.errorColor }
+                MaterialIcon { icon: "error"; iconSize: 28; color: _visualPalette.errorColor }
                 DialogMessage {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     text: root.controller.status
-                    foregroundColor: Theme.textPrimary
+                    foregroundColor: _visualPalette.textPrimary
                 }
             }
         }
 
-        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.outlineVariant }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: _visualPalette.outlineVariant }
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
