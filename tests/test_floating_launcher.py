@@ -24,7 +24,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QCursor, QFontDatabase, QMouseEvent, QRegion, QWheelEvent, QWindow
 from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent, QQmlEngine, QQmlExpression
-from PySide6.QtQuick import QQuickWindow
+from PySide6.QtQuick import QQuickItem, QQuickWindow
 from PySide6.QtTest import QTest
 
 from poptools.infrastructure.android_device_service import AndroidDevice
@@ -3198,6 +3198,35 @@ def test_main_window_settings_navigation_and_close_to_tray(
         settings.saveFloatingLauncherStyle("decade")
         window.resize(960, 720)
         qtbot.wait(150)
+
+        if multiple is False:
+            settings_nav = window.findChild(QQuickItem, "settingsNavButton")
+            update_nav = window.findChild(QQuickItem, "updateNavButton")
+            assert settings_nav.isVisible() and not update_nav.isVisible()
+            update._set_state("downloading", "")
+            update._on_download_progress(5, 10)
+            qtbot.waitUntil(lambda: update_nav.isVisible() and update_nav.y() > settings_nav.y())
+            assert update_nav.property("label") == "下载更新 50%"
+
+            def nav_rect(item):
+                return item.mapRectToItem(window.contentItem(), item.boundingRect())
+
+            assert not nav_rect(settings_nav).intersects(nav_rect(update_nav))
+            assert QMetaObject.invokeMethod(window, "openPresetFunctionsPage")
+            assert not window.property("settingsSelected")
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton,
+                             pos=nav_rect(settings_nav).center().toPoint())
+            assert window.property("settingsSelected")
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton,
+                             pos=nav_rect(update_nav).center().toPoint())
+            qtbot.waitUntil(
+                lambda: window.findChild(QObject, "applicationUpdateDialog") is not None
+            )
+            dialog = window.findChild(QObject, "applicationUpdateDialog")
+            qtbot.waitUntil(lambda: dialog.property("opened"))
+            assert QMetaObject.invokeMethod(dialog, "close")
+            update._set_state("idle", "")
+            qtbot.waitUntil(lambda: not update_nav.isVisible() and not dialog.property("visible"))
 
         for mode in ("light", "dark", "system"):
             choice = next(item for item in visual_items(window.contentItem())

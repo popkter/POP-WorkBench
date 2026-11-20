@@ -93,6 +93,14 @@ ApplicationWindow {
     property bool settingsSelected: false
     property bool terminalEnablePending: false
     property bool updateDialogPending: false
+    readonly property string updateNavLabel: {
+        switch (updateController.state) {
+        case "available": return "有新版本可用"
+        case "downloading": return "下载更新 " + updateController.downloadProgress + "%"
+        case "downloaded": return "更新已准备好"
+        default: return ""
+        }
+    }
     readonly property real minimumToolListWidth: 120
     readonly property real maximumNavigationWidth: Theme.navigationMaximumWidth
     readonly property real minimumContentWidth: 480
@@ -528,6 +536,7 @@ ApplicationWindow {
                     }
 
                     NavItem {
+                        objectName: "settingsNavButton"
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         label: "设置"
@@ -536,14 +545,19 @@ ApplicationWindow {
                         compact: window.compactPrimaryNav
                         dense: window.compactHeight
                         selected: window.settingsSelected
-                        actionText: updateController.state === "available"
-                                    ? "有新版本可用"
-                                    : updateController.state === "downloading"
-                                      ? "下载更新 " + updateController.downloadProgress + "%"
-                                    : updateController.state === "downloaded"
-                                      ? "更新已准备好" : ""
-                        onActionClicked: window.queueUpdateDialog()
                         onClicked: window.openSettingsDialog()
+                    }
+
+                    NavItem {
+                        objectName: "updateNavButton"
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        visible: window.updateNavLabel.length > 0
+                        label: window.updateNavLabel
+                        iconName: "system_update"
+                        compact: window.compactPrimaryNav
+                        dense: window.compactHeight
+                        onClicked: window.queueUpdateDialog()
                     }
 
                     Item {
@@ -755,6 +769,7 @@ ApplicationWindow {
         id: updateDialogLoader
         active: false
         sourceComponent: UpdateDialog {
+            objectName: "applicationUpdateDialog"
             controller: updateController
             parentWindow: window
             onClosed: updateDialogLoader.active = false
