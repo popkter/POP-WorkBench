@@ -20,7 +20,7 @@ from poptools.paths import package_root
 from poptools.viewmodels.video_preview_controller import VideoPreviewController
 
 
-def make_video(path, pts=None, audio=False, size=(320, 180)):
+def make_video(path, pts=None, audio=False, size=(320, 180), gop=12):
     pts = pts or list(range(0, 2000, 40))
     with av.open(str(path), "w") as output:
         stream = output.add_stream("libx264", rate=25)
@@ -29,7 +29,7 @@ def make_video(path, pts=None, audio=False, size=(320, 180)):
         stream.time_base = Fraction(1, 1000)
         stream.codec_context.time_base = Fraction(1, 1000)
         stream.codec_context.max_b_frames = 2
-        stream.codec_context.gop_size = 12
+        stream.codec_context.gop_size = gop
         sound = output.add_stream("aac", rate=48000) if audio else None
         if sound:
             sound.layout = "stereo"
@@ -314,6 +314,7 @@ ApplicationWindow {
     property real titleBarHeight: 48
     property int captionControlWidth: 47
     property bool modernCaptionControls: true
+    property var chromeController: null
     property rect titleBarActionsRect
     property int captionHovered: -1
     property int captionPressed: -1
@@ -362,6 +363,11 @@ ApplicationWindow {
         rect = window.property("titleBarActionsRect")
         assert rect.width() == pytest.approx(actions.width())
         assert rect.right() < width - 3 * 47 - 32  # Retain a caption drag area.
+        filename = actions.findChild(QObject, "videoFileName")
+        playlist_button = actions.findChild(QObject, "videoPlaylistButton")
+        assert filename.property("text") == clip.name
+        assert filename.x() >= playlist_button.x() + playlist_button.width()
+        assert filename.x() + filename.width() <= actions.width()
         playback = window.findChild(QObject, "videoPlaybackControls")
         play = playback.findChild(QObject, "videoPlayButton")
         assert not actions.findChild(QObject, "videoPlayButton").property("visible")
@@ -371,6 +377,7 @@ ApplicationWindow {
         surface = window.findChild(QObject, "videoSurface")
         picture = window.findChild(QObject, "videoPicture")
         surface_bounds = surface.mapRectToItem(window.contentItem(), surface.boundingRect())
+        assert surface_bounds.top() == pytest.approx(48 + 16)
         anchor = QPoint(round(surface_bounds.x() + surface.width() * 0.55),
                         round(surface_bounds.y() + surface.height() * 0.55))
 
@@ -706,8 +713,8 @@ ApplicationWindow {
         assert drawer.property("height") == pytest.approx(surface.height())
         assert drawer_bounds.top() - drawer.property("topPadding") == pytest.approx(
             surface_bounds.top())
-        assert drawer_bounds.right() + drawer.property("rightPadding") == pytest.approx(
-            surface_bounds.right())
+        assert drawer_bounds.left() - drawer.property("leftPadding") == pytest.approx(
+            surface_bounds.left())
         click(row(1))
         qtbot.waitUntil(lambda: backend.loaded and not backend.busy)
         assert backend.fileName == "second.mp4"
@@ -751,7 +758,7 @@ ApplicationWindow {
         assert backend.fileName == "second.mp4" and len(backend.playlist) == 1
         assert backend.position == pytest.approx(0.8)
         QTest.mouseClick(window, Qt.MouseButton.LeftButton,
-                         pos=workspace_bounds.topLeft().toPoint() + QPoint(5, 5))
+                         pos=workspace_bounds.topRight().toPoint() + QPoint(-5, 5))
         qtbot.waitUntil(lambda: not backend.listVisible)
         assert not warnings
     finally:
@@ -815,6 +822,7 @@ def test_scrub_cache_preserves_frame_intervals_and_memory_budget(tmp_path, pts):
             cached = cache.get(target)
             assert cached is not None and cached.time == pytest.approx(expected.time)
             assert cached.time <= target < cached.end
+            assert cached.image == expected.image
         cache.budget = 4096
         for time in (0, 0.04, 0.16, 0.32, 0.56):
             cache.put(reader.seek(time, lambda: None))
@@ -824,7 +832,7 @@ def test_scrub_cache_preserves_frame_intervals_and_memory_budget(tmp_path, pts):
         reader.close()
 
 
-def test_cached_drag_restores_native_picture_on_release(qapp, qtbot, tmp_path, monkeypatch):
+def test_cached_drag_keeps_native_picture(qapp, qtbot, tmp_path, monkeypatch):
     path = make_video(tmp_path / 'native.mp4', size=(1280, 720))
     backend = VideoPreviewController()
     try:
@@ -839,7 +847,7 @@ def test_cached_drag_restores_native_picture_on_release(qapp, qtbot, tmp_path, m
         qtbot.waitUntil(lambda: not backend.busy)
         assert not backend.message
         assert backend.position == pytest.approx(0.8)
-        assert backend.images._live.width() == 960
+        assert backend.images._live.width() == 1280
         monkeypatch.setattr(backend._decoder.reader, 'seek', seek)
         backend.seek(0.8)
         qtbot.waitUntil(lambda: not backend.busy)
@@ -942,7 +950,7 @@ def test_on_demand_proxy_preserves_gaps_and_reuses_bounded_neighborhoods(tmp_pat
         assert db.execute('SELECT complete FROM state').fetchone() is None
 
 
-def test_uncached_drag_remembers_preview_and_release_restores_native(qapp, qtbot, tmp_path,
+def test_uncached_drag_and_release_reuse_native_picture(qapp, qtbot, tmp_path,
                                                                    monkeypatch):
     from poptools.infrastructure.video_scrub import ScrubCache
 
@@ -957,14 +965,12 @@ def test_uncached_drag_remembers_preview_and_release_restores_native(qapp, qtbot
         backend.beginScrub()
         backend.scrub(.8)
         qtbot.waitUntil(lambda: not backend.busy)
-        assert backend.images._live.width() == 960
-        seek = backend._decoder.reader.seek
+        assert backend.images._live.width() == 1280
         monkeypatch.setattr(backend._decoder.reader, 'seek',
-                            lambda *a, **k: pytest.fail('Repeated drag must use cached preview'))
+                            lambda *a, **k: pytest.fail('Drag and release must use cached frame'))
         backend.scrub(.8)
         qtbot.waitUntil(lambda: not backend.busy)
         assert backend.position == pytest.approx(.8)
-        monkeypatch.setattr(backend._decoder.reader, 'seek', seek)
         backend.endScrub(.8)
         qtbot.waitUntil(lambda: not backend.busy)
         assert backend.images._live.width() == 1280
@@ -983,14 +989,12 @@ def test_long_video_uses_neighborhoods_without_full_proxy_job(qapp, qtbot, tmp_p
         return info, picture
 
     monkeypatch.setattr(backend._decoder, 'open', open_long)
-    monkeypatch.setattr(backend._proxy_worker, 'submit',
-                        lambda *args: pytest.fail('Long movies must not start a whole-file proxy'))
     try:
         backend.addFiles([str(path)])
         qtbot.waitUntil(lambda: backend.loaded and not backend.busy, timeout=10000)
-        assert backend._scrub_cache.proxy.on_demand
+        assert not hasattr(backend._scrub_cache, "proxy")
         assert not backend.previewOptimizing
-        qtbot.waitUntil(lambda: backend._scrub_cache.proxy.get(.4) is not None, timeout=10000)
+        qtbot.waitUntil(lambda: backend._proxy.get(.4) is not None, timeout=10000)
     finally:
         backend.shutdown()
 
@@ -1014,13 +1018,13 @@ def test_cached_drag_preempts_obsolete_slow_decode(qapp, qtbot, clip, monkeypatc
         backend._cache_center = .8
         seek = backend._decoder.reader.seek
 
-        def slow_seek(target, check, **kwargs):
+        def slow_seek(target, check):
             started.set()
             deadline = time.monotonic() + 3
             while time.monotonic() < deadline:
                 check()
                 time.sleep(.005)
-            return seek(target, check, **kwargs)
+            return seek(target, check)
 
         monkeypatch.setattr(backend._decoder.reader, 'seek', slow_seek)
         backend.beginScrub()
@@ -1034,18 +1038,18 @@ def test_cached_drag_preempts_obsolete_slow_decode(qapp, qtbot, clip, monkeypatc
         backend.shutdown()
 
 
-def test_controller_uses_persistent_proxy_and_keeps_native_output(qapp, qtbot, tmp_path):
+def test_controller_keeps_native_output_with_session_storage(qapp, qtbot, tmp_path):
     path = make_video(tmp_path / 'hd.mp4', size=(1280, 720))
     backend = VideoPreviewController(tmp_path / 'session')
     try:
         backend.addFiles([str(path)])
         qtbot.waitUntil(lambda: backend.loaded and not backend.busy, timeout=10000)
         qtbot.waitUntil(lambda: not backend.previewOptimizing, timeout=15000)
-        assert backend._scrub_cache.proxy.get(1.8) is not None
+        qtbot.waitUntil(lambda: backend.previewReady, timeout=15000)
         assert backend.images._live.width() == 1280
         backend.scrub(1.8)
         qtbot.waitUntil(lambda: not backend.busy)
-        assert backend.images._live.width() == 960
+        assert backend.images._live.width() == 1280
         assert backend.position == pytest.approx(1.8)
         backend.seek(1.8)
         qtbot.waitUntil(lambda: not backend.busy)
@@ -1131,4 +1135,79 @@ def test_dropped_video_opens_even_with_an_existing_selection(qapp, qtbot, clip, 
         backend.openDroppedFiles([str(text_file)])
         assert backend.fileName == clip.name
     finally:
+        backend.shutdown()
+
+@pytest.mark.parametrize('resolution', [0, 720])
+def test_scrub_quality_survives_resolution_change(qapp, qtbot, tmp_path, resolution):
+    path = make_video(tmp_path / 'quality.mp4', size=(1920, 1080))
+    backend = VideoPreviewController()
+    try:
+        backend.addFiles([str(path)])
+        qtbot.waitUntil(lambda: backend.loaded and not backend.busy, timeout=10000)
+        backend.setResolution(resolution)
+        qtbot.waitUntil(lambda: not backend.busy)
+        backend.beginScrub()
+        backend.scrub(.4)
+        backend.scrub(.8)
+        qtbot.waitUntil(lambda: not backend.busy and not backend.previewApproximate,
+                        timeout=10000)
+        reader = VideoReader(str(path))
+        try:
+            reader.output_height = resolution
+            expected = reader.seek(.8, lambda: None)
+            assert backend.images._live == expected.image
+        finally:
+            reader.close()
+        backend.endScrub(.8)
+        qtbot.waitUntil(lambda: not backend.busy)
+        assert backend.images._live == expected.image
+    finally:
+        backend.shutdown()
+
+
+def test_rapid_uncached_scrub_updates_before_release(qapp, qtbot, tmp_path, monkeypatch):
+    from PySide6.QtCore import QTimer
+
+    from poptools.infrastructure.video_scrub import ScrubCache
+
+    path = make_video(tmp_path / 'long-gop.mp4', size=(1280, 720), gop=125)
+    backend = VideoPreviewController()
+    timer = QTimer()
+    shown = []
+    targets = [.2 + index * .015 for index in range(30)]
+    try:
+        backend.addFiles([str(path)])
+        qtbot.waitUntil(lambda: backend.loaded and not backend.busy, timeout=10000)
+        backend._cache_worker.cancel()
+        backend._scrub_cache = ScrubCache(str(path))
+        reader = backend._decoder.reader
+        raw_next = reader.raw_next
+        def slow_decode(check):
+            time.sleep(.004)  # A cold, costly GOP rather than a prepared cache.
+            return raw_next(check)
+        monkeypatch.setattr(reader, 'raw_next', slow_decode)
+        backend.frameChanged.connect(lambda: shown.append(
+            (time.monotonic(), backend.position, backend.images._live.width())))
+        backend.beginScrub()
+        started = time.monotonic()
+        backend.scrub(1.8)
+        def move():
+            if targets:
+                backend.scrub(targets.pop(0))
+            else:
+                timer.stop()
+        timer.timeout.connect(move)
+        timer.start(16)
+        qtbot.waitUntil(lambda: not timer.isActive(), timeout=3000)
+        during = [row for row in shown if row[0] < started + .45]
+        assert len(during) >= 3, shown
+        assert all(row[2] == 1280 for row in shown)
+        backend.endScrub(.7)
+        qtbot.waitUntil(lambda: not backend.busy, timeout=3000)
+        assert backend.position == pytest.approx(.68)
+        position = backend.position
+        qtbot.wait(80)
+        assert backend.position == position  # No late progress after release.
+    finally:
+        timer.stop()
         backend.shutdown()

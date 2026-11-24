@@ -205,7 +205,8 @@ analysis = Analysis(
     hiddenimports=hiddenimports + collect_submodules("av"),
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=[str(ROOT / "packaging" / "poptools_qt_runtime.py")]
+    if sys.platform == "win32" else [],
     excludes=[
         "mypy",
         "pytest",

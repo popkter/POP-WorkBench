@@ -275,6 +275,8 @@ Item {
     VideoToolbar {
         id: videoActions
         objectName: "titleBarVideoActions"
+        // Leave room for both the window controls and a caption drag area.
+        width: Math.min(implicitWidth, Math.max(0, controls.x - x - 48))
         anchors.left: parent.left
         anchors.leftMargin: root.contentLeftInset
         anchors.verticalCenter: parent.verticalCenter

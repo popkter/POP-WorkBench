@@ -9,6 +9,7 @@ ColumnLayout {
 
     id: root
     required property var controller
+    signal scrubStarting()
     property real pixelsPerSecond: 100
     property real viewStart: 0
     property bool followPlayback: true
@@ -16,6 +17,8 @@ ColumnLayout {
     property real hoverX: 0
     property bool hovering: false
     property real dragTime: -1
+    property bool scrubPending: false
+    property bool thumbnailReloadPending: false
     readonly property real playheadTime: dragTime >= 0 ? dragTime : (controller ? controller.position : 0)
     property point previewPoint: Qt.point(0, 0)
     readonly property real duration: controller ? controller.duration : 0
@@ -59,38 +62,87 @@ ColumnLayout {
         hoverX = Math.max(0, Math.min(track.width, x))
         hoverTime = Math.max(0, Math.min(Math.max(0, duration - 0.000001),
                                         viewStart + hoverX / pixelsPerSecond))
-        previewPoint = track.mapToItem(preview.parent, hoverX, 0)
-        if (!pointer.pressed && !previewDelay.running) previewDelay.start()
+        if (hovering && !pointer.pressed && dragTime < 0) {
+            previewPoint = track.mapToItem(preview.parent, hoverX, 0)
+            if (!previewDelay.running) previewDelay.start()
+        }
+    }
+    function refreshPointerTarget() {
+        if (duration > 0 && dragTime >= 0 && pointer.pressed
+                && (pointer.pressedButtons & Qt.LeftButton)) {
+            updateHover(pointer.mouseX)
+            dragTime = hoverTime
+            queueScrub()
+        } else if (hovering) updateHover(hoverX)
+    }
+    function queueScrub() {
+        scrubPending = true
+        // Qt coalesces repeated calls to this function within one event batch.
+        // Submit on the next GUI turn instead of waiting for a render/vsync tick.
+        Qt.callLater(root.flushScrub)
+    }
+    function flushScrub() {
+        if (!visible || !scrubPending || !controller
+                || !pointer.pressed || !(pointer.pressedButtons & Qt.LeftButton)) return
+        scrubPending = false
+        controller.scrub(dragTime)
+    }
+    function finishScrub(target) {
+        scrubPending = false
+        if (controller && dragTime >= 0) {
+            // Keep the requested position visible until its final frame arrives.
+            // Clearing it here would briefly jump back to an older decoded frame.
+            dragTime = target
+            controller.endScrub(target)
+            if (!controller.busy) dragTime = -1
+        }
+        if (thumbnailReloadPending) reload.restart()
     }
     function endHover() {
         hovering = false
         previewDelay.stop()
         if (controller) controller.clearPreview()
     }
-    onPixelsPerSecondChanged: { reload.restart(); if (hovering) updateHover(hoverX) }
-    onViewStartChanged: { reload.restart(); if (hovering) updateHover(hoverX) }
-    onVisibleChanged: { if (visible) reload.restart(); else endHover() }
-    onDurationChanged: { dragTime = -1; fit(); endHover() }
+    onPixelsPerSecondChanged: { reload.restart(); refreshPointerTarget() }
+    onViewStartChanged: { reload.restart(); refreshPointerTarget() }
+    onVisibleChanged: {
+        if (visible) reload.restart()
+        else {
+            finishScrub(playheadTime)
+            reload.stop()
+            endHover()
+        }
+    }
+    onDurationChanged: {
+        if (duration > 0 && pointer.pressed && dragTime >= 0) {
+            refreshPointerTarget()
+            return
+        }
+        dragTime = -1
+        scrubPending = false
+        fit()
+        endHover()
+    }
 
     Timer {
         id: reload
         interval: 120
-        onTriggered: if (root.visible && root.controller && root.duration > 0)
+        onTriggered: {
+            if (!root.visible || !root.controller || root.duration <= 0) return
+            if (pointer.pressed) {
+                root.thumbnailReloadPending = true
+                return
+            }
+            root.thumbnailReloadPending = false
             root.controller.requestThumbnails(root.viewStart,
                 Math.min(root.duration, root.viewStart + root.viewSpan), root.pixelsPerSecond)
+        }
     }
     Timer {
         id: previewDelay
         interval: 55
-        onTriggered: if (root.hovering && !pointer.pressed) root.controller.requestPreview(root.hoverTime)
-    }
-    Timer {
-        id: scrubDelay
-        // Sample once per typical display frame; the worker coalesces requests
-        // while decoding so slower devices never accumulate a drag backlog.
-        interval: 16
-        onTriggered: if (pointer.pressed && pointer.pressedButtons & Qt.LeftButton)
-            root.controller.scrub(root.hoverTime)
+        onTriggered: if (root.hovering && !pointer.pressed && root.dragTime < 0)
+            root.controller.requestPreview(root.hoverTime)
     }
     Connections {
         target: root.controller
@@ -109,14 +161,18 @@ ColumnLayout {
         function onChanged() {
             if (root.controller.playing && !wasPlaying) root.followPlayback = true
             wasPlaying = root.controller.playing
-            if (!pointer.pressed && !root.controller.busy) root.dragTime = -1
+            if (root.dragTime >= 0 && !pointer.pressed && !root.controller.busy) {
+                root.dragTime = -1
+                if (root.hovering) root.updateHover(root.hoverX)
+            }
         }
     }
 
     RowLayout {
         Layout.fillWidth: true
         Text {
-            text: root.controller ? root.timeText(root.controller.position) + " / " + root.timeText(root.duration) : ""
+            objectName: "videoTimelineTimecode"
+            text: root.controller ? root.timeText(root.playheadTime) + " / " + root.timeText(root.duration) : ""
             color: _visualPalette.textPrimary
             font.pixelSize: Theme.fontSupporting
             font.family: "Consolas"
@@ -264,13 +320,19 @@ ColumnLayout {
             onExited: if (!pressed) root.endHover()
             onPressed: mouse => {
                 root.endHover()
+                if (reload.running) {
+                    reload.stop()
+                    root.thumbnailReloadPending = true
+                }
                 root.followPlayback = false
                 root.updateHover(mouse.x)
                 if (mouse.button === Qt.MiddleButton) {
                     dragX = mouse.x; dragStart = root.viewStart
                 } else {
+                    root.scrubStarting()
                     root.controller.beginScrub()
                     root.dragTime = root.hoverTime
+                    root.scrubPending = false
                     root.controller.scrub(root.dragTime)
                 }
             }
@@ -281,18 +343,18 @@ ColumnLayout {
                     root.pan(dragStart + (dragX - mouse.x) / root.pixelsPerSecond)
                 else if (pressed && pressedButtons & Qt.LeftButton) {
                     root.dragTime = root.hoverTime
-                    if (!scrubDelay.running) scrubDelay.start()
+                    root.queueScrub()
                 }
             }
             onReleased: mouse => {
-                scrubDelay.stop()
-                if (mouse.button === Qt.LeftButton) root.controller.endScrub(root.hoverTime)
+                if (mouse.button === Qt.LeftButton) {
+                    root.updateHover(mouse.x)
+                    root.finishScrub(root.hoverTime)
+                } else if (root.thumbnailReloadPending) reload.restart()
                 if (!containsMouse) root.endHover()
             }
             onCanceled: {
-                scrubDelay.stop()
-                if (root.controller) root.controller.endScrub(root.playheadTime)
-                root.dragTime = -1
+                root.finishScrub(root.playheadTime)
                 root.endHover()
             }
             onWheel: wheel => {
@@ -327,11 +389,14 @@ ColumnLayout {
         objectName: "videoHoverPreview"
         parent: Overlay.overlay
         width: Math.min(280, root.width)
-        height: 188
+        // A short window must not put the hover popup over the timeline and
+        // intercept the very click that should start a scrub.
+        height: Math.min(188, Math.max(0, root.previewPoint.y - 16))
         padding: 8
         modal: false; dim: false; focus: false
         closePolicy: Popup.NoAutoClose
         visible: root.hovering && !pointer.pressed && root.visible && root.duration > 0
+            && height >= 90
         x: Math.max(8, Math.min(parent.width - width - 8, root.previewPoint.x - width / 2))
         y: Math.max(8, root.previewPoint.y - height - 10)
         background: AppPopupSurface {

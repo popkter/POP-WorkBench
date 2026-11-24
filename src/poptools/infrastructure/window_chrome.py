@@ -3,7 +3,7 @@
 import sys
 
 from PySide6.QtCore import QEvent, QMargins, QObject, QSize, Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QWindow
+from PySide6.QtGui import QGuiApplication, QWindow
 
 
 def initial_window_size(
@@ -25,7 +25,8 @@ class WindowChromeController(QObject):
         super().__init__(window)
         self._window = window
         preferred = window.size()
-        custom_frame = sys.platform == "win32" and window.property("customTitleBar")
+        custom_frame = (sys.platform == "win32" and QGuiApplication.platformName() == "windows"
+                        and window.property("customTitleBar"))
         if custom_frame:
             from poptools.infrastructure.windows_frame import prepare_windows_frame
 

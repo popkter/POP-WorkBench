@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import "../theme"
 
 Item {
@@ -12,6 +13,46 @@ Item {
     property bool actionsInTitleBar: false
     property bool shortcutsEnabled: true
     property bool captureBusy: false
+    property bool viewportReported: false
+    readonly property real previewDevicePixelRatio: Screen.devicePixelRatio
+    function reportPreviewActivity() {
+        if (controller && typeof controller.setPreviewActive === "function")
+            controller.setPreviewActive(visible)
+    }
+    function reportPreviewViewport() {
+        if (!visible || !controller || typeof controller.setPreviewViewport !== "function"
+                || videoSurface.width <= 0 || videoSurface.height <= 0) return
+        // Report physical pixels, including image zoom, rather than the proxy's
+        // dimensions. Image layout stays bound to the viewport, never its source.
+        const scale = previewDevicePixelRatio * videoSurface.zoomFactor
+        controller.setPreviewViewport(Math.ceil(videoSurface.width * scale),
+                                      Math.ceil(videoSurface.height * scale))
+        viewportReported = true
+    }
+    function scheduleViewportReport() {
+        if (!visible) return
+        if (controller && controller.playing) {
+            viewportReportDelay.stop()
+            Qt.callLater(root.reportPreviewViewport)
+        } else if (viewportReported) {
+            viewportReportDelay.restart()
+        } else {
+            Qt.callLater(root.reportPreviewViewport)
+        }
+    }
+    onControllerChanged: {
+        viewportReported = false
+        viewportReportDelay.stop()
+        reportPreviewActivity()
+        scheduleViewportReport()
+    }
+    onPreviewDevicePixelRatioChanged: scheduleViewportReport()
+    Component.onCompleted: { reportPreviewActivity(); scheduleViewportReport() }
+    Timer {
+        id: viewportReportDelay
+        interval: 200
+        onTriggered: root.reportPreviewViewport()
+    }
     function captureViewport() {
         if (!controller || !controller.loaded || captureBusy) return
         captureBusy = true
@@ -28,37 +69,22 @@ Item {
         }
     }
     onVisibleChanged: {
+        reportPreviewActivity()
         if (!visible && controller) { controller.pause(); controller.closeList(); controller.clearPreview() }
+        if (visible) scheduleViewportReport()
+        else {
+            viewportReported = false
+            viewportReportDelay.stop()
+        }
     }
 
     ColumnLayout {
         anchors.fill: parent
         spacing: 6
         VideoToolbar {
+            Layout.fillWidth: true
             controller: root.controller
             visible: !root.actionsInTitleBar
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            Text {
-                Layout.fillWidth: true
-                text: root.controller ? root.controller.fileName : "视频预览"
-                color: _visualPalette.textPrimary
-                font.pixelSize: Theme.fontBody
-                elide: Text.ElideMiddle
-            }
-            BusyIndicator {
-                Layout.preferredWidth: 20; Layout.preferredHeight: 20
-                running: root.controller && root.controller.busy
-                // Keep the header height stable as drag requests start and finish.
-                opacity: running ? 1 : 0
-            }
-            Text {
-                visible: root.controller && root.controller.previewOptimizing
-                text: "正在优化拖动预览…"
-                color: _visualPalette.textSecondary
-                font.pixelSize: Theme.fontSupporting
-            }
         }
         Rectangle {
             id: videoSurface
@@ -90,8 +116,9 @@ Item {
                 constrainPan()
             }
             onReadyChanged: if (!ready) fitPicture()
-            onWidthChanged: Qt.callLater(constrainPan)
-            onHeightChanged: Qt.callLater(constrainPan)
+            onWidthChanged: { Qt.callLater(constrainPan); root.scheduleViewportReport() }
+            onHeightChanged: { Qt.callLater(constrainPan); root.scheduleViewportReport() }
+            onZoomFactorChanged: root.scheduleViewportReport()
             Image {
                 id: videoPicture
                 objectName: "videoPicture"
@@ -204,6 +231,12 @@ Item {
             objectName: "videoTimeline"
             Layout.fillWidth: true
             controller: root.controller
+            onScrubStarting: {
+                if (!root.viewportReported || viewportReportDelay.running) {
+                    viewportReportDelay.stop()
+                    root.reportPreviewViewport()
+                }
+            }
         }
     }
     DropArea {
@@ -273,7 +306,7 @@ Item {
         id: listDrawer
         objectName: "videoPlaylistDrawer"
         parent: videoSurface
-        x: videoSurface.width - width
+        x: 0
         y: 0
         width: Math.min(300, videoSurface.width * 0.85)
         height: videoSurface.height
@@ -282,14 +315,14 @@ Item {
         enter: Transition {
             NumberAnimation {
                 target: listDrawer; property: "slideOffset"
-                from: listDrawer.width; to: 0; duration: 180
+                from: -listDrawer.width; to: 0; duration: 180
                 easing.type: Easing.OutCubic
             }
         }
         exit: Transition {
             NumberAnimation {
                 target: listDrawer; property: "slideOffset"
-                to: listDrawer.width; duration: 140
+                to: -listDrawer.width; duration: 140
                 easing.type: Easing.InCubic
             }
         }

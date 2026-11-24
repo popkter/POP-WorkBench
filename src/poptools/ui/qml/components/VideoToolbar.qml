@@ -159,4 +159,43 @@ RowLayout {
         enabled: root.ready
         onClicked: root.controller.setVolume(root.controller.volume > 0 ? 0 : 0.8)
     }
+    Text {
+        objectName: "videoFileName"
+        visible: root.mode === "file"
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        Layout.maximumWidth: 420
+        text: root.controller ? root.controller.fileName : "视频预览"
+        color: root.chrome ? _visualPalette.chromeForeground : _visualPalette.textPrimary
+        font.pixelSize: Theme.fontSupporting
+        elide: Text.ElideMiddle
+        verticalAlignment: Text.AlignVCenter
+    }
+    BusyIndicator {
+        visible: root.mode === "file"
+        Layout.preferredWidth: 20
+        Layout.preferredHeight: 20
+        running: root.controller && root.controller.busy
+        opacity: running ? 1 : 0
+    }
+    Text {
+        objectName: "videoPreviewPreparationStatus"
+        property bool preparing: root.controller && root.controller.previewOptimizing
+        property bool browsing: root.controller
+            && typeof root.controller.previewApproximate !== "undefined"
+            && root.controller.previewApproximate
+        visible: root.mode === "file" && root.ready && (preparing || browsing)
+        Layout.maximumWidth: 150
+        text: preparing ? "正在准备流畅预览…" : "快速浏览"
+        color: _visualPalette.textSecondary
+        font.pixelSize: Theme.fontSupporting
+        elide: Text.ElideRight
+        Accessible.name: text
+        ToolTip.visible: preparationHover.hovered
+        ToolTip.delay: 500
+        ToolTip.text: preparing
+            ? "正在后台准备高清预览。可继续拖动和播放；完成后快速定位会更流畅。"
+            : "快速拖动时显示邻近的清晰画面，停止移动后自动精确定位。"
+        HoverHandler { id: preparationHover }
+    }
 }
