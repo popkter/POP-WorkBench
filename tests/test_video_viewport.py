@@ -30,7 +30,7 @@ class ViewportRecorder(VideoPreviewController):
 
 
 @pytest.fixture
-def workspace(qapp):
+def workspace(qtbot):
     backend = ViewportRecorder()
     engine = QQmlEngine()
     engine.addImageProvider("video", backend.images)
@@ -43,7 +43,7 @@ import QtQuick
 import QtQuick.Controls
 import "components"
 ApplicationWindow {
-    width: 1100; height: 720; visible: true
+    width: 1100; height: 720
     VideoPreviewWorkspace {
         objectName: "workspace"
         anchors.fill: parent; anchors.margins: 16
@@ -54,9 +54,21 @@ ApplicationWindow {
     window = component.create()
     try:
         assert isinstance(window, QQuickWindow), [e.toString() for e in component.errors()]
-        assert QTest.qWaitForWindowExposed(window)
         root = window.findChild(QObject, "workspace")
         surface = window.findChild(QObject, "videoSurface")
+        # Fit the window before showing it so native window placement does not
+        # queue a second viewport report on smaller CI desktops.
+        available = window.screen().availableGeometry()
+        frame_margin = 48
+        window.resize(
+            min(window.width(), available.width() - frame_margin),
+            min(window.height(), available.height() - frame_margin),
+        )
+        window.show()
+        assert QTest.qWaitForWindowExposed(window)
+        qtbot.waitUntil(
+            lambda: backend.viewport_calls[-1:] == [expected_pixels(root, surface)]
+        )
         yield window, root, surface, backend
         assert not warnings
     finally:
@@ -75,12 +87,12 @@ def expected_pixels(root, surface):
 
 def test_viewport_reports_physical_pixels_and_coalesces_resize_zoom(workspace, qtbot):
     window, root, surface, backend = workspace
-    qtbot.waitUntil(lambda: bool(backend.viewport_calls))
     assert backend.viewport_calls[-1] == expected_pixels(root, surface)
     assert root.property("previewDevicePixelRatio") == window.devicePixelRatio()
     backend.viewport_calls.clear()
-    for width, zoom in [(1000, 1.5), (900, 2), (800, 2.5)]:
-        window.setWidth(width)
+    initial_width = window.width()
+    for offset, zoom in [(50, 1.5), (100, 2), (150, 2.5)]:
+        window.setWidth(initial_width - offset)
         surface.setProperty("zoomFactor", zoom)
         qtbot.wait(30)
         assert not backend.viewport_calls  # No cache rebuild per resize event.
@@ -96,7 +108,6 @@ def test_viewport_reports_physical_pixels_and_coalesces_resize_zoom(workspace, q
 def test_proxy_image_dimensions_do_not_resize_canvas_or_pixel_budget(workspace, qtbot):
     window, root, surface, backend = workspace
     picture = window.findChild(QObject, "videoPicture")
-    qtbot.waitUntil(lambda: bool(backend.viewport_calls))
     expected = expected_pixels(root, surface)
     geometry = (surface.property("width"), surface.property("height"),
                 picture.property("width"), picture.property("height"))
@@ -115,7 +126,6 @@ def test_proxy_image_dimensions_do_not_resize_canvas_or_pixel_budget(workspace, 
 
 def test_workspace_visibility_reports_activity_and_defers_hidden_viewports(workspace, qtbot):
     window, root, surface, backend = workspace
-    qtbot.waitUntil(lambda: bool(backend.viewport_calls))
     assert backend.activity_calls and backend.activity_calls[-1] is True
     backend.activity_calls.clear()
     backend.viewport_calls.clear()
