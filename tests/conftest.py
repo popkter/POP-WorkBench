@@ -1,4 +1,15 @@
+import atexit
 import os
+import sys
+from pathlib import Path
+
+import PySide6
+
+if sys.platform == "win32":
+    # QML plugins load their Qt DLL dependencies at runtime. Make the PySide6
+    # wheel's DLLs available even when the native build uses a separate Qt SDK.
+    qt_dll_directory = Path(PySide6.__file__).resolve().parent
+    atexit.register(os.add_dll_directory(str(qt_dll_directory)).close)
 
 # Keep QML tests aligned with the application startup configuration.  GitHub
 # Actions installs a standalone Qt SDK for the native build, and that SDK can
